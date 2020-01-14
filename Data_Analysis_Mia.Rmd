@@ -1,0 +1,130 @@
+---
+title: "A. petiolata Analysis"
+author: "Mia Marcellus"
+date: "1/11/2020"
+output: html_document
+---
+Load the data
+```{r}
+gmdata <- read.csv("DataSynthesis.csv")
+gmdata
+```
+
+Distinguish the family from the "Tag" column using strsplit
+```{r}
+library(dplyr)
+
+gmdata$Tag <- as.character(gmdata$Tag)
+
+for(i in 1:length(gmdata$Tag)){
+  fam <- strsplit(gmdata$Tag[i],"|", fixed = TRUE) [[1]][2] #splits into family
+  gmdata$Family [i] <- fam
+}
+
+```
+
+Eliminate pseudoreplication by taking the average of duplicates
+```{r}
+means <- gmdata %>% group_by(gluc_Sample) %>% summarize_at(.vars = vars(gluc_Conc, 
+                                                    flav_Conc, ChlorA, ChlorB),
+                                                    .funs = c(Mean="mean"), na.rm = TRUE)
+
+gmdata2 <- merge(means, gmdata, by="gluc_Sample") #merge the means with the gmdata
+```
+
+Graph glucosinolate conc according to treatment and family
+```{r}
+library(ggplot2)
+
+class(gmdata2$Family) = "character"
+
+ggplot(data = gmdata2, aes(x = treatment, y =  gluc_Conc_Mean, colour = Family))+
+  geom_point(size = 4, alpha = 0.4)+
+  geom_line(aes(group = Family))+
+  labs(x = "Treatment", y = "Glucosinolate Concentration", fill = "Family")
+```
+Figure 1. A. petiolata glucosinolate concentration according to treatment (a = alone, gm = intraspecific, m = interspecific, NA = pools) and family. Data not normalized by chlorophyll content. 
+
+Graph flavonoid conc according to treatment and family
+```{r}
+ggplot(data = gmdata2, aes(x = treatment, y =  flav_Conc_Mean, colour = Family))+
+  geom_point(size = 4, alpha = 0.7)+
+  geom_line(aes(group = Family))+
+  labs(x = "Treatment", y = "Flavonoid Concentration", fill = "Family")
+```
+Figure 2. A. petiolata flavonoid concentration according to treatment (a = alone, gm = intraspecific, m = interspecific, NA = pools) and family. Data not normalized by chlorophyll content.
+
+Graph chlorophyll A content according to treatment and family
+```{r}
+ggplot(data = gmdata2, aes(x = treatment, y = ChlorA_Mean, colour = Family))+
+  geom_point(size = 4, alpha = 0.7)+
+  geom_line(aes(group = Family))+
+  labs(x = "Treatment", y = "Chlorophyll a", fill = "Family")
+```
+
+Graph chlorophyll b content according to treatment and family
+```{r}
+ggplot(data = gmdata2, aes(x = treatment, y =  ChlorB_Mean, colour = Family))+
+  geom_point(size = 4, alpha = 0.7)+
+  geom_line(aes(group = Family))+
+  labs(x = "Treatment", y = "Chlorophyll b", fill = "Family")
+```
+
+Graph chlorophyll a and b content against glucosinolate concentration for plants grown alone
+```{r}
+#separate plants into alone treatment
+ALN <- gmdata2[grepl("a",gmdata2$treatment),]
+
+#chlorophyll a
+plot(ALN$ChlorA_Mean ~ ALN$gluc_Conc_Mean, data = ALN, xlab = "Glucosinolate Concentration", ylab = "Chlorophyll a Content")
+abline(lm(ALN$ChlorA_Mean ~ ALN$gluc_Conc_Mean, data = ALN))
+
+#chlorophyll b
+plot(ALN$ChlorB_Mean ~ ALN$gluc_Conc_Mean, data = ALN, xlab = "Glucosinolate Concentration", ylab = "Chlorophyll b Content")
+abline(lm(ALN$ChlorB_Mean ~ ALN$gluc_Conc_Mean, data = ALN))
+```
+
+Graph chlorophyll a and b content against flavonoid concentration for plants grown alone
+```{r}
+#chlorophyll a
+plot(ALN$ChlorA_Mean ~ ALN$flav_Conc_Mean, data = ALN, xlab = "Flavonoid Concentration", ylab = "Chlorophyll a Content")
+abline(lm(ALN$ChlorA_Mean ~ ALN$flav_Conc_Mean, data = ALN))
+
+#chlorophyll b
+plot(ALN$ChlorB_Mean ~ ALN$flav_Conc_Mean, data = ALN, xlab = "Flavonoid Concentration", ylab = "Chlorophyll b Content")
+abline(lm(ALN$ChlorB_Mean ~ ALN$flav_Conc_Mean, data = ALN))
+```
+
+Graph chlorophyll a and b content against glucosinolate concentration for plants grown with maples
+```{r}
+#separate plants into maple treatment
+MPL <- gmdata2[grepl("m",gmdata2$treatment),]
+#chlorophyll a
+plot(MPL$ChlorA_Mean ~ MPL$gluc_Conc_Mean, data = MPL, xlab = "Glucosinolate Concentration", ylab = "Chlorophyll a Content")
+abline(lm(MPL$ChlorA_Mean ~ MPL$gluc_Conc_Mean, data = MPL))
+
+#chlorophyll b
+plot(MPL$ChlorB_Mean ~ MPL$gluc_Conc_Mean, data = MPL, xlab = "Glucosinolate Concentration", ylab = "Chlorophyll b Content")
+abline(lm(MPL$ChlorB_Mean ~ MPL$gluc_Conc_Mean, data = MPL))
+```
+Graph chlorophyll a and b content against glucosinolate concentration for plants grown with other gm
+```{r}
+#separate plants into maple treatment
+GM <- gmdata2[grepl("gm",gmdata2$treatment),]
+#chlorophyll a
+plot(GM$ChlorA_Mean ~ GM$gluc_Conc_Mean, data = GM, xlab = "Glucosinolate Concentration", ylab = "Chlorophyll a Content")
+abline(lm(GM$ChlorA_Mean ~ GM$gluc_Conc_Mean, data = GM))
+
+#chlorophyll b
+plot(GM$ChlorB_Mean ~ GM$gluc_Conc_Mean, data = GM, xlab = "Glucosinolate Concentration", ylab = "Chlorophyll b Content")
+abline(lm(GM$ChlorB_Mean ~ GM$gluc_Conc_Mean, data = GM))
+```
+
+Graph chlorophyll content for interspecific plants against chlorophyll for intraspecific plants
+```{r}
+plot(gmdata2$ChlorA_Mean[gmdata2$treatment=="m"] ~ gmdata2$ChlorA_Mean[gmdata2$treatment=="gm"])
+  #error: variable lengths must be the same                                                  
+```
+
+
+
