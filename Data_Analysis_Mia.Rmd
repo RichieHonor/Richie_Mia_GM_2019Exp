@@ -7,7 +7,6 @@ output: html_document
 Load the data
 ```{r}
 gmdata <- read.csv("DataSynthesis.csv")
-gmdata
 ```
 
 Distinguish the family from the "Tag" column using strsplit
@@ -18,19 +17,11 @@ gmdata$Tag <- as.character(gmdata$Tag)
 
 for(i in 1:length(gmdata$Tag)){
   fam <- strsplit(gmdata$Tag[i],"|", fixed = TRUE) [[1]][2] #splits into family
-  gmdata$Family [i] <- fam
+  gmdata$Family[i] <- fam
 }
 
 ```
 
-Eliminate pseudoreplication by taking the average of duplicates
-```{r}
-means <- gmdata %>% group_by(gluc_Sample) %>% summarize_at(.vars = vars(gluc_Conc, 
-                                                    flav_Conc, ChlorA, ChlorB),
-                                                    .funs = c(Mean="mean"), na.rm = TRUE)
-
-gmdata2 <- merge(means, gmdata, by="gluc_Sample") #merge the means with the gmdata
-```
 
 Graph glucosinolate conc according to treatment and family
 ```{r}
