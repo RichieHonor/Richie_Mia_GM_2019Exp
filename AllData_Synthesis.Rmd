@@ -1,0 +1,303 @@
+---
+title: "Growth Rate Analysis"
+output: html_notebook
+---
+
+This document is to compile the various growth rate measurements I have taken, along with initial and final manual measurements of body mass, gibberrelic acid, fern, pathogen damage. This document is also to analyse the data once it has been compiled. 
+
+###File for *initial size of GM and Maples, greenhouse location, treatment and competition number*: **"Data_collection_GH.csv"**. In R/masters_thesis
+
+###File for *germination transplant date, and gibberelic acid treatment*. **clean_germination_data_2.csv**. In R/masters_thesis.
+
+###File for *final manual measurement of maple size* **Maple_data.txt**. in Python/Raw_Data.
+
+###File for *final manual measurement of Alliaria leaf size* **Leaf_data.txt**. in Python/Final_GM_Data_CompetitionExp.
+
+###File for *Growth Rate of Alliaria* **All_photo_data.txt**. in Python/python_pics_analysis.
+
+*Done*
+###File for *fern abundance and moss presence* **fern_cover.txt**. in Raw_Data. 
+
+Note for analysis: 
+only record as dead if I have the barcode, because some lost the barcode but did not die. Also, ferns were recorded for only one genotype if they were in the competition treatment, but it applied to both plants in the compeition treatment. 
+
+###File for *Pathogen damage* **NOT YET MADE**.
+
+*Done*
+###File for *Glocosinolate,Flavonoid and Chlorophyll content* **All_UV_Data.txt**. in masters_thesis/UVSpec
+
+--------------------
+--Goal of Analysis is to combine the documents into one master document that can be used to look at the data while considering all variables. 
+
+
+#Incorporate Data_collection_GH_0.csv (treatment, ID, etc.) with Glucosinolate, Flavonoid and chlorophyll data (All_UV_Data.txt).
+```{r}
+library(dplyr)
+
+#####
+#GH data prep--------------------------------------
+
+#read in GH data
+dat=read.csv("../Data_collection_GH.csv",stringsAsFactors = F)
+
+#Fix column names
+colnames(dat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
+
+#Removing first row (Which contains no data).
+dat<-dat[2:length(dat$gh_bench),]
+
+#Remove maple controls (for now) This is because the strsplit is mis identifying the maple controls for garlic mustard data. I will have to fix this later.
+dat<-dat[!grepl("aple",dat$Tag),]
+
+
+```
+
+
+```{r}
+#####
+#Spec data prep--------------------------------------
+
+#Importing functions created to clean up the UV spec data.
+source("../UVSpecProcessingModule.R")
+
+##-----------------------------------
+
+#Seperate spec data into Chlorophyll a and b
+ChlorAB<-CleanData("../UVSpec/All_UV_Data.txt")[[2]]
+
+#.... and Glucosinolate and flavonoid data
+GF<-CleanData("../UVSpec/All_UV_Data.txt")[[1]]
+
+
+###---------------------------------------
+
+#Using the Tag (fill ID) from the greenhouse data, assign a Tag to the ID numbers in the spec data.
+
+#Glucosinolates and flavonoids.
+for(i in 1:length(GF$Sample)){
+  ID<-strsplit(GF$Sample[i],"_")[[1]][1]
+  #Ensure the lable is surrounded by symbols, not numbers to ensure no faulty matches ... ex |4 cound be in |48, but not |4| in |48|
+  ID<-paste("|",ID,"|",sep = "")
+  GF$ID[i]<-ID
+  count=0
+  for(j in 1:length(dat$Tag)){
+    #Modify tag locally to avoid mis matches. 
+    locTag<-paste(dat$Tag[j],"|",sep="")
+    if(grepl(ID,locTag,fixed=T)){
+      GF$Tag[i]<-dat$Tag[j]
+      count=count+1
+    }
+  }
+  
+  #Pool samples will be assigned a tag of simply "pool" and an ID of pool and date. 
+  if (count==0){
+    GF$Tag[i]<-GF$Sample[i]
+    GF$Sample[i]<-paste(GF$Sample[i],GF$DataFile[i],sep="-")
+  }
+}
+
+GF
+
+#Chlorophyll Samples
+for(i in 1:length(ChlorAB$Sample)){
+  ID<-strsplit(ChlorAB$Sample[i],"_")[[1]][1]
+  ID<-paste("|",ID,"|",sep = "")
+  ChlorAB$ID[i]<-ID
+  count=0
+  for(j in 1:length(dat$Tag)){
+    locTag<-paste(dat$Tag[j],"|",sep="")
+    if(grepl(ID,locTag,fixed=T)){
+      ChlorAB$Tag[i]<-dat$Tag[j]
+      count=count+1
+    }
+  }
+   #Pool samples will be assigned a tag of simply "pool" and an ID of pool and date.  
+  if (count==0){
+    ChlorAB$Tag[i]<-ChlorAB$Sample[i]
+    ChlorAB$Sample[i]<-paste(ChlorAB$Sample[i],ChlorAB$DataFile[i],sep="-")
+  }
+}
+
+#-----------------------------------------
+#Seperate GF into glucosinolate and flavonoid dataframes,these will be joined in a wide format. 
+
+#Glucosinolate
+gluc<-GF[GF$Compound=="gluc",]
+
+#Flavonoid
+flav<-GF[GF$Compound=="flav",]
+
+#Making glucosinolate specific column names
+colnames(gluc)<-paste("gluc",colnames(gluc),sep="_")
+
+#Making flavonoid specific column names
+colnames(flav)<-paste("flav",colnames(flav),sep="_")
+
+#CheckOrder, if the ID numbers are all matched up, then the columns will be joined. 
+if(!any(gluc$gluc_Sample!=flav$flav_Sample)){
+  GF_Wide<-cbind(gluc,flav)
+  print("Merge Good...")
+}
+
+#Removing controls from chlorophyll
+ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
+
+#Check to joing with chlorophyll dataframe (Question is there any that are not equal... )
+GF_Wide<-GF_Wide[order(GF_Wide$gluc_Sample),]
+ChlorNoCont<-ChlorNoCont[order(ChlorNoCont$Sample),]
+if(!any(GF_Wide$gluc_Sample!=ChlorNoCont$Sample)){
+  print("Merge good")
+  #Joining the GFwide with chlorophyll without controls. 
+  All_Wide<-cbind(GF_Wide,ChlorNoCont)
+}
+
+#Removing repeated columns. 
+All_Wide<-All_Wide %>% select(gluc_Well:gluc_Column,gluc_AdjData:gluc_Conc,flav_Well:flav_StainData,flav_AdjData:flav_Conc,Well:Column,DataFile:Tag,-ID)
+
+#Renaming Coumns
+colnames(All_Wide)[c(13,16)]<-c("Ch_Well","Ch_Column")
+
+
+#------------Taking care of mismatching Tag/ID!!!!
+
+#a273_2_dupl is a|KVEDG1-1-80|Q|273 and shares a number with d|JBCHY1-1-50|Q|273. BEcause of the a identifier, i am assiging this plant to a|KVEDG1-1-80|Q|273. 
+All_Wide$Tag[All_Wide$Tag=="a273_2_dupl"]<-"a|KVEDG1-1-80|Q|273"
+All_Wide$Sample[All_Wide$Sample=="a273_2_dupl"]<-"273d1_2"
+
+#d273_JBCHY_1_dup is the second duplicate from above. It will be changed to d|JBCHY1-1-50|Q|273
+All_Wide$Tag[All_Wide$Tag=="d273_JBCHY_1_dup"]<-"d|JBCHY1-1-50|Q|273"
+All_Wide$Sample[All_Wide$Sample=="d273_JBCHY_1_dup"]<-"273d2_1"
+
+
+#b?wsswm3-1-0_2 is unknown because we did not record the number. It is being removed from the analysis unless evidence is found to indicate the treatment. 
+All_Wide<-All_Wide[!All_Wide$Tag=="b?wsswm3-1-0_2",]
+
+####
+#Averaging duplicates!--------------------------------------
+
+#Selecting more relevant columns for a cleaner file. 
+All_Wide<-All_Wide %>% select(Tag,Sample,ChlorA,ChlorB,gluc_Conc,flav_Conc,DataFile)
+
+#Summarizing the duplicates!
+Pre_Wide<-All_Wide %>% group_by(Sample) %>% summarize_at(.vars = vars(gluc_Conc, flav_Conc, ChlorA, ChlorB),.funs=mean)
+
+#Bringing in columns that didn't have duplicates
+Pre_Wide2<-All_Wide %>% select(-ChlorA:-flav_Conc)
+Pre_Wide2<-Pre_Wide2[!duplicated(Pre_Wide2$Sample),]
+Post_Wide<-left_join(Pre_Wide,Pre_Wide2,by="Sample")
+
+
+
+```
+
+Final Merging of clean greenhouse data and clean UV data with duplicates averaged. 
+```{r}
+#This left join will keep all individuals that we have glucosinolate and flavonoid data on. 
+Final<-left_join(Post_Wide,dat,by="Tag")
+Final<-Final %>% select(-new._code_needed.,-Helper.date)
+
+#Check for those that did not get properly identified. 
+Final[is.na(Final$gh_bench)&Final$Tag!="pool",]
+
+#table(Final$Sample)[table(Final$Sample)>1]
+write.csv(Final,"DataSynthesis.csv")
+
+
+```
+
+
+Notes:
+NA's are pools
+
+Likely need to normalize gluc and flav data by chlorophyll content, a less effective work around may be to distinguish leaf number. 
+
+The two earliest sampling dates (i.e. ) need to be adjusted to account for higher pool values. 
+
+Remove pseudoreplication (i.e. cant have duplicates in there)
+
+-Appears like the alone treatment has most chlorophyll, followed by maple, then GM. 
+
+
+
+
+
+
+
+
+To be removed into analysis document. 
+```{r}
+library(ggplot2)
+ggplot(Final)+
+  geom_point(aes(x=gluc_Conc,y=flav_Conc))+
+  geom_abline(aes(slope=0.252313,intercept=0.004243))
+
+lm(flav_Conc~gluc_Conc,data=Final)
+
+summary(lm(flav_Conc~gluc_Conc,data=Final))
+
+lm(gluc_Conc~flav_Conc,data=Final)
+```
+
+
+Integrating
+###File for *fern abundance and moss presence* **fern_cover.csv**. in Raw_Data.
+
+```{r}
+#Clear Environment. 
+rm(list=ls())
+
+library(dplyr)
+
+
+#Read in data
+dat<-read.csv("../Raw_Data/fern_cover.csv",stringsAsFactors = F)
+
+#dat<-dat[!grepl("aple",),]
+final<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
+
+final[grepl("aple",final$Tag),]
+
+
+
+#final[grepl("aple",final$Tag),]
+
+#Modyfiyng tag to match final document. 
+dat$Genotype<-gsub("\\","|",dat$Genotype,fixed=T)
+dat$Genotype<-gsub("/","-",dat$Genotype,fixed=T)
+
+#Modifying column names to match final document.
+colnames(dat)[1]<-"Tag"
+
+#Genotype "e|SMITH1-1-0|Q|i159" was entered twice into the fern datasheet. As there is no way to assign an identity, and fern data are ratically different (i.e. 1 vs 15). This will be treated as a NA unless evidence for an ID arises. 
+
+dat[dat$Tag=="e|SMITH1-1-0|Q|i159",2:3]<-NA
+
+#Removing the duplicate
+dat<-dat[!duplicated(dat$Tag),]
+
+#Joining
+final<-left_join(final,dat,by="Tag")
+
+#Those that we did not enter must be made to zero for both. 
+for(i in 1:length(final$Fern)){
+  if(is.na(final$Fern[i])){
+    final$Moss.tf[i]<-"n"
+    final$Fern[i]<-0
+  }
+  else next
+}
+
+write.csv(final,"DataSynthesis.csv")
+final
+```
+
+
+
+
+
+
+
+
+
+
+
