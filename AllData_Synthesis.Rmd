@@ -162,11 +162,11 @@ colnames(All_Wide)[c(13,16)]<-c("Ch_Well","Ch_Column")
 
 #a273_2_dupl is a|KVEDG1-1-80|Q|273 and shares a number with d|JBCHY1-1-50|Q|273. BEcause of the a identifier, i am assiging this plant to a|KVEDG1-1-80|Q|273. 
 All_Wide$Tag[All_Wide$Tag=="a273_2_dupl"]<-"a|KVEDG1-1-80|Q|273"
-All_Wide$Sample[All_Wide$Sample=="a273_2_dupl"]<-"273d1_2"
+All_Wide$Sample[All_Wide$Sample=="a273_2_dupl-Dat_Dec_6_2019.txt"]<-"273d1_2"
 
 #d273_JBCHY_1_dup is the second duplicate from above. It will be changed to d|JBCHY1-1-50|Q|273
 All_Wide$Tag[All_Wide$Tag=="d273_JBCHY_1_dup"]<-"d|JBCHY1-1-50|Q|273"
-All_Wide$Sample[All_Wide$Sample=="d273_JBCHY_1_dup"]<-"273d2_1"
+All_Wide$Sample[All_Wide$Sample=="d273_JBCHY_1_dup-Dat_Dec_9_2019.txt"]<-"273d2_1"
 
 
 #b?wsswm3-1-0_2 is unknown because we did not record the number. It is being removed from the analysis unless evidence is found to indicate the treatment. 
@@ -224,19 +224,7 @@ Remove pseudoreplication (i.e. cant have duplicates in there)
 
 
 
-To be removed into analysis document. 
-```{r}
-library(ggplot2)
-ggplot(Final)+
-  geom_point(aes(x=gluc_Conc,y=flav_Conc))+
-  geom_abline(aes(slope=0.252313,intercept=0.004243))
 
-lm(flav_Conc~gluc_Conc,data=Final)
-
-summary(lm(flav_Conc~gluc_Conc,data=Final))
-
-lm(gluc_Conc~flav_Conc,data=Final)
-```
 
 
 Integrating
@@ -288,7 +276,9 @@ for(i in 1:length(final$Fern)){
 }
 
 write.csv(final,"DataSynthesis.csv")
-final
+
+
+
 ```
 
 
