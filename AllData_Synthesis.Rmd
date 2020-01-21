@@ -38,7 +38,7 @@ library(dplyr)
 #GH data prep--------------------------------------
 
 #read in GH data
-dat=read.csv("../Data_collection_GH.csv",stringsAsFactors = F)
+dat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
 
 #Fix column names
 colnames(dat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
@@ -238,7 +238,7 @@ library(dplyr)
 
 
 #Read in data
-dat<-read.csv("../Raw_Data/fern_cover.csv",stringsAsFactors = F)
+dat<-read.csv("Data_Moities/fern_cover.csv",stringsAsFactors = F)
 
 #dat<-dat[!grepl("aple",),]
 final<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
@@ -282,6 +282,18 @@ write.csv(final,"DataSynthesis.csv")
 ```
 
 
+###File for *final manual measurement of Alliaria leaf size* **Leaf_data.txt**. in Python/Final_GM_Data_CompetitionExp.
+```{r}
+#This file contains the length and width of every leaf in the competition treatment that did not have a whole punch. This data has a complementary set of photos of each leaf that was holepunched, along with the length and width of each holepunched leaf. This, together, can be used to determine how leaf size affects secondary compound production, but can also be amalgamated into a final biomass measurement. 
+
+
+#Clear Environment. 
+rm(list=ls())
+dat<-read.csv("Data_Moities/Leaf_data.txt",header = F)
+
+table(dat$V2)
+
+```
 
 
 

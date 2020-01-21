@@ -65,22 +65,22 @@ VarAnal<-VarAnal[!is.na(VarAnal$ChlorA),]
 #Glucosinolate, ChlorB
 ggplot(VarAnal)+
   geom_point(aes(y=gluc_Conc,x=ChlorB))+
-  labs(y="Glucosinolate Standard deviation",x="Chlorophyll Standard Deviation")
+  labs(y="Glucosinolate SD",x="Chlorophyll B SD")
 
 #Flavonoid, ChlorB
 ggplot(VarAnal)+
   geom_point(aes(y=flav_Conc,x=ChlorB))+
-  labs(y="Glucosinolate Standard deviation",x="Chlorophyll Standard Deviation")
+  labs(y="Flavonoid SD",x="Chlorophyll B SD")
 
 #Glucosinolate, ChlorA
 ggplot(VarAnal)+
   geom_point(aes(y=gluc_Conc,x=ChlorA))+
-  labs(y="Glucosinolate Standard deviation",x="Chlorophyll Standard Deviation")
+  labs(y="Glucosinolate SD",x="Chlorophyll A SD")
 
 #Flavonoid, ChlorA
 ggplot(VarAnal)+
   geom_point(aes(y=flav_Conc,x=ChlorA))+
-  labs(y="Glucosinolate Standard deviation",x="Chlorophyll Standard Deviation")
+  labs(y="Flavonoid SD",x="Chlorophyll A SD")
 
 ```
 
