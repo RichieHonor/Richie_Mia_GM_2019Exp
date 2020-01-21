@@ -5,30 +5,85 @@ date: "1/11/2020"
 output: html_document
 ---
 Load the data
+
 ```{r}
 gmdata <- read.csv("DataSynthesis.csv",stringsAsFactors = F)
 ```
 
+Load libraries
+```{r}
+library(ggplot2)
+library(dplyr)
+```
+
+```{r}
+
+#c|BWPEM1-9-0|Q|10
+#make new vectors
+plate <- gsub("\\|.*", "", gmdata$Tag)
+plate
+```
+
 Distinguish the family from the "Tag" column using strsplit
 ```{r}
-library(dplyr)
-
 for(i in 1:length(gmdata$Tag)){
-  if(length(strsplit(gmdata$Tag[i],"|", fixed = TRUE) [[1]])>2){
+  strsplit(gmdata$Tag[i],"|", fixed = TRUE) [[1]]
     fam <- strsplit(gmdata$Tag[i],"|", fixed = TRUE) [[1]][2] #splits into family
+    fam<-strsplit(fam,"-", fixed = TRUE) [[1]][1]
   gmdata$Family[i] <- fam
-  }
-  else gmdata$Family[i]<-NA #(For no, code for maple control later)
+  
 }
-gmdata
+#make more efficient using apply function (or see above code chunk for more efficient way)
+```
+
+Summary Stats
+```{r}
+summary(gmdata)
+```
+
+Frequency distribution for glucosinolate content
+```{r}
+ggplot(gmdata)+
+geom_histogram(aes(x = gluc_Conc), binwidth = 0.007)+
+  theme_bw()+
+  labs(x = "Glucosinolate concentration", y = "Frequency")
+```
+
+Frequency distribution for flavonoid content
+```{r}
+ggplot(gmdata)+
+geom_histogram(aes(x = flav_Conc), binwidth = 0.003)+
+  theme_bw()+
+  labs(x = "Flavonoid concentration", y = "Frequency")
+```
+
+Frequency distribution for chlorophyll a content
+```{r}
+ggplot(gmdata)+
+geom_histogram(aes(x = ChlorA), bins = 40)+
+  theme_bw()+
+  labs(x = "Chlorophyll a", y = "Frequency")
+```
+
+Frequency distribution for chlorophyll b content
+```{r}
+ggplot(gmdata)+
+geom_histogram(aes(x = ChlorB), bins = 40)+
+  theme_bw()+
+  labs(x = "Chlorophyll b", y = "Frequency")
+```
+
+Frequency distribution for leaf length
+```{r}
+ggplot(gmdata)+
+geom_histogram(aes(x = leaf_length), bins = 25)+
+  theme_bw()+
+  labs(x = "Leaf length (cm)", y = "Frequency")
 ```
 
 
 Graph glucosinolate conc according to treatment and family
 ```{r}
-library(ggplot2)
-
-
 ggplot(data = gmdata, aes(x = treatment, y =  gluc_Conc, colour = Family))+
   geom_point(size = 4, alpha = 0.4)+
   geom_line(aes(group = Family))+
