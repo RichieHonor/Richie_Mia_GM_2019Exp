@@ -46,6 +46,8 @@ ggplot(dat)+
   geom_abline(aes(slope=GFSlopeInt[2],intercept=GFSlopeInt[1]))
 
 
+
+
 ```
 
 
@@ -81,6 +83,7 @@ ggplot(VarAnal)+
 ggplot(VarAnal)+
   geom_point(aes(y=flav_Conc,x=ChlorA))+
   labs(y="Flavonoid SD",x="Chlorophyll A SD")
+
 
 ```
 

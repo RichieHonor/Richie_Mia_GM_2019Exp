@@ -7,6 +7,8 @@ output: html_document
 Load the data
 
 ```{r}
+#This clears the working environment for you.
+rm(list=ls())
 gmdata <- read.csv("DataSynthesis.csv",stringsAsFactors = F)
 ```
 
@@ -88,6 +90,8 @@ ggplot(data = gmdata, aes(x = treatment, y =  gluc_Conc, colour = Family))+
   geom_point(size = 4, alpha = 0.4)+
   geom_line(aes(group = Family))+
   labs(x = "Treatment", y = "Glucosinolate Concentration", colour = "Family")
+
+
 ```
 Figure 1. A. petiolata glucosinolate concentration according to treatment (a = alone, gm = intraspecific, m = interspecific, NA = pools) and family. Data not normalized by chlorophyll content. 
 

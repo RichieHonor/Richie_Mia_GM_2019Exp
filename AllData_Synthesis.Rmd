@@ -366,7 +366,14 @@ final<-rbind(datNoFaults,datOnlyFaults)
 #write.csv(final,"DataSynthesis.csv")
 ```
 
+Removing Runs from dec 8 and 9. After looking at the data, It now appears way too far off from the rest of the samples, and thus needs to be removed. 
+```{r}
+rm(list=ls())
+dat<-read.csv("DataSynthesis.csv")
+dat<-dat[dat$DataFile!="Dat_Dec_6_2019.txt"&dat$DataFile!="Dat_Dec_8_2019.txt",]
+write.csv(dat,"DataSynthesis.csv")
 
+```
 
 
 
