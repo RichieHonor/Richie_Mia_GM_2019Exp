@@ -50,6 +50,7 @@ dat<-dat[2:length(dat$gh_bench),]
 dat<-dat[!grepl("aple",dat$Tag),]
 
 
+
 ```
 
 
@@ -184,6 +185,8 @@ Pre_Wide<-All_Wide %>% group_by(Sample) %>% summarize_at(.vars = vars(gluc_Conc,
 #Bringing in columns that didn't have duplicates
 Pre_Wide2<-All_Wide %>% select(-ChlorA:-flav_Conc)
 Pre_Wide2<-Pre_Wide2[!duplicated(Pre_Wide2$Sample),]
+
+
 Post_Wide<-left_join(Pre_Wide,Pre_Wide2,by="Sample")
 
 
@@ -194,6 +197,7 @@ Final Merging of clean greenhouse data and clean UV data with duplicates average
 ```{r}
 #This left join will keep all individuals that we have glucosinolate and flavonoid data on. 
 Final<-left_join(Post_Wide,dat,by="Tag")
+
 Final<-Final %>% select(-new._code_needed.,-Helper.date)
 
 #Check for those that did not get properly identified. 
@@ -266,6 +270,7 @@ dat<-dat[!duplicated(dat$Tag),]
 #Joining
 final<-left_join(final,dat,by="Tag")
 
+final
 #Those that we did not enter must be made to zero for both. 
 for(i in 1:length(final$Fern)){
   if(is.na(final$Fern[i])){
@@ -275,11 +280,97 @@ for(i in 1:length(final$Fern)){
   else next
 }
 
+if(colnames(final)[1]=="X"){
+  final<-select(final,-X)
+}
+
 write.csv(final,"DataSynthesis.csv")
 
 
 
 ```
+
+
+#Adjusting for bad sampling days. 
+Dec 6 and 8 runs used the protocol before we initialized the evaporation step, as a result, these samples will be adjusted for by bringing all samples down from the mean of their pool to the mean of the regular samples pool.  
+```{r}
+rm(list=ls())
+dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
+
+#--------------------------------------------------------------
+#Preparing data to be Adusted.
+#--------------------------------------------------------------
+
+#Isolating dec 6 and 8 trials to be adjusted
+datOnlyFaults<-dat[dat$DataFile=="Dat_Dec_8_2019.txt"|dat$DataFile=="Dat_Dec_6_2019.txt",]
+
+datOnlyFaultsPools<-datOnlyFaults[grepl("pool",datOnlyFaults$Sample),]
+
+#Isolating pools from all data that are not from run dec 6 or 8.
+datNoFaults<-dat[dat$DataFile!="Dat_Dec_8_2019.txt"&dat$DataFile!="Dat_Dec_6_2019.txt",]
+datNoFaults<-datNoFaults[grepl("pool",datNoFaults$Sample),]
+
+#Taking the mean of the pools without runs from dec 6 or 8. 
+glucMean<-mean(datNoFaults$gluc_Conc)
+flavMean<-mean(datNoFaults$flav_Conc)
+ChlorAMean<-mean(datNoFaults$ChlorA)
+ChlorBMean<-mean(datNoFaults$ChlorB)
+
+#--------------------------------------------------------------
+#Finding the different between the means of pools from runs on dec 6 and 8 from the grand mean of pools that do not contain those run means. 
+#--------------------------------------------------------------
+
+#Dec 6 differences.
+glucDif6<-glucMean-datOnlyFaultsPools$gluc_Conc[datOnlyFaultsPools$Sample=="pool-Dat_Dec_6_2019.txt"]
+flavDif6<-flavMean-datOnlyFaultsPools$flav_Conc[datOnlyFaultsPools$Sample=="pool-Dat_Dec_6_2019.txt"]
+ChorADif6<-ChlorAMean-datOnlyFaultsPools$ChlorA[datOnlyFaultsPools$Sample=="pool-Dat_Dec_6_2019.txt"]
+ChlorBDif6<-ChlorBMean-datOnlyFaultsPools$ChlorB[datOnlyFaultsPools$Sample=="pool-Dat_Dec_6_2019.txt"]
+
+#Dec 8 Differences
+glucDif8<-glucMean-datOnlyFaultsPools$gluc_Conc[datOnlyFaultsPools$Sample=="pool-Dat_Dec_8_2019.txt"]
+flavDif8<-flavMean-datOnlyFaultsPools$flav_Conc[datOnlyFaultsPools$Sample=="pool-Dat_Dec_8_2019.txt"]
+ChorADif8<-ChlorAMean-datOnlyFaultsPools$ChlorA[datOnlyFaultsPools$Sample=="pool-Dat_Dec_8_2019.txt"]
+ChlorBDif8<-ChlorBMean-datOnlyFaultsPools$ChlorB[datOnlyFaultsPools$Sample=="pool-Dat_Dec_8_2019.txt"]
+
+#--------------------------------------------------------------
+#Now I simply add the difference between the true means without dec 6 and 8 and dec 6 and 8 means from the dec 6 and 8 values. 
+#--------------------------------------------------------------
+
+for(i in 1:length(datOnlyFaults$gluc_Conc)){
+   if (datOnlyFaults$DataFile[i]=="Dat_Dec_6_2019.txt"){
+    datOnlyFaults$gluc_Conc[i]<-datOnlyFaults$gluc_Conc[i]+glucDif6
+    datOnlyFaults$flav_Conc[i]<-datOnlyFaults$flav_Conc[i]+flavDif6
+    datOnlyFaults$ChlorA[i]<-datOnlyFaults$ChlorA[i]+ChorADif6
+    datOnlyFaults$ChlorB[i]<-datOnlyFaults$ChlorB[i]+ChlorBDif6
+  }
+    else if (datOnlyFaults$DataFile[i]=="Dat_Dec_8_2019.txt"){
+    datOnlyFaults$gluc_Conc[i]<-datOnlyFaults$gluc_Conc[i]+glucDif8
+    datOnlyFaults$flav_Conc[i]<-datOnlyFaults$flav_Conc[i]+flavDif8
+    datOnlyFaults$ChlorA[i]<-datOnlyFaults$ChlorA[i]+ChorADif8
+    datOnlyFaults$ChlorB[i]<-datOnlyFaults$ChlorB[i]+ChlorBDif8
+    }
+  else{print("Missing Value...something went wrong.")
+    print(datOnlyFaults$DataFile[i])}
+}
+
+#--------------------------------------------------------------
+#Remerging fixed data frames. 
+#--------------------------------------------------------------
+
+#Recreating datNoFaults so that it contains the pool samples again.
+datNoFaults<-dat[dat$DataFile!="Dat_Dec_8_2019.txt"&dat$DataFile!="Dat_Dec_6_2019.txt",]
+
+#Merging
+final<-rbind(datNoFaults,datOnlyFaults)
+
+#write.csv(final,"DataSynthesis.csv")
+```
+
+
+
+
+
+
 
 
 ###File for *final manual measurement of Alliaria leaf size* **Leaf_data.txt**. in Python/Final_GM_Data_CompetitionExp.
@@ -289,7 +380,7 @@ write.csv(final,"DataSynthesis.csv")
 
 #Clear Environment. 
 rm(list=ls())
-dat<-read.csv("Data_Moities/Leaf_data.txt",header = F)
+dat<-read.csv("Data_Moities/Gm_Final_Leaf_data.txt",header = F)
 
 table(dat$V2)
 
