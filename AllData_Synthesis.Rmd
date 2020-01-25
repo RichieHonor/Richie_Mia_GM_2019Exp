@@ -243,9 +243,9 @@ Final<-Final %>% select(-new._code_needed.,-Helper.date)
 Final[is.na(Final$gh_bench)&Final$Tag!="pool",]
 
 #table(Final$Sample)[table(Final$Sample)>1]
-#write.csv(Final,"DataSynthesis.csv")
+write.csv(Final,"DataSynthesis.csv")
 
-Final
+
 
 ```
 
@@ -285,13 +285,7 @@ library(dplyr)
 dat<-read.csv("Data_Moities/fern_cover.csv",stringsAsFactors = F)
 
 #dat<-dat[!grepl("aple",),]
-final<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
-
-final[grepl("aple",final$Tag),]
-
-
-
-#final[grepl("aple",final$Tag),]
+final0.1<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
 
 #Modyfiyng tag to match final document. 
 dat$Genotype<-gsub("\\","|",dat$Genotype,fixed=T)
@@ -302,15 +296,16 @@ colnames(dat)[1]<-"Tag"
 
 #Genotype "e|SMITH1-1-0|Q|i159" was entered twice into the fern datasheet. As there is no way to assign an identity, and fern data are ratically different (i.e. 1 vs 15). This will be treated as a NA unless evidence for an ID arises. 
 
-dat[dat$Tag=="e|SMITH1-1-0|Q|i159",2:3]<-NA
+dat[dat$Tag=="e|SMITH1-1-0|Q|i159",c("Moss.tf","Fern")]<-NA
+dat[dat$Tag=="e|SMITH1-1-0|Q|i159",c("Moss.tf","Fern")]
 
 #Removing the duplicate
 dat<-dat[!duplicated(dat$Tag),]
 
 #Joining
-final<-left_join(final,dat,by="Tag")
+final<-left_join(final0.1,dat,by="Tag")
 
-final
+
 #Those that we did not enter must be made to zero for both. 
 for(i in 1:length(final$Fern)){
   if(is.na(final$Fern[i])){
@@ -323,7 +318,7 @@ for(i in 1:length(final$Fern)){
 if(colnames(final)[1]=="X"){
   final<-select(final,-X)
 }
-
+final
 write.csv(final,"DataSynthesis.csv")
 
 
@@ -331,87 +326,18 @@ write.csv(final,"DataSynthesis.csv")
 ```
 
 
-#Adjusting for bad sampling days. 
-Dec 6 and 8 runs used the protocol before we initialized the evaporation step, as a result, these samples will be adjusted for by bringing all samples down from the mean of their pool to the mean of the regular samples pool.  
-```{r}
-rm(list=ls())
-dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
-
-#--------------------------------------------------------------
-#Preparing data to be Adusted.
-#--------------------------------------------------------------
-
-#Isolating dec 6 and 8 trials to be adjusted
-datOnlyFaults<-dat[dat$DataFile=="Dat_Dec_8_2019.txt"|dat$DataFile=="Dat_Dec_6_2019.txt",]
-
-datOnlyFaultsPools<-datOnlyFaults[grepl("pool",datOnlyFaults$Sample),]
-
-#Isolating pools from all data that are not from run dec 6 or 8.
-datNoFaults<-dat[dat$DataFile!="Dat_Dec_8_2019.txt"&dat$DataFile!="Dat_Dec_6_2019.txt",]
-datNoFaults<-datNoFaults[grepl("pool",datNoFaults$Sample),]
-
-#Taking the mean of the pools without runs from dec 6 or 8. 
-glucMean<-mean(datNoFaults$gluc_Conc)
-flavMean<-mean(datNoFaults$flav_Conc)
-ChlorAMean<-mean(datNoFaults$ChlorA)
-ChlorBMean<-mean(datNoFaults$ChlorB)
-
-#--------------------------------------------------------------
-#Finding the different between the means of pools from runs on dec 6 and 8 from the grand mean of pools that do not contain those run means. 
-#--------------------------------------------------------------
-
-#Dec 6 differences.
-glucDif6<-glucMean-datOnlyFaultsPools$gluc_Conc[datOnlyFaultsPools$Sample=="pool-Dat_Dec_6_2019.txt"]
-flavDif6<-flavMean-datOnlyFaultsPools$flav_Conc[datOnlyFaultsPools$Sample=="pool-Dat_Dec_6_2019.txt"]
-ChorADif6<-ChlorAMean-datOnlyFaultsPools$ChlorA[datOnlyFaultsPools$Sample=="pool-Dat_Dec_6_2019.txt"]
-ChlorBDif6<-ChlorBMean-datOnlyFaultsPools$ChlorB[datOnlyFaultsPools$Sample=="pool-Dat_Dec_6_2019.txt"]
-
-#Dec 8 Differences
-glucDif8<-glucMean-datOnlyFaultsPools$gluc_Conc[datOnlyFaultsPools$Sample=="pool-Dat_Dec_8_2019.txt"]
-flavDif8<-flavMean-datOnlyFaultsPools$flav_Conc[datOnlyFaultsPools$Sample=="pool-Dat_Dec_8_2019.txt"]
-ChorADif8<-ChlorAMean-datOnlyFaultsPools$ChlorA[datOnlyFaultsPools$Sample=="pool-Dat_Dec_8_2019.txt"]
-ChlorBDif8<-ChlorBMean-datOnlyFaultsPools$ChlorB[datOnlyFaultsPools$Sample=="pool-Dat_Dec_8_2019.txt"]
-
-#--------------------------------------------------------------
-#Now I simply add the difference between the true means without dec 6 and 8 and dec 6 and 8 means from the dec 6 and 8 values. 
-#--------------------------------------------------------------
-
-for(i in 1:length(datOnlyFaults$gluc_Conc)){
-   if (datOnlyFaults$DataFile[i]=="Dat_Dec_6_2019.txt"){
-    datOnlyFaults$gluc_Conc[i]<-datOnlyFaults$gluc_Conc[i]+glucDif6
-    datOnlyFaults$flav_Conc[i]<-datOnlyFaults$flav_Conc[i]+flavDif6
-    datOnlyFaults$ChlorA[i]<-datOnlyFaults$ChlorA[i]+ChorADif6
-    datOnlyFaults$ChlorB[i]<-datOnlyFaults$ChlorB[i]+ChlorBDif6
-  }
-    else if (datOnlyFaults$DataFile[i]=="Dat_Dec_8_2019.txt"){
-    datOnlyFaults$gluc_Conc[i]<-datOnlyFaults$gluc_Conc[i]+glucDif8
-    datOnlyFaults$flav_Conc[i]<-datOnlyFaults$flav_Conc[i]+flavDif8
-    datOnlyFaults$ChlorA[i]<-datOnlyFaults$ChlorA[i]+ChorADif8
-    datOnlyFaults$ChlorB[i]<-datOnlyFaults$ChlorB[i]+ChlorBDif8
-    }
-  else{print("Missing Value...something went wrong.")
-    print(datOnlyFaults$DataFile[i])}
-}
-
-#--------------------------------------------------------------
-#Remerging fixed data frames. 
-#--------------------------------------------------------------
-
-#Recreating datNoFaults so that it contains the pool samples again.
-datNoFaults<-dat[dat$DataFile!="Dat_Dec_8_2019.txt"&dat$DataFile!="Dat_Dec_6_2019.txt",]
-
-#Merging
-final<-rbind(datNoFaults,datOnlyFaults)
-
-#write.csv(final,"DataSynthesis.csv")
-```
-
 Removing Runs from dec 8 and 9. After looking at the data, It now appears way too far off from the rest of the samples, and thus needs to be removed. 
 ```{r}
 rm(list=ls())
+library(dplyr)
 dat<-read.csv("DataSynthesis.csv")
 dat<-dat[dat$DataFile!="Dat_Dec_6_2019.txt"&dat$DataFile!="Dat_Dec_8_2019.txt",]
+
+dat<-dat %>% select(Sample:Fern)
+
 write.csv(dat,"DataSynthesis.csv")
+
+
 
 ```
 
