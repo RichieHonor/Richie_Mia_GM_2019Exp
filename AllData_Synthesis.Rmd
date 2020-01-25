@@ -237,7 +237,7 @@ Final Merging of clean greenhouse data and clean UV data with duplicates average
 #This left join will keep all individuals that we have glucosinolate and flavonoid data on. 
 Final<-left_join(All_Wide,dat,by="Tag")
 
-#Final<-Final %>% select(-new._code_needed.,-Helper.date)
+Final<-Final %>% select(-new._code_needed.,-Helper.date)
 
 #Check for those that did not get properly identified. 
 Final[is.na(Final$gh_bench)&Final$Tag!="pool",]
