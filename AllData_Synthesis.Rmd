@@ -34,8 +34,9 @@ only record as dead if I have the barcode, because some lost the barcode but did
 ```{r}
 library(dplyr)
 
-#####
-#GH data prep--------------------------------------
+#-------------------------------------------------------------------
+#----------GH Data Prep
+#-------------------------------------------------------------------
 
 #read in GH data
 dat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
@@ -48,7 +49,6 @@ dat<-dat[2:length(dat$gh_bench),]
 
 #Remove maple controls (for now) This is because the strsplit is mis identifying the maple controls for garlic mustard data. I will have to fix this later.
 dat<-dat[!grepl("aple",dat$Tag),]
-
 
 
 ```
@@ -70,7 +70,9 @@ ChlorAB<-CleanData("../UVSpec/All_UV_Data.txt")[[2]]
 GF<-CleanData("../UVSpec/All_UV_Data.txt")[[1]]
 
 
-###---------------------------------------
+###-----------------------------------------------------------------
+#Sample Identification!
+####----------------------------------------------------------------
 
 #Using the Tag (fill ID) from the greenhouse data, assign a Tag to the ID numbers in the spec data.
 
@@ -97,7 +99,6 @@ for(i in 1:length(GF$Sample)){
   }
 }
 
-GF
 
 #Chlorophyll Samples
 for(i in 1:length(ChlorAB$Sample)){
@@ -134,61 +135,99 @@ colnames(gluc)<-paste("gluc",colnames(gluc),sep="_")
 #Making flavonoid specific column names
 colnames(flav)<-paste("flav",colnames(flav),sep="_")
 
-#CheckOrder, if the ID numbers are all matched up, then the columns will be joined. 
-if(!any(gluc$gluc_Sample!=flav$flav_Sample)){
-  GF_Wide<-cbind(gluc,flav)
-  print("Merge Good...")
-}
-
 #Removing controls from chlorophyll
 ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
 
-#Check to joing with chlorophyll dataframe (Question is there any that are not equal... )
-GF_Wide<-GF_Wide[order(GF_Wide$gluc_Sample),]
-ChlorNoCont<-ChlorNoCont[order(ChlorNoCont$Sample),]
-if(!any(GF_Wide$gluc_Sample!=ChlorNoCont$Sample)){
-  print("Merge good")
-  #Joining the GFwide with chlorophyll without controls. 
-  All_Wide<-cbind(GF_Wide,ChlorNoCont)
+####-----------------------------------------------------
+#Removing Duplicates and checking for errors. 
+####-----------------------------------------------------
+
+#Some caution should be advised. Ensure the sample 254_1	is still in the Final data frame All_Wide, this could occur if the standard deviaiton of the samples was attempted to be integrated into this workflow where, sd() cannot take the sd of one number, but mean can so it is okay.
+
+
+#Checking for duplicated samples (not technical replicates-two samples with the same name)... 
+print("These are the duplicates that we know about: 142_2,441_1,i136_1, there should be no others besides the pool below and the glucosinolate flavonoid and chlorophyll dataframes should have the same amount of erroneous duplicates (i.e. 4 technical replicates):")
+table(gluc$gluc_Sample)[table(gluc$gluc_Sample)>2 ]       
+table(ChlorNoCont$Sample)[table(ChlorNoCont$Sample)>2 ]    
+table(flav$flav_Sample)[table(flav$flav_Sample)>2 ]       
+
+#Averaging duplicates (i.e. technical replicates) 
+print("Averaging duplicates and exceptions..")
+
+#gluc
+Average_gluc<-gluc %>% group_by(gluc_Sample) %>% summarize_at(vars(gluc_Conc), .funs=mean)
+
+#flav
+Average_flav<-flav %>% group_by(flav_Sample) %>% summarize_at(.vars = vars(flav_Conc),.funs=mean)
+
+#ChlorNoCont
+Average_ChlorNoCont<-ChlorNoCont %>% group_by(Sample) %>% summarize_at(.vars=vars(ChlorA,ChlorB),.funs=mean)
+
+#-----
+#Add in missing columns
+
+#Remove (not summarize duplicates)
+Col_Merger0.1<-ChlorNoCont[!duplicated(ChlorNoCont$Sample),]
+#Select relevant columns
+Col_Merger<-Col_Merger0.1 %>% select(Sample,Tag,DataFile)
+
+#Check to ensure that the merge went okay and no values were lost. 
+if(length(Col_Merger$Sample)!=length(Average_ChlorNoCont$Sample)){
+  stop("Columns mismatch in the merge of chlorophyll factor columns with chlorophyll data columns.")
 }
 
-#Removing repeated columns. 
-All_Wide<-All_Wide %>% select(gluc_Well:gluc_Column,gluc_AdjData:gluc_Conc,flav_Well:flav_StainData,flav_AdjData:flav_Conc,Well:Column,DataFile:Tag,-ID)
+#Merging dataframs.
+Average_ChlorNoCont2<-left_join(Average_ChlorNoCont,Col_Merger,by="Sample")
 
-#Renaming Coumns
-colnames(All_Wide)[c(13,16)]<-c("Ch_Well","Ch_Column")
+#------
+#Merge all three dataframes into a wide format. 
+All_Wide0.1<-left_join(Average_ChlorNoCont2,Average_gluc,by=c("Sample"="gluc_Sample"))
+All_Wide<-left_join(All_Wide0.1,Average_flav,by=c("Sample"="flav_Sample"))
 
+#Check to ensure it was done correctly: 
+if(length(All_Wide$Sample)!=length(Average_ChlorNoCont$Sample) |length(All_Wide$Sample)!=length(Average_gluc$gluc_Sample)
+|length(All_Wide$Sample)!=length(Average_flav$flav_Sample)){
 
-#------------Taking care of mismatching Tag/ID!!!!
+  stop("gluc, flav and chlorophyll samples did not match upafter duplicates were averaged.")
+}
 
-#a273_2_dupl is a|KVEDG1-1-80|Q|273 and shares a number with d|JBCHY1-1-50|Q|273. BEcause of the a identifier, i am assiging this plant to a|KVEDG1-1-80|Q|273. 
+#-------------------------------------------------------------------
+#--------Taking care of mismatching Tag/ID!!!!
+#-------------------------------------------------------------------
+
+#a273_2_dupl is a|KVEDG1-1-80|Q|273 and shares a number with d|JBCHY1-1-50|Q|273. BEcause of the a identifier, i am assiging this plant to a|KVEDG1-1-80|Q|273. "da" stands for duplicate A
+
+#Leaf one
+All_Wide$Tag[All_Wide$Tag=="a273_1"]<-"a|KVEDG1-1-80|Q|273"
+All_Wide$Sample[All_Wide$Sample=="a273_1-Dat_Jan_17_2020_PM.txt"]<-"273da_1"
+
+#Leaf two 
 All_Wide$Tag[All_Wide$Tag=="a273_2_dupl"]<-"a|KVEDG1-1-80|Q|273"
-All_Wide$Sample[All_Wide$Sample=="a273_2_dupl-Dat_Dec_6_2019.txt"]<-"273d1_2"
+All_Wide$Sample[All_Wide$Sample=="a273_2_dupl-Dat_Dec_6_2019.txt"]<-"273da_2"
 
-#d273_JBCHY_1_dup is the second duplicate from above. It will be changed to d|JBCHY1-1-50|Q|273
+
+
+
+#d273_JBCHY_1_dup is the second duplicate from above. It will be changed to d|JBCHY1-1-50|Q|273 "dd" stand for duplicate "d". - this is because of the germination treatment.
+
+#Leaf 1
 All_Wide$Tag[All_Wide$Tag=="d273_JBCHY_1_dup"]<-"d|JBCHY1-1-50|Q|273"
-All_Wide$Sample[All_Wide$Sample=="d273_JBCHY_1_dup-Dat_Dec_9_2019.txt"]<-"273d2_1"
+All_Wide$Sample[All_Wide$Sample=="d273_JBCHY_1_dup-Dat_Dec_9_2019.txt"]<-"273dd_1"
 
+#Leaf 2
+All_Wide$Tag[All_Wide$Tag=="d273_Jbchy_2"]<-"d|JBCHY1-1-50|Q|273"
+All_Wide$Sample[All_Wide$Sample=="d273_Jbchy_2-Dat_Jan_17_2020_PM.txt"]<-"273dd_2"
 
 #b?wsswm3-1-0_2 is unknown because we did not record the number. It is being removed from the analysis unless evidence is found to indicate the treatment. 
 All_Wide<-All_Wide[!All_Wide$Tag=="b?wsswm3-1-0_2",]
-
-####
-#Averaging duplicates!--------------------------------------
-
-#Selecting more relevant columns for a cleaner file. 
-All_Wide<-All_Wide %>% select(Tag,Sample,ChlorA,ChlorB,gluc_Conc,flav_Conc,DataFile)
-
-#Summarizing the duplicates!
-Pre_Wide<-All_Wide %>% group_by(Sample) %>% summarize_at(.vars = vars(gluc_Conc, flav_Conc, ChlorA, ChlorB),.funs=mean)
-
-#Bringing in columns that didn't have duplicates
-Pre_Wide2<-All_Wide %>% select(-ChlorA:-flav_Conc)
-Pre_Wide2<-Pre_Wide2[!duplicated(Pre_Wide2$Sample),]
+All_Wide<-All_Wide[!All_Wide$Tag=="b?wsswm3-1-0_dup",]
 
 
-Post_Wide<-left_join(Pre_Wide,Pre_Wide2,by="Sample")
+#Sample 381 is listed as G381, which is why it was not identified, i will change it to be appropriate
 
+All_Wide[All_Wide$Sample=="381_1-Dat_Jan_21_2020_AM.txt",]<-"381_1"
+
+All_Wide[All_Wide$Tag=="381_1",]<-"c|MSMID1-1-20|G381"
 
 
 ```
@@ -196,16 +235,17 @@ Post_Wide<-left_join(Pre_Wide,Pre_Wide2,by="Sample")
 Final Merging of clean greenhouse data and clean UV data with duplicates averaged. 
 ```{r}
 #This left join will keep all individuals that we have glucosinolate and flavonoid data on. 
-Final<-left_join(Post_Wide,dat,by="Tag")
+Final<-left_join(All_Wide,dat,by="Tag")
 
-Final<-Final %>% select(-new._code_needed.,-Helper.date)
+#Final<-Final %>% select(-new._code_needed.,-Helper.date)
 
 #Check for those that did not get properly identified. 
 Final[is.na(Final$gh_bench)&Final$Tag!="pool",]
 
 #table(Final$Sample)[table(Final$Sample)>1]
-write.csv(Final,"DataSynthesis.csv")
+#write.csv(Final,"DataSynthesis.csv")
 
+Final
 
 ```
 
