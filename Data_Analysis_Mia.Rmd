@@ -23,7 +23,6 @@ library(dplyr)
 #c|BWPEM1-9-0|Q|10
 #make new vectors
 plate <- gsub("\\|.*", "", gmdata$Tag)
-plate
 ```
 
 Distinguish the family from the "Tag" column using strsplit
@@ -41,6 +40,15 @@ for(i in 1:length(gmdata$Tag)){
 Summary Stats
 ```{r}
 summary(gmdata)
+```
+Change continous variables back from characters
+```{r}
+gmdata$gluc_Conc <- as.numeric(as.character(gmdata$gluc_Conc))
+gmdata$flav_Conc <- as.numeric(as.character(gmdata$flav_Conc))
+gmdata$ChlorA <- as.numeric(as.character(gmdata$gluc_Conc))
+gmdata$ChlorB <- as.numeric(as.character(gmdata$gluc_Conc))
+
+
 ```
 
 Frequency distribution for glucosinolate content
