@@ -229,6 +229,9 @@ All_Wide[All_Wide$Sample=="381_1-Dat_Jan_21_2020_AM.txt",]<-"381_1"
 
 All_Wide[All_Wide$Tag=="381_1",]<-"c|MSMID1-1-20|G381"
 
+####467_1
+
+
 
 ```
 
@@ -318,7 +321,8 @@ for(i in 1:length(final$Fern)){
 if(colnames(final)[1]=="X"){
   final<-select(final,-X)
 }
-final
+
+
 write.csv(final,"DataSynthesis.csv")
 
 

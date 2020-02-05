@@ -12,6 +12,7 @@ Load the data
 #This clears the working environment for you.
 rm(list=ls())
 gmdata <- read.csv("DataSynthesis.csv",stringsAsFactors = F)
+
 ```
 
 Load libraries
