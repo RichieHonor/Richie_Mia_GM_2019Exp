@@ -2,7 +2,9 @@
 title: "A. petiolata Analysis"
 author: "Mia Marcellus"
 date: "1/11/2020"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 Load the data
 
@@ -16,6 +18,10 @@ Load libraries
 ```{r}
 library(ggplot2)
 library(dplyr)
+library(tidyr)
+library(plotrix) #for std.error
+library(EnvStats) #for gofTest
+library(cowplot) #for grid plots
 ```
 
 ```{r}
@@ -41,27 +47,27 @@ Summary Stats
 ```{r}
 summary(gmdata)
 ```
+
 Change continous variables back from characters
 ```{r}
 gmdata$gluc_Conc <- as.numeric(as.character(gmdata$gluc_Conc))
 gmdata$flav_Conc <- as.numeric(as.character(gmdata$flav_Conc))
-gmdata$ChlorA <- as.numeric(as.character(gmdata$gluc_Conc))
-gmdata$ChlorB <- as.numeric(as.character(gmdata$gluc_Conc))
-
-
+gmdata$ChlorA <- as.numeric(as.character(gmdata$ChlorA))
+gmdata$ChlorB <- as.numeric(as.character(gmdata$ChlorB))
 ```
 
 Frequency distribution for glucosinolate content
 ```{r}
-ggplot(gmdata)+
+F1 <- ggplot(gmdata)+
 geom_histogram(aes(x = gluc_Conc), binwidth = 0.007)+
   theme_bw()+
   labs(x = "Glucosinolate concentration", y = "Frequency")
+F1
 ```
 
 Frequency distribution for flavonoid content
 ```{r}
-ggplot(gmdata)+
+F2 <- ggplot(gmdata)+
 geom_histogram(aes(x = flav_Conc), binwidth = 0.003)+
   theme_bw()+
   labs(x = "Flavonoid concentration", y = "Frequency")
@@ -69,7 +75,7 @@ geom_histogram(aes(x = flav_Conc), binwidth = 0.003)+
 
 Frequency distribution for chlorophyll a content
 ```{r}
-ggplot(gmdata)+
+F3 <- ggplot(gmdata)+
 geom_histogram(aes(x = ChlorA), bins = 40)+
   theme_bw()+
   labs(x = "Chlorophyll a", y = "Frequency")
@@ -77,31 +83,37 @@ geom_histogram(aes(x = ChlorA), bins = 40)+
 
 Frequency distribution for chlorophyll b content
 ```{r}
-ggplot(gmdata)+
+F4 <- ggplot(gmdata)+
 geom_histogram(aes(x = ChlorB), bins = 40)+
   theme_bw()+
   labs(x = "Chlorophyll b", y = "Frequency")
 ```
+Remove chlorophyll b negative outlier
+```{r}
+gmdata$ChlorB[which(gmdata$ChlorB < -0.25)] <- NA
+```
 
 Frequency distribution for leaf length
 ```{r}
-ggplot(gmdata)+
-geom_histogram(aes(x = leaf_length), bins = 25)+
+F5 <- ggplot(gmdata)+
+geom_histogram(aes(x = leaf_length), binwidth = 1)+
   theme_bw()+
   labs(x = "Leaf length (cm)", y = "Frequency")
+F5
+```
+```{r}
+plot(data = gmdata, leaf_length~gluc_Conc)
 ```
 
 
 Graph glucosinolate conc according to treatment and family
 ```{r}
-ggplot(data = gmdata, aes(x = treatment, y =  gluc_Conc, colour = Family))+
+F6 <- ggplot(data = gmdata, aes(x = treatment, y =  gluc_Conc, colour = Family))+
   geom_point(size = 4, alpha = 0.4)+
   geom_line(aes(group = Family))+
   labs(x = "Treatment", y = "Glucosinolate Concentration", colour = "Family")
-
-
 ```
-Figure 1. A. petiolata glucosinolate concentration according to treatment (a = alone, gm = intraspecific, m = interspecific, NA = pools) and family. Data not normalized by chlorophyll content. 
+Figure 1. *A. petiolata* glucosinolate concentration according to treatment (a = alone, gm = intraspecific, m = interspecific, NA = pools) and family. Data not normalized by chlorophyll content. 
 
 Graph flavonoid conc according to treatment and family
 ```{r}
@@ -110,7 +122,7 @@ ggplot(data = gmdata, aes(x = treatment, y =  flav_Conc, colour = Family))+
   geom_line(aes(group = Family))+
   labs(x = "Treatment", y = "Flavonoid Concentration", fill = "Family")
 ```
-Figure 2. A. petiolata flavonoid concentration according to treatment (a = alone, gm = intraspecific, m = interspecific, NA = pools) and family. Data not normalized by chlorophyll content.
+Figure 2. *A. petiolata* flavonoid concentration according to treatment (a = alone, gm = intraspecific, m = interspecific, NA = pools) and family. Data not normalized by chlorophyll content.
 
 Graph chlorophyll A content according to treatment and family
 ```{r}
@@ -158,11 +170,11 @@ Graph chlorophyll a and b content against glucosinolate concentration for plants
 #separate plants into maple treatment
 MPL <- gmdata[grepl("m",gmdata$treatment),]
 #chlorophyll a
-plot(MPL$ChlorA ~ MPL$gluc_Conc, data = MPL, xlab = "Glucosinolate Concentration", ylab = "Chlorophyll a Content")
+plot(MPL$ChlorA ~ MPL$gluc_Conc, data = MPL, xlab = "Glucosinolate concentration", ylab = "Chlorophyll a content")
 abline(lm(MPL$ChlorA ~ MPL$gluc_Conc, data = MPL))
 
 #chlorophyll b
-plot(MPL$ChlorB ~ MPL$gluc_Conc, data = MPL, xlab = "Glucosinolate Concentration", ylab = "Chlorophyll b Content")
+plot(MPL$ChlorB ~ MPL$gluc_Conc, data = MPL, xlab = "Glucosinolate concentration", ylab = "Chlorophyll b content")
 abline(lm(MPL$ChlorB ~ MPL$gluc_Conc, data = MPL))
 ```
 Graph chlorophyll a and b content against glucosinolate concentration for plants grown with other gm
@@ -180,9 +192,371 @@ abline(lm(GM$ChlorB ~ GM$gluc_Conc, data = GM))
 
 Graph chlorophyll content for interspecific plants against chlorophyll for intraspecific plants
 ```{r}
-plot(gmdata$ChlorA[gmdata$treatment=="m"] ~ gmdata$ChlorA[gmdata$treatment=="gm"])
+#plot(gmdata$ChlorA[gmdata$treatment=="m"] ~ gmdata$ChlorA[gmdata$treatment=="gm"])
   #error: variable lengths must be the same                                                  
 ```
+
+#################################################################################
+Preliminary stats
+
+Analyzing glucosinolate content
+```{r warning = F}
+F1
+#exclude negative values for now
+#gmdata$gluc_Conc[which(gmdata$gluc_Conc < 0)] <- NA
+#gmdata$flav_Conc[which(gmdata$flav_Conc < 0)] <- NA
+
+ggplot(gmdata)+
+geom_histogram(aes(x = gluc_Conc))+
+  theme_bw()+
+  labs(x = "Glucosinolate concentration", y = "Frequency")
+
+#log transform gluc conc variable
+gmdata <- gmdata %>% mutate(loggluc_Conc = log10(gmdata$gluc_Conc + 1))
+
+#compare mean and variance
+mean(gmdata$gluc_Conc, na.rm = T) 
+var(gmdata$gluc_Conc, na.rm = T) 
+#Variance is less than the mean
+
+interaction.plot(gmdata$treatment, gmdata$Family, gmdata$gluc_Conc, type='b', ylab='Glucosinolate concentration', xlab='Treatment', main='Glucosinolate concentration according to treatment and family') 
+
+#exclude pools 
+gmdata2 <- gmdata %>% group_by(Family) %>% filter(!Family=="pool")
+
+
+#graph above interaction plot but with ggplot to make it prettier
+ggplot(data = gmdata2, aes(x = treatment, y =  loggluc_Conc, colour = Family, group = Family))+
+  stat_summary(fun.y=mean, geom="point")+
+  stat_summary(fun.y=sd, geom="point")+
+  stat_summary(fun.y=mean, geom="line")+
+  scale_colour_discrete(name = "Population")+
+  scale_x_discrete(name = "Treatment", 
+                   labels = c("Alone", "Intraspecific competition", "Interspecific competition", "Pools"))+
+  scale_y_continuous(name = "Glucosinolate concentration (log transformed)")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 10, angle=30))
+
+```
+graph combos in bivariate plot and incl se and look for overlap
+
+Testing for significant interactions between gluc conc, treatment, and family
+```{r}
+MyFit <- lm(gmdata$loggluc_Conc~gmdata$Family + gmdata$treatment + gmdata$Family:gmdata$treatment, data=gmdata) 
+summary(MyFit)
+summary(aov(MyFit))
+```
+
+Evaluate assumptions for 2-way ANOVA (F1 plot log gluc conc freq distribution)
+```{r}
+
+ggplot(gmdata)+
+geom_histogram(aes(x = loggluc_Conc))+
+  theme_bw()+
+  labs(x = "Glucosinolate concentration log transformed", y = "Frequency")
+
+#test for normality
+hist(residuals(MyFit),main="",xlab="Residuals", freq=FALSE)
+MyRes <- residuals(MyFit)
+xfit <- seq(min(MyRes),max(MyRes),length=100) #new x variable
+yfit <- dnorm(xfit,0,sd(MyRes)) #predicted Normal
+lines(xfit, yfit, col="blue") #add a blue line 
+shapiro.test(residuals(MyFit))
+plot(MyFit)
+
+#Anderson-Darling test for normality. P-value is significant, data not normal
+library(nortest)
+ad.test(gmdata$gluc_Conc)
+
+#test for homoscedasticity
+plot(MyFit,1) 
+#bartlett.test(split(gmdata$loggluc_Conc,list(gmdata$Family, gmdata$treatment)), data=gmdata)
+
+################################
+#the data even when log transformed do not pass the normality test (significant p-value Shapiro-Wilk)
+
+```
+
+Trying out gamma linear model
+Generalized linear model with Gamma family and log link (Multiplicative arithmetic mean model)
+This model assumes multiplicative effects on the original outcome by the predictors
+```{r}
+#filter NAs
+gmdata %>% filter(!is.na(gluc_Conc))
+gmdata %>% filter(!is.na(treatment))
+gmdata %>% filter(!is.na(Family))                
+
+#exclude negative values for now for gamma glm
+gmdata$gluc_Conc[which(gmdata$gluc_Conc < 0)] <- NA
+gmdata$flav_Conc[which(gmdata$flav_Conc < 0)] <- NA
+
+#glucosinolate concentration as predicted by family and treatment
+library(faraway)
+plot(density(gmdata$gluc_Conc, na.rm = T))
+gluc.glm.Gamma.log <- glm(formula = gluc_Conc ~ Family + treatment,
+                         family  = Gamma(link = "log"),
+                         data    = gmdata)
+summary(gluc.glm.Gamma.log)
+exp(coef(gluc.glm.Gamma.log)) #For 1 unit of increase in a predictor, gluc conc is expected to increase multiplicatively by a certain percent (see output)
+
+#ProUCL Anderson-Darling Goodness-of-Fit Test for Gamma
+#
+
+gofTest(, data = NULL, subset, 
+  na.action = na.pass, ...)
+test="proucl.ad.gamma"
+
+
+
+#some tests: ks, skew, lillie, cmv, proucl.ad.gamma
+#Test some goodness of fit tests with different distributions to see what fits data
+
+gofTest(gmdata$gluc_Conc, test = "proucl.ad.gamma", distribution = "gamma")
+#p-value < 0.01. Gamma distribution is not good.
+
+gofTest(gmdata$gluc_Conc, test = "sw", distribution = "lnorm3")
+#p = 0.4875715. This could work: Three-Parameter Lognormal Distribution
+
+
+
+gluc.glm.lnorm3 <- glm(formula = gluc_Conc ~ Family + treatment,
+                         family  = lnorm3,
+                         data    = gmdata)
+
+summary(gluc.glm.Gamma.log)
+exp(coef(gluc.glm.Gamma.log))
+
+
+
+
+```
+
+
+################################################################################
+
+Instead of taking away negative gluc conc values, we'll shift data right so that lowest value is 0.
+```{r}
+min(gmdata$gluc_Conc, na.rm = T)
+```
+
+Bivariate graphs: glucosinolates
+```{r fig.width = 4.5, fig.height = 8}
+
+#make a wide dataframe using 'spread'
+
+widegm <- gmdata2 %>% spread(treatment, gluc_Conc, fill = NA, convert = FALSE)
+widegm <- widegm %>% mutate(meana = mean(a, na.rm = TRUE), 
+                            meangm = mean(gm, na.rm = T),
+                            meanm = mean(m, na.rm = T))
+widegm <- widegm %>% mutate(sea = std.error(a),
+                            segm = std.error(gm),
+                            sem = std.error(m))
+
+########## BIVARIATE PLOTS ##########
+###GLUC CONC###
+  #gm intra vs alone
+p1 <- ggplot(data = widegm, aes(x = meana, y = meangm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm,
+                width = .001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meana - sea,
+                    xmax = meana + sea,
+                    width = .001, colour = "blue"))+
+  labs(y = "Intraspecific treatment", x = "Alone")+
+  theme(legend.position = "none")
+    
+  
+  #gm intra vs m inter
+p2 <- ggplot(data = widegm, aes(x = meanm, y = meangm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm, 
+                width = .001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .001, colour = "blue"))+
+  labs(y = "Intraspecific treatment", x = "Interspecific treatment")+
+  theme(legend.position = "none")
+
+  
+  #alone vs inter m
+p3 <- ggplot(data = widegm, aes(x = meanm, y = meana))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meana - sea, 
+                    ymax = meana + sea,
+                width = .001, colour ="red"))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .001, colour = "blue"))+
+  labs(y = "Alone", x = "Interspecific treatment")+
+  theme(legend.position = "none")
+
+
+
+plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 1)
+
+
+```
+
+Bivariate graphs: flavonoids
+```{r fig.width = 4.5, fig.height = 8}
+widegm <- gmdata2 %>% spread(treatment, flav_Conc, fill = NA, convert = FALSE)
+widegm <- widegm %>% mutate(meanfa = mean(a, na.rm = TRUE), 
+                            meanfgm = mean(gm, na.rm = T),
+                            meanfm = mean(m, na.rm = T))
+widegm <- widegm %>% mutate(sefa = std.error(a),
+                            sefgm = std.error(gm),
+                            sefm = std.error(m))
+
+p1 <- ggplot(data = widegm, aes(x = meanfa, y = meanfgm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meanfgm - sefgm, 
+                    ymax = meanfgm + sefgm,
+                width = .001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meanfa - sefa,
+                    xmax = meanfa + sefa,
+                    width = .001, colour = "blue"))+
+  labs(y = "FLAV Intraspecific treatment", x = "FLAV Alone")+
+  theme(legend.position = "none")
+    
+  
+  #gm intra vs m inter
+p2 <- ggplot(data = widegm, aes(x = meanfm, y = meanfgm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meanfgm - sefgm, 
+                    ymax = meanfgm + sefgm, 
+                width = .001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meanfm - sefm,
+                    xmax = meanfm + sefm,
+                    width = .001, colour = "blue"))+
+  labs(y = "FLAV Intraspecific treatment", x = "FLAV Interspecific treatment")+
+  theme(legend.position = "none")
+
+  
+  #alone vs inter m
+p3 <- ggplot(data = widegm, aes(x = meanfm, y = meanfa))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meanfa - sefa, 
+                    ymax = meanfa + sefa,
+                width = .001, colour ="red"))+
+  geom_errorbarh(aes(xmin = meanfm - sefm,
+                    xmax = meanfm + sefm,
+                    width = .001, colour = "blue"))+
+  labs(y = "FLAV Alone", x = "FLAV Interspecific treatment")+
+  theme(legend.position = "none")
+
+
+
+plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 1)
+```
+
+Bivariate graphs: chlorophyll a
+```{r fig.width = 4.5, fig.height = 8}
+widegm <- gmdata2 %>% spread(treatment, ChlorA, fill = NA, convert = FALSE)
+widegm <- widegm %>% mutate(meancaa = mean(a, na.rm = TRUE), 
+                            meancagm = mean(gm, na.rm = T),
+                            meancam = mean(m, na.rm = T))
+widegm <- widegm %>% mutate(secaa = std.error(a),
+                            secagm = std.error(gm),
+                            secam = std.error(m))
+
+p1 <- ggplot(data = widegm, aes(x = meancaa, y = meancagm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meancagm - secagm, 
+                    ymax = meancagm + secagm,
+                width = .001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meancaa - secaa,
+                    xmax = meancaa + secaa,
+                    width = .001, colour = "blue"))+
+  labs(y = "Chlorophyll a Intraspecific treatment", x = "Chlorophyll a Alone")+
+  theme(legend.position = "none")
+    
+  
+  #gm intra vs m inter
+p2 <- ggplot(data = widegm, aes(x = meancam, y = meancagm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meancagm - secagm, 
+                    ymax = meancagm + secagm, 
+                width = .001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meancam - secam,
+                    xmax = meancam + secam,
+                    width = .001, colour = "blue"))+
+  labs(y = "Chlorophyll a Intraspecific treatment", x = "Chlorophyll a Interspecific treatment")+
+  theme(legend.position = "none")
+
+  
+  #alone vs inter m
+p3 <- ggplot(data = widegm, aes(x = meancam, y = meancaa))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meancaa - secaa, 
+                    ymax = meancaa + secaa,
+                width = .001, colour ="red"))+
+  geom_errorbarh(aes(xmin = meancam - secam,
+                    xmax = meancam + secam,
+                    width = .001, colour = "blue"))+
+  labs(y = "Chlorophyll a Alone", x = "Chlorophyll a Interspecific treatment")+
+  theme(legend.position = "none")
+
+
+
+plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 1)
+```
+Bivariate graphs: chlorophyll b
+```{r fig.width = 4.5, fig.height = 8}
+widegm <- gmdata2 %>% spread(treatment, ChlorB, fill = NA, convert = FALSE)
+widegm <- widegm %>% mutate(meanbaa = mean(a, na.rm = TRUE), 
+                            meanbagm = mean(gm, na.rm = T),
+                            meancbm = mean(m, na.rm = T))
+widegm <- widegm %>% mutate(secba = std.error(a),
+                            secbgm = std.error(gm),
+                            secbm = std.error(m))
+
+p1 <- ggplot(data = widegm, aes(x = meancba, y = meancbgm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meancbgm - secbgm, 
+                    ymax = meancbgm + secbgm,
+                width = .001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meancba - secaa,
+                    xmax = meancaa + secaa,
+                    width = .001, colour = "blue"))+
+  labs(y = "Chlorophyll a Intraspecific treatment", x = "Chlorophyll a Alone")+
+  theme(legend.position = "none")
+    
+  
+  #gm intra vs m inter
+p2 <- ggplot(data = widegm, aes(x = meancam, y = meancagm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meancagm - secagm, 
+                    ymax = meancagm + secagm, 
+                width = .001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meancam - secam,
+                    xmax = meancam + secam,
+                    width = .001, colour = "blue"))+
+  labs(y = "Chlorophyll a Intraspecific treatment", x = "Chlorophyll a Interspecific treatment")+
+  theme(legend.position = "none")
+
+  
+  #alone vs inter m
+p3 <- ggplot(data = widegm, aes(x = meancam, y = meancaa))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meancaa - secaa, 
+                    ymax = meancaa + secaa,
+                width = .001, colour ="red"))+
+  geom_errorbarh(aes(xmin = meancam - secam,
+                    xmax = meancam + secam,
+                    width = .001, colour = "blue"))+
+  labs(y = "Chlorophyll a Alone", x = "Chlorophyll a Interspecific treatment")+
+  theme(legend.position = "none")
+
+
+
+plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 1)
+```
+
+
+
+
 
 
 
