@@ -16,7 +16,7 @@ gmdata <- read.csv("DataSynthesis.csv",stringsAsFactors = F)
 ```
 
 Load libraries
-```{r}
+```{r warning = F}
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -287,9 +287,9 @@ gmdata %>% filter(!is.na(gluc_Conc))
 gmdata %>% filter(!is.na(treatment))
 gmdata %>% filter(!is.na(Family))                
 
-#exclude negative values for now for gamma glm
-gmdata$gluc_Conc[which(gmdata$gluc_Conc < 0)] <- NA
-gmdata$flav_Conc[which(gmdata$flav_Conc < 0)] <- NA
+#exclude negative values for now for gamma glm #####since c1v1 = c2v2 fixed this problem, skip this
+#gmdata$gluc_Conc[which(gmdata$gluc_Conc < 0)] <- NA
+#gmdata$flav_Conc[which(gmdata$flav_Conc < 0)] <- NA
 
 #glucosinolate concentration as predicted by family and treatment
 library(faraway)
