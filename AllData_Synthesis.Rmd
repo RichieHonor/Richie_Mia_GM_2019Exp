@@ -50,6 +50,12 @@ dat<-dat[2:length(dat$gh_bench),]
 #Remove maple controls (for now) This is because the strsplit is mis identifying the maple controls for garlic mustard data. I will have to fix this later.
 dat<-dat[!grepl("aple",dat$Tag),]
 
+#TO FIX
+#The tag "c|MSMID1-1-20|Q|381" was mislabled as "c|MSMID1-1-20|G381". This is fixed below.
+dat$Tag[grep("G381",dat$Tag)]<-"c|MSMID1-1-20|Q|381"
+
+
+
 
 ```
 
@@ -70,6 +76,13 @@ ChlorAB<-CleanData("../UVSpec/All_UV_Data.txt")[[2]]
 GF<-CleanData("../UVSpec/All_UV_Data.txt")[[1]]
 
 
+```
+
+
+
+
+
+```{r}
 ###-----------------------------------------------------------------
 #Sample Identification!
 ####----------------------------------------------------------------
@@ -137,7 +150,10 @@ colnames(flav)<-paste("flav",colnames(flav),sep="_")
 
 #Removing controls from chlorophyll
 ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
+```
 
+
+```{r}
 ####-----------------------------------------------------
 #Removing Duplicates and checking for errors. 
 ####-----------------------------------------------------
@@ -146,10 +162,12 @@ ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
 
 
 #Checking for duplicated samples (not technical replicates-two samples with the same name)... 
-print("These are the duplicates that we know about: 142_2,441_1,i136_1, there should be no others besides the pool below and the glucosinolate flavonoid and chlorophyll dataframes should have the same amount of erroneous duplicates (i.e. 4 technical replicates):")
+print("These are the duplicates that we know about: 142_2,441_1,i136_1,218_2 ,264_2, 398_2, 438_1, there should be no others besides the pool below and the glucosinolate flavonoid and chlorophyll dataframes should have the same amount of erroneous duplicates (i.e. 4 technical replicates):")
 table(gluc$gluc_Sample)[table(gluc$gluc_Sample)>2 ]       
 table(ChlorNoCont$Sample)[table(ChlorNoCont$Sample)>2 ]    
 table(flav$flav_Sample)[table(flav$flav_Sample)>2 ]       
+
+# List:  218_2 264_2  398_2  438_1     
 
 #Averaging duplicates (i.e. technical replicates) 
 print("Averaging duplicates and exceptions..")
@@ -190,6 +208,10 @@ if(length(All_Wide$Sample)!=length(Average_ChlorNoCont$Sample) |length(All_Wide$
 
   stop("gluc, flav and chlorophyll samples did not match upafter duplicates were averaged.")
 }
+```
+
+
+```{r}
 
 #-------------------------------------------------------------------
 #--------Taking care of mismatching Tag/ID!!!!
@@ -229,21 +251,23 @@ All_Wide[All_Wide$Sample=="381_1-Dat_Jan_21_2020_AM.txt",]<-"381_1"
 
 All_Wide[All_Wide$Tag=="381_1",]<-"c|MSMID1-1-20|G381"
 
-####467_1
-
-
 
 ```
 
+
+
 Final Merging of clean greenhouse data and clean UV data with duplicates averaged. 
 ```{r}
+
 #This left join will keep all individuals that we have glucosinolate and flavonoid data on. 
 Final<-left_join(All_Wide,dat,by="Tag")
 
 Final<-Final %>% select(-new._code_needed.,-Helper.date)
 
+
 #Check for those that did not get properly identified. 
 Final[is.na(Final$gh_bench)&Final$Tag!="pool",]
+
 
 #table(Final$Sample)[table(Final$Sample)>1]
 write.csv(Final,"DataSynthesis.csv")
@@ -251,25 +275,6 @@ write.csv(Final,"DataSynthesis.csv")
 
 
 ```
-
-
-Notes:
-NA's are pools
-
-Likely need to normalize gluc and flav data by chlorophyll content, a less effective work around may be to distinguish leaf number. 
-
-The two earliest sampling dates (i.e. ) need to be adjusted to account for higher pool values. 
-
-Remove pseudoreplication (i.e. cant have duplicates in there)
-
--Appears like the alone treatment has most chlorophyll, followed by maple, then GM. 
-
-
-
-
-
-
-
 
 
 
@@ -298,9 +303,7 @@ dat$Genotype<-gsub("/","-",dat$Genotype,fixed=T)
 colnames(dat)[1]<-"Tag"
 
 #Genotype "e|SMITH1-1-0|Q|i159" was entered twice into the fern datasheet. As there is no way to assign an identity, and fern data are ratically different (i.e. 1 vs 15). This will be treated as a NA unless evidence for an ID arises. 
-
 dat[dat$Tag=="e|SMITH1-1-0|Q|i159",c("Moss.tf","Fern")]<-NA
-dat[dat$Tag=="e|SMITH1-1-0|Q|i159",c("Moss.tf","Fern")]
 
 #Removing the duplicate
 dat<-dat[!duplicated(dat$Tag),]
@@ -330,18 +333,74 @@ write.csv(final,"DataSynthesis.csv")
 ```
 
 
-Removing Runs from dec 8 and 9. After looking at the data, It now appears way too far off from the rest of the samples, and thus needs to be removed. 
+
+
+
+Removing Runs from dec 8 and 9. These runs were performed before the evaporation step was integrated into the protocol. Also, glucosinolate and flavonoid data from Jan 30 PM, Jan 31 AM and Jan 31 PM will be removed. These runs were performed on a different plate as the old plate was becomming quite stained. These runs had very low pools with much more variance, and thus the glucosinolate and flavonoid values need to be removed as the data is not reliable.The chlorophyll data for these runs is, however, okay because the chlorophyll samples were performed on the same plate. In Mabels run on feb 3 2020 AM, she added twice the amount of stain by mistake.(I.e. final samples were 300ul instead of 200, beause she added 100ul of CHCOOH and ALCL3 instead of 50ul of each). For this reason flavonoids will be removed from this run. 
 ```{r}
 rm(list=ls())
 library(dplyr)
-dat<-read.csv("DataSynthesis.csv")
-dat<-dat[dat$DataFile!="Dat_Dec_6_2019.txt"&dat$DataFile!="Dat_Dec_8_2019.txt",]
+dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
 
+
+
+
+#Removing all data from runs on Dec 6 2019 and Dec 8 2019 
+dat<-dat[dat$DataFile!="Dat_Dec_6_2019.txt"& dat$DataFile!="Dat_Dec_8_2019.txt",]
+
+#Removing glucosinolate and flavonoid runs from Dat_Jan_30_2020_PM.txt, Dat_Jan_31_2020_AM.txt, Dat_Jan_31_2020_PM.txt
+dat[dat$DataFile=="Dat_Jan_30_2020_PM.txt" | dat$DataFile=="Dat_Jan_31_2020_AM.txt"| dat$DataFile=="Dat_Jan_31_2020_PM.txt",c("gluc_Conc","flav_Conc")]<-NA
+
+#Visualizing Maybles Run
+Feb3Pool<-dat$flav_Conc[dat$DataFile=="Dat_Feb_3_2020_AM.txt" & dat$Tag=="pool"]
+OtherPool<-dat$flav_Conc[dat$DataFile!="Dat_Feb_3_2020_AM.txt" & dat$Tag=="pool"]
+boxplot(Feb3Pool,OtherPool)
+
+#Removing Flavonoid data from Mabels Run on Feb 3rd 2020 AM.
+dat$flav_Conc[dat$DataFile=="Dat_Feb_3_2020_AM.txt" ]<-NA
+
+####---------------------------
+
+
+#Selecting relevant columns
 dat<-dat %>% select(Sample:Fern)
 
+library(ggplot2)
+
+
+
+#####
+#Visualizing data So far
+####
+  
+#Making a column for the pools to check them out. 
+dat$Pool[dat$Tag=="pool"]<-"Yes"
+dat$Pool[dat$Tag!="pool"]<-"No"
+
+
+#Glucosinolate
+ggplot()+
+  geom_boxplot(aes(y=as.numeric(dat$gluc_Conc),x=as.factor(dat$Pool)))
+
+#Flavonoid
+ggplot()+
+  geom_boxplot(aes(y=as.numeric(dat$flav_Conc),x=as.factor(dat$Pool)))
+
+#ChlorA
+ggplot()+
+  geom_boxplot(aes(y=as.numeric(dat$ChlorA),x=as.factor(dat$Pool)))
+
+#ChlorB
+ggplot()+
+  geom_boxplot(aes(y=as.numeric(dat$ChlorB),x=as.factor(dat$Pool)))
+
+#Quick look at the gluc and flav data. 
+hist(as.numeric(dat$gluc_Conc),xlim = c(0,0.2))
+hist(as.numeric(dat$flav_Conc))
+
+
+
 write.csv(dat,"DataSynthesis.csv")
-
-
 
 ```
 
