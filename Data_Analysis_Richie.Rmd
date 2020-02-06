@@ -38,10 +38,12 @@ SlopeCalc<-function(x,y){
   slope<-lm(y~x)$coefficients[[2]]
   return(c(int,slope))
 }
+#Remove Pools
+dat2<-dat[dat$Pool=="No",]
 
-GFSlopeInt<-SlopeCalc(x=dat$gluc_Conc,y=dat$flav_Conc)
+GFSlopeInt<-SlopeCalc(x=dat2$gluc_Conc,y=dat2$flav_Conc)
 
-ggplot(dat)+
+ggplot(dat2)+
   geom_point(aes(x=gluc_Conc,y=flav_Conc))+
   geom_abline(aes(slope=GFSlopeInt[2],intercept=GFSlopeInt[1]))
 
