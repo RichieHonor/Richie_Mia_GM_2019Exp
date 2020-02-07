@@ -65,15 +65,15 @@ dat$Tag[grep("G381",dat$Tag)]<-"c|MSMID1-1-20|Q|381"
 #Spec data prep--------------------------------------
 
 #Importing functions created to clean up the UV spec data.
-source("../UVSpecProcessingModule.R")
+source("UVSpecProcessingModule.R")
 
 ##-----------------------------------
 
 #Seperate spec data into Chlorophyll a and b
-ChlorAB<-CleanData("../UVSpec/All_UV_Data.txt")[[2]]
+ChlorAB<-CleanData("Data_Moities/All_UV_Data.txt")[[2]]
 
 #.... and Glucosinolate and flavonoid data
-GF<-CleanData("../UVSpec/All_UV_Data.txt")[[1]]
+GF<-CleanData("Data_Moities/All_UV_Data.txt")[[1]]
 
 
 ```
@@ -245,6 +245,12 @@ All_Wide<-All_Wide[!All_Wide$Tag=="b?wsswm3-1-0_2",]
 All_Wide<-All_Wide[!All_Wide$Tag=="b?wsswm3-1-0_dup",]
 
 
+#"e?JBCHY_dup" is also unknown, because we do not know the treatment and it is therefore also going to be removed. 
+All_Wide<-All_Wide[!All_Wide$Tag=="e?JBCHY_dup",]
+
+
+
+
 #Sample 381 is listed as G381, which is why it was not identified, i will change it to be appropriate
 
 All_Wide[All_Wide$Sample=="381_1-Dat_Jan_21_2020_AM.txt",]<-"381_1"
@@ -269,14 +275,13 @@ Final<-Final %>% select(-new._code_needed.,-Helper.date)
 Final[is.na(Final$gh_bench)&Final$Tag!="pool",]
 
 
-#table(Final$Sample)[table(Final$Sample)>1]
 write.csv(Final,"DataSynthesis.csv")
 
 
 
 ```
 
-
+The output above will be empty if all labels were matched correctly. Else there will be a dataframe containing the samples that were not matched. 
 
 
 Integrating
@@ -395,7 +400,7 @@ ggplot()+
   geom_boxplot(aes(y=as.numeric(dat$ChlorB),x=as.factor(dat$Pool)))
 
 #Quick look at the gluc and flav data. 
-hist(as.numeric(dat$gluc_Conc),xlim = c(0,0.2))
+hist(as.numeric(dat$gluc_Conc))
 hist(as.numeric(dat$flav_Conc))
 
 boxplot(dat$flav_Conc[dat$DataFile=="Dat_Feb_6_2020_PM.txt" & dat$Tag!="pool"],dat$flav_Conc[dat$DataFile!="Dat_Feb_6_2020_PM.txt" & dat$Tag=="pool"])

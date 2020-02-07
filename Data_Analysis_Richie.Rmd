@@ -48,8 +48,6 @@ ggplot(dat2)+
   geom_abline(aes(slope=GFSlopeInt[2],intercept=GFSlopeInt[1]))
 
 
-
-
 ```
 
 
