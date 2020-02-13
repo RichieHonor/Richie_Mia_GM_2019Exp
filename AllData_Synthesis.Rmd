@@ -403,7 +403,6 @@ ggplot()+
 hist(as.numeric(dat$gluc_Conc))
 hist(as.numeric(dat$flav_Conc))
 
-boxplot(dat$flav_Conc[dat$DataFile=="Dat_Feb_6_2020_PM.txt" & dat$Tag!="pool"],dat$flav_Conc[dat$DataFile!="Dat_Feb_6_2020_PM.txt" & dat$Tag=="pool"])
 
 dat
 #[dat$DataFile=="Dat_Feb_6_2020_AM.txt" & dat$Tag=="pool"]

@@ -86,6 +86,12 @@ CleanData<-function(AllData){
     dat2<-dat[!is.na(dat$Sample),]
     
     
+    #Removing errors generated from the UV spec machine. These are outputted simply as "#ERR", this will need to be changed. 
+    dat2$Data[dat2$Data=="#ERR"]<-NA
+    dat2$Data<-as.numeric(dat2$Data)
+    
+    
+    
     #Create Subtract the control values from the glucsinolate and flavonoid value
     gluc<-ControlSubtract(dat2,'gluc')
     flav<-ControlSubtract(dat2,'flav')
