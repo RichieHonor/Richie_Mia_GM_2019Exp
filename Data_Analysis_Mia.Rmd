@@ -42,6 +42,9 @@ for(i in 1:length(gmdata$Tag)){
   
 }
 #make more efficient using apply function (or see above code chunk for more efficient way)
+
+#Filter out i Sample plants (not in competition experiment)... filtering i did not work, had to slice
+gmdata <- slice(gmdata, -775:-868)
 ```
 
 Summary Stats
@@ -60,18 +63,30 @@ gmdata$ChlorB <- as.numeric(as.character(gmdata$ChlorB))
 Frequency distribution for glucosinolate content
 ```{r}
 F1 <- ggplot(gmdata)+
-geom_histogram(aes(x = gluc_Conc), binwidth = 0.007)+
+geom_histogram(aes(x = gluc_Conc), binwidth = 0.07)+
   theme_bw()+
   labs(x = "Glucosinolate concentration", y = "Frequency")
 F1
 ```
+Frequency distribution with log10(gluc conc)
+```{r}
+#log transform gluc conc variable
+gmdata <- gmdata %>% mutate(loggluc_Conc = log10(gmdata$gluc_Conc + 1))
+
+ggplot(gmdata)+
+geom_histogram(aes(x = loggluc_Conc), binwidth = 0.007)+
+  theme_bw()+
+  labs(x = "Glucosinolate concentration (log transformed)", y = "Frequency")
+```
+
 
 Frequency distribution for flavonoid content
 ```{r}
 F2 <- ggplot(gmdata)+
-geom_histogram(aes(x = flav_Conc), binwidth = 0.003)+
+geom_histogram(aes(x = flav_Conc), binwidth = 0.07)+
   theme_bw()+
   labs(x = "Flavonoid concentration", y = "Frequency")
+F2
 ```
 
 Frequency distribution for chlorophyll a content
@@ -80,6 +95,7 @@ F3 <- ggplot(gmdata)+
 geom_histogram(aes(x = ChlorA), bins = 40)+
   theme_bw()+
   labs(x = "Chlorophyll a", y = "Frequency")
+F3
 ```
 
 Frequency distribution for chlorophyll b content
@@ -88,6 +104,7 @@ F4 <- ggplot(gmdata)+
 geom_histogram(aes(x = ChlorB), bins = 40)+
   theme_bw()+
   labs(x = "Chlorophyll b", y = "Frequency")
+F4
 ```
 Remove chlorophyll b negative outlier
 ```{r}
@@ -109,7 +126,7 @@ plot(data = gmdata, leaf_length~gluc_Conc)
 
 Graph glucosinolate conc according to treatment and family
 ```{r}
-F6 <- ggplot(data = gmdata, aes(x = treatment, y =  gluc_Conc, colour = Family))+
+ggplot(data = gmdata, aes(x = treatment, y =  gluc_Conc, colour = Family))+
   geom_point(size = 4, alpha = 0.4)+
   geom_line(aes(group = Family))+
   labs(x = "Treatment", y = "Glucosinolate Concentration", colour = "Family")
@@ -212,8 +229,6 @@ geom_histogram(aes(x = gluc_Conc))+
   theme_bw()+
   labs(x = "Glucosinolate concentration", y = "Frequency")
 
-#log transform gluc conc variable
-gmdata <- gmdata %>% mutate(loggluc_Conc = log10(gmdata$gluc_Conc + 1))
 
 #compare mean and variance
 mean(gmdata$gluc_Conc, na.rm = T) 
@@ -238,8 +253,18 @@ ggplot(data = gmdata2, aes(x = treatment, y =  loggluc_Conc, colour = Family, gr
   theme_minimal()+
   theme(axis.text.x = element_text(size = 10, angle=30))
 
+#############################WTF IS GOING ON WITH THE CLUSTER OF LOW VALUES############################################
+
+#gmdata$gluc_Conc[grep(, gmdata$gluc_Conc)]
+
 ```
 graph combos in bivariate plot and incl se and look for overlap
+```{r}
+gmdata$Tag[grep("JARI", gmdata$Tag)] #do this for all pop tags!
+
+unique(gmdata$Family)
+```
+
 
 Testing for significant interactions between gluc conc, treatment, and family
 ```{r}
@@ -301,11 +326,9 @@ summary(gluc.glm.Gamma.log)
 exp(coef(gluc.glm.Gamma.log)) #For 1 unit of increase in a predictor, gluc conc is expected to increase multiplicatively by a certain percent (see output)
 
 #ProUCL Anderson-Darling Goodness-of-Fit Test for Gamma
-#
-
-gofTest(, data = NULL, subset, 
-  na.action = na.pass, ...)
-test="proucl.ad.gamma"
+#gofTest(, data = NULL, subset, 
+  #na.action = na.pass, ...)
+#test="proucl.ad.gamma"
 
 
 
@@ -320,9 +343,9 @@ gofTest(gmdata$gluc_Conc, test = "sw", distribution = "lnorm3")
 
 
 
-gluc.glm.lnorm3 <- glm(formula = gluc_Conc ~ Family + treatment,
-                         family  = lnorm3,
-                         data    = gmdata)
+#gluc.glm.lnorm3 <- glm(formula = gluc_Conc ~ Family + treatment,
+                         #family  = lnorm3,
+                         #data    = gmdata)
 
 summary(gluc.glm.Gamma.log)
 exp(coef(gluc.glm.Gamma.log))
@@ -334,11 +357,6 @@ exp(coef(gluc.glm.Gamma.log))
 
 
 ################################################################################
-
-Instead of taking away negative gluc conc values, we'll shift data right so that lowest value is 0.
-```{r}
-min(gmdata$gluc_Conc, na.rm = T)
-```
 
 Bivariate graphs: glucosinolates
 ```{r fig.width = 4.5, fig.height = 8}
@@ -506,8 +524,8 @@ plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 1)
 Bivariate graphs: chlorophyll b
 ```{r fig.width = 4.5, fig.height = 8}
 widegm <- gmdata2 %>% spread(treatment, ChlorB, fill = NA, convert = FALSE)
-widegm <- widegm %>% mutate(meanbaa = mean(a, na.rm = TRUE), 
-                            meanbagm = mean(gm, na.rm = T),
+widegm <- widegm %>% mutate(meancba = mean(a, na.rm = TRUE), 
+                            meancbgm = mean(gm, na.rm = T),
                             meancbm = mean(m, na.rm = T))
 widegm <- widegm %>% mutate(secba = std.error(a),
                             secbgm = std.error(gm),
@@ -518,36 +536,36 @@ p1 <- ggplot(data = widegm, aes(x = meancba, y = meancbgm))+
   geom_errorbar(aes(ymin = meancbgm - secbgm, 
                     ymax = meancbgm + secbgm,
                 width = .001, colour = "red"))+
-  geom_errorbarh(aes(xmin = meancba - secaa,
-                    xmax = meancaa + secaa,
+  geom_errorbarh(aes(xmin = meancba - secba,
+                    xmax = meancba + secba,
                     width = .001, colour = "blue"))+
-  labs(y = "Chlorophyll a Intraspecific treatment", x = "Chlorophyll a Alone")+
+  labs(y = "Chlorophyll b Intraspecific treatment", x = "Chlorophyll b Alone")+
   theme(legend.position = "none")
     
   
   #gm intra vs m inter
-p2 <- ggplot(data = widegm, aes(x = meancam, y = meancagm))+
+p2 <- ggplot(data = widegm, aes(x = meancbm, y = meancbgm))+
   geom_point()+
-  geom_errorbar(aes(ymin = meancagm - secagm, 
-                    ymax = meancagm + secagm, 
+  geom_errorbar(aes(ymin = meancbgm - secbgm, 
+                    ymax = meancbgm + secbgm, 
                 width = .001, colour = "red"))+
-  geom_errorbarh(aes(xmin = meancam - secam,
-                    xmax = meancam + secam,
+  geom_errorbarh(aes(xmin = meancbm - secbm,
+                    xmax = meancbm + secbm,
                     width = .001, colour = "blue"))+
-  labs(y = "Chlorophyll a Intraspecific treatment", x = "Chlorophyll a Interspecific treatment")+
+  labs(y = "Chlorophyll b Intraspecific treatment", x = "Chlorophyll b Interspecific treatment")+
   theme(legend.position = "none")
 
   
   #alone vs inter m
-p3 <- ggplot(data = widegm, aes(x = meancam, y = meancaa))+
+p3 <- ggplot(data = widegm, aes(x = meancbm, y = meancba))+
   geom_point()+
-  geom_errorbar(aes(ymin = meancaa - secaa, 
-                    ymax = meancaa + secaa,
+  geom_errorbar(aes(ymin = meancba - secba, 
+                    ymax = meancba + secba,
                 width = .001, colour ="red"))+
-  geom_errorbarh(aes(xmin = meancam - secam,
-                    xmax = meancam + secam,
+  geom_errorbarh(aes(xmin = meancbm - secbm,
+                    xmax = meancbm + secbm,
                     width = .001, colour = "blue"))+
-  labs(y = "Chlorophyll a Alone", x = "Chlorophyll a Interspecific treatment")+
+  labs(y = "Chlorophyll b Alone", x = "Chlorophyll b Interspecific treatment")+
   theme(legend.position = "none")
 
 

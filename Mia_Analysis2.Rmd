@@ -1,0 +1,170 @@
+---
+title: "GM analysis: Preliminary results. Feb. 15 2020"
+output: html_notebook
+---
+Load data
+```{r}
+gmdata <- read.csv("DataSynthesis.csv",stringsAsFactors = F)
+```
+
+Load libraries
+```{r warning = F}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(plotrix) #for std.error
+library(EnvStats) #for gofTest
+library(cowplot)
+```
+
+
+
+```{r}
+#Assign family column
+prefamily<-gsub("*.\\|","",gmdata$Tag)
+gmdata$Family<-gsub("\\-.*","",prefamily)
+
+#Filter out i Sample plants (not in competition experiment)... filtering i did not work, had to slice
+gmdata <- slice(gmdata, -775:-868)
+
+#What populations are in the experiment
+unique(gmdata$Family)
+```
+
+Multiply gm leaf length and width to get leaf area
+```{r}
+gmdata <- gmdata %>% mutate(GM_LxW = GM_Leaf_Len * GM_Leaf_Wid)
+```
+
+Leaf size distribution
+```{r warning = F}
+ggplot(data = gmdata, aes(x = GM_LxW, y = ..density..))+
+  geom_histogram()
+```
+
+See if leaf area and chemistry are correlated
+```{r}
+#Gluc and Leaf
+plot(data = gmdata, gluc_Conc ~ GM_LxW)
+abline(lm(gluc_Conc ~ GM_LxW, data = gmdata))
+summary(lm(gluc_Conc ~ GM_LxW, data = gmdata))
+#gluc_Conc p-value: < 2.2e-16
+
+#Flav and Leaf
+plot(data = gmdata, flav_Conc ~ GM_LxW)
+abline(lm(flav_Conc ~ GM_LxW, data = gmdata))
+summary(lm(flav_Conc ~ GM_LxW, data = gmdata))
+#flav_Conc p-value: 5.242e-14
+
+#ChlorA and Leaf
+plot(data = gmdata, ChlorA ~ GM_LxW)
+abline(lm(ChlorA ~ GM_LxW, data = gmdata))
+summary(lm(ChlorA ~ GM_LxW, data = gmdata))
+#ChlorA p-value: 2.432e-06
+
+#ChlorB and Leaf
+plot(data = gmdata, ChlorB ~ GM_LxW)
+abline(lm(ChlorB ~ GM_LxW, data = gmdata))
+summary(lm(ChlorB ~ GM_LxW, data = gmdata))
+#ChlorB p-value: p-value: 0.04077
+
+##########################
+#All chemicals are negatively correlated with leaf area. I will control for this by dividing chemical value by leaf area
+```
+
+Control for leaf size by dividing chemical content by leaf area
+```{r}
+#glucosinolates
+gmdata <- gmdata %>% mutate(congluc_Conc = gluc_Conc / GM_LxW)
+
+#chlorophyll a
+gmdata <- gmdata %>% mutate(conChlorA = ChlorA / GM_LxW)
+
+#chlorophyll b
+gmdata <- gmdata %>% mutate(conChlorB = ChlorB / GM_LxW)
+```
+
+Plot controlled glucosinolate distribution
+```{r warning = F}
+ggplot(data = gmdata, aes(x = congluc_Conc, y = ..density..))+
+  geom_histogram()
+```
+
+
+Graph chlorophyll a and b content against glucosinolate concentration for plants grown alone
+```{r}
+#separate plants into alone treatment
+ALN <- gmdata[grepl("a",gmdata$treatment),]
+
+#chlorophyll a
+plot(ALN$conChlorA ~ ALN$congluc_Conc, data = ALN, xlab = "Glucosinolate concentration", ylab = "Chlorophyll a content")
+abline(lm(ALN$conChlorA ~ ALN$congluc_Conc, data = ALN))
+
+#chlorophyll b
+plot(ALN$conChlorB ~ ALN$congluc_Conc, data = ALN, xlab = "Glucosinolate concentration", ylab = "Chlorophyll b content")
+abline(lm(ALN$conChlorB ~ ALN$congluc_Conc, data = ALN))
+
+```
+
+Bivariate plots to look at plasticity and genetic variation
+```{r fig.width = 4.5, fig.height = 8, warning = F}
+#exclude pools 
+gmdata2 <- gmdata %>% group_by(Family) %>% filter(!Family=="pool")
+
+#make a wide dataframe using 'spread'
+
+widegm <- gmdata2 %>% spread(treatment, congluc_Conc, fill = NA, convert = FALSE)
+widegm <- widegm %>% mutate(meana = mean(a, na.rm = TRUE), 
+                            meangm = mean(gm, na.rm = T),
+                            meanm = mean(m, na.rm = T))
+widegm <- widegm %>% mutate(sea = std.error(a),
+                            segm = std.error(gm),
+                            sem = std.error(m))
+
+########## BIVARIATE PLOTS ##########
+### GLUC CONC ###
+  #gm intra vs alone
+p1 <- ggplot(data = widegm, aes(x = meana, y = meangm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm,
+                width = .000000000001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meana - sea,
+                    xmax = meana + sea,
+                    width = .000000000001, colour = "blue"))+
+  labs(y = "Intraspecific treatment", x = "Alone")+
+  theme(legend.position = "none")
+    
+  
+  #gm intra vs m inter
+p2 <- ggplot(data = widegm, aes(x = meanm, y = meangm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm, 
+                width = .000000000001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .000000000001, colour = "blue"))+
+  labs(y = "Intraspecific treatment", x = "Interspecific treatment")+
+  theme(legend.position = "none")
+
+  
+  #alone vs inter m
+p3 <- ggplot(data = widegm, aes(x = meanm, y = meana))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meana - sea, 
+                    ymax = meana + sea,
+                width = .000000000001, colour ="red"))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .000000000001, colour = "blue"))+
+  labs(y = "Alone", x = "Interspecific treatment")+
+  theme(legend.position = "none")
+
+
+
+plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 1)
+```
+
+
+
