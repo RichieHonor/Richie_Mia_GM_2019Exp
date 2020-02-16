@@ -404,7 +404,6 @@ hist(as.numeric(dat$gluc_Conc))
 hist(as.numeric(dat$flav_Conc))
 
 
-dat
 #[dat$DataFile=="Dat_Feb_6_2020_AM.txt" & dat$Tag=="pool"]
 
 write.csv(dat,"DataSynthesis.csv")
@@ -416,16 +415,92 @@ write.csv(dat,"DataSynthesis.csv")
 
 
 
-###File for *final manual measurement of Alliaria leaf size* **Leaf_data.txt**. in Python/Final_GM_Data_CompetitionExp.
+###File for *final manual measurement of Alliaria leaf size*
+**Pathogen_Damage_Manual.csv** is the data file containing the holepunched leaf data, along with pathogen damage. 
+**Gm_Final_Leaf_data.txt** is the data pertaining to the rest of the leaves. 
 ```{r}
 #This file contains the length and width of every leaf in the competition treatment that did not have a whole punch. This data has a complementary set of photos of each leaf that was holepunched, along with the length and width of each holepunched leaf. This, together, can be used to determine how leaf size affects secondary compound production, but can also be amalgamated into a final biomass measurement. 
 
+rm(list=ls())
+
+#File to be integrated.
+main<-read.csv("DataSynthesis.csv")
+
+if(colnames(main)[1]=="X"){
+  main<-select(main,-X)
+}
+
+
+
+
+
 
 #Clear Environment. 
-rm(list=ls())
-dat<-read.csv("Data_Moities/Gm_Final_Leaf_data.txt",header = F)
+dat<-read.csv("Data_Moities/Gm_Final_Leaf_data.txt",header = T)
+datP<-read.csv("Data_Moities/Pathogen_Damage_Manual.csv",header = T)
 
-table(dat$V2)
+
+#------------
+#Fixing Genotype barcodes
+#------------
+
+#DatP (Punched leaves)
+datP$Genotype<-gsub("§","|",datP$Genotype)
+datP$BlackPathDam<-as.numeric(datP$BlackPathDam)
+datP$ThripsDam<-as.numeric(datP$ThripsDam)
+datP$GM_Leaf_Len<-as.numeric(gsub("\\D","",datP$GM_Leaf_Len))
+datP$GM_Leaf_Wid<-as.numeric(gsub("\\D","",datP$GM_Leaf_Wid))
+datP$GM_Leaf_Number<-as.numeric(gsub("\\D","",datP$GM_Leaf_Number))
+
+
+#Dat (non- punched leaves)
+dat$Genotype<-gsub("§","|",dat$Genotype)
+dat$GM_Leaf_Len<-as.numeric(gsub("\\D","",dat$GM_Leaf_Len))
+dat$GM_Leaf_Wid<-as.numeric(gsub("\\D","",dat$GM_Leaf_Wid))
+dat$GM_Leaf_Number<-as.numeric(gsub("\\D","",dat$GM_Leaf_Number))
+
+#------------
+# Full body size
+#------------
+
+#Finding the total leaf length and and width
+tempSize<-rbind(dat,datP[1:4])
+
+#Area Calculation of each leaf. 
+tempSize$GM_Leaf_Area<-tempSize$GM_Leaf_Len*tempSize$GM_Leaf_Wid
+
+#Summarizing total leaf area for each genotype and recording the number of leaves. 
+tempArea<-tempSize %>% group_by(as.factor(Genotype)) %>% summarize_at(vars(GM_Leaf_Area,GM_Leaf_Number), .funs=list(~sum(.),~max(.)))
+colnames(tempArea)[1]<-"Genotype"
+
+#Merging the whole plant data with the leaf punch data. 
+final0.1<-left_join(datP,tempArea,by="Genotype")
+
+#Removing irrelevant columns
+final0<-final0.1 %>% select(-GM_Leaf_Number_sum,-GM_Leaf_Area_max)
+colnames(final0)[colnames(final0)=="GM_Leaf_Area_sum"]<-"GM_TotalLeaf_Area"
+colnames(final0)[colnames(final0)=="GM_Leaf_Number_max"]<-"GM_NumberOfLeaves"
+
+#Joining the synthesis data with the new data on leaf size and pathogen damage based on the ID number, which consists of the plant ID and the leaf number
+final0$Sample<-paste(gsub(".*\\|","",final0$Genotype),final0$GM_Leaf_Number,sep = "_")
+
+
+
+#Mergining clean data with "Synthesis" dataframe.
+final0 <-final0 %>% select(-Genotype)
+
+final<-left_join(main,final0,by="Sample")
+
+
+#Clarifying the names in the dataframe. 
+colnames(final)[colnames(final)=="leaf_length"]<-"GM_Leaf_Len_Initial"
+colnames(final)[colnames(final)=="true_leaves"]<-"GM_NumberOfLeaves_Initial"
+
+
+
+#Writing csv
+write.csv(final,"DataSynthesis.csv")
+
 
 ```
 

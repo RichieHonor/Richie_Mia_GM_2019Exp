@@ -1,3 +1,4 @@
+Genotype,GM_Leaf_Number,GM_Leaf_Len,GM_Leaf_Wid	
 c§DVGM-20§Q§119,leaf-2,length- 12,width-9
 c§DVGM-20§Q§119,leaf-3,length-11,width-34
 c§SMITH1-20§Q§468,leaf-3,length-76,width-84
