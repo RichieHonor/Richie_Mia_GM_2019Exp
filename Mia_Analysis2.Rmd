@@ -15,8 +15,42 @@ library(tidyr)
 library(plotrix) #for std.error
 library(EnvStats) #for gofTest
 library(cowplot)
+library(car)
+library(faraway) #for gamma related things
 ```
 
+theme_pub() for pretty figures
+```{r}
+theme_pub <- function (base_size = 12, base_family = "") {
+
+  theme_classic(base_size = base_size, base_family = base_family) %+replace%
+
+    theme(
+
+      axis.text = element_text(colour = "black"),
+
+      axis.title.x = element_text(size=16, margin=margin(t=5)),
+
+      axis.text.x = element_text(size=10),
+
+      axis.title.y = element_text(size=16,angle=90, margin=margin(r=5)),
+
+      axis.text.y = element_text(size=10),
+
+      axis.ticks = element_blank(),
+
+      panel.background = element_rect(fill="white"),
+
+      panel.border = element_blank(),
+
+      plot.title=element_text(face="bold", size=20),
+
+      legend.position="none"
+
+    )
+
+}
+```
 
 
 ```{r}
@@ -25,7 +59,7 @@ prefamily<-gsub("*.\\|","",gmdata$Tag)
 gmdata$Family<-gsub("\\-.*","",prefamily)
 
 #Filter out i Sample plants (not in competition experiment)... filtering i did not work, had to slice
-gmdata <- slice(gmdata, -775:-868)
+gmdata <- slice(gmdata, -778:-952)
 
 #What populations are in the experiment
 unique(gmdata$Family)
@@ -42,13 +76,20 @@ ggplot(data = gmdata, aes(x = GM_LxW, y = ..density..))+
   geom_histogram()
 ```
 
-See if leaf area and chemistry are correlated
-```{r}
+See if leaf area and chemistry are correlated (pseudoreplicates still present)
+```{r warning = F}
 #Gluc and Leaf
 plot(data = gmdata, gluc_Conc ~ GM_LxW)
 abline(lm(gluc_Conc ~ GM_LxW, data = gmdata))
 summary(lm(gluc_Conc ~ GM_LxW, data = gmdata))
 #gluc_Conc p-value: < 2.2e-16
+
+ggplot(data = gmdata, aes(x = GM_LxW, y = gluc_Conc))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE)+
+  scale_y_continuous(name = "Glucosinolate concentration (mg/mL)")+
+  scale_x_continuous(name = expression(paste("Leaf area ", (mm^2),"")))+
+  theme_pub()
 
 #Flav and Leaf
 plot(data = gmdata, flav_Conc ~ GM_LxW)
@@ -69,51 +110,101 @@ summary(lm(ChlorB ~ GM_LxW, data = gmdata))
 #ChlorB p-value: p-value: 0.04077
 
 ##########################
-#All chemicals are negatively correlated with leaf area. I will control for this by dividing chemical value by leaf area
+#All chemicals are negatively correlated with leaf area.
 ```
 
-Control for leaf size by dividing chemical content by leaf area
+Control for leaf size 
 ```{r}
-#glucosinolates
-gmdata <- gmdata %>% mutate(congluc_Conc = gluc_Conc / GM_LxW)
+#by dividing chemical content by leaf area THIS FEELS WRONGGGGGGGGGG
+gmdata <- gmdata %>% mutate(Bcongluc_Conc = gluc_Conc / GM_LxW,
+                            Bconflav_Conc = flav_Conc / GM_LxW,
+                            BconChlorA = ChlorA / GM_LxW,
+                            BconChlorB = ChlorB / GM_LxW)
 
-#chlorophyll a
-gmdata <- gmdata %>% mutate(conChlorA = ChlorA / GM_LxW)
+#Instead: Take total leaf area, divide by area of 2 x hole punch (h = 60 mm2). Multiply this value by the mg/mL gluc_Conc... this also feels weird... reflecting leaf area more than glucs?
 
-#chlorophyll b
-gmdata <- gmdata %>% mutate(conChlorB = ChlorB / GM_LxW)
-```
+h <- 60
+gmdata <- gmdata %>% mutate(congluc_Conc = (GM_LxW / h) * gluc_Conc, na.rm = T,
+                            conflav_Conc = (GM_LxW / h) * flav_Conc, na.rm = T,
+                            conChlorA = (GM_LxW / h) * ChlorA, na.rm = T,
+                            conChlorB = (GM_LxW / h) * ChlorB, na.rm = T)
 
-Plot controlled glucosinolate distribution
-```{r warning = F}
+plot(data = gmdata, congluc_Conc ~ GM_LxW)
+abline(lm(congluc_Conc ~ GM_LxW, data = gmdata))
+summary(lm(congluc_Conc ~ GM_LxW, data = gmdata))
+
+
+
 ggplot(data = gmdata, aes(x = congluc_Conc, y = ..density..))+
   geom_histogram()
 ```
 
+Eliminate pseudoreplication by averaging values for leaves of the same plant
+```{r}
+#Assign PlantID column
+gmdata$PlantID <- gsub("\\_.*","",gmdata$Sample)
+
+#MANUAL CONTROL FOR LEAF SIZE Calculate chemical and size means for leaves of the same plant
+nopseudo <- gmdata %>% group_by(PlantID) %>% 
+  summarise(mgluc = mean(congluc_Conc),
+            mflav = mean(conflav_Conc),
+            mchla = mean(conChlorA),
+            mchlb = mean(conChlorB))
+```
+
+Merge data (leaf size manually controlled)
+```{r}
+gmdata2 <- merge(nopseudo, gmdata, by = "PlantID", all = TRUE)
+
+goodvarbs <- c("PlantID", "Family", "treatment")
+good <- gmdata %>% select(goodvarbs)
+
+gmdata3 <- merge(good, nopseudo, by = "PlantID")
+
+gmdata3 <- unique(gmdata3) #these are chemical values controlled for leaf size w family info
+
+summary(gmdata3) #this includes pools
+
+#exclude pools 
+gmdata3 <- gmdata3 %>% group_by(Family) %>% filter(!Family=="pool")
+summary(gmdata3)
+sum(!is.na(gmdata3$mgluc)) #387
+sum(!is.na(gmdata3$mflav)) #372
+sum(!is.na(gmdata3$mchla)) #440
+sum(!is.na(gmdata3$mchlb)) #440
+```
+NO MORE PSEUDOREP:
+
+Plot controlled glucosinolate distribution
+```{r warning = F}
+ggplot(data = gmdata3, aes(x = mgluc, y = ..density..))+
+  geom_histogram()
+```
 
 Graph chlorophyll a and b content against glucosinolate concentration for plants grown alone
-```{r}
+```{r warning = F}
 #separate plants into alone treatment
-ALN <- gmdata[grepl("a",gmdata$treatment),]
+ALN <- gmdata3[grepl("a",gmdata$treatment),]
 
 #chlorophyll a
-plot(ALN$conChlorA ~ ALN$congluc_Conc, data = ALN, xlab = "Glucosinolate concentration", ylab = "Chlorophyll a content")
-abline(lm(ALN$conChlorA ~ ALN$congluc_Conc, data = ALN))
+ggplot(data = ALN)+
+  geom_point(aes(x = mgluc, y = mchla))+
+  geom_smooth(aes(x = mgluc, y = mchla), method = "lm", se = FALSE)+
+  scale_x_continuous(name = "Glucosinolates (mg/mL)")+
+  scale_y_continuous(name = "Chlorophyll a (mg/mL)")+
+  theme_pub()
 
 #chlorophyll b
-plot(ALN$conChlorB ~ ALN$congluc_Conc, data = ALN, xlab = "Glucosinolate concentration", ylab = "Chlorophyll b content")
-abline(lm(ALN$conChlorB ~ ALN$congluc_Conc, data = ALN))
-
+plot(ALN$mchlb ~ ALN$mgluc, data = ALN, xlab = "Glucosinolate concentration", ylab = "Chlorophyll b content")
+abline(lm(ALN$mchlb ~ ALN$mgluc, data = ALN))
 ```
 
 Bivariate plots to look at plasticity and genetic variation
-```{r fig.width = 4.5, fig.height = 8, warning = F}
-#exclude pools 
-gmdata2 <- gmdata %>% group_by(Family) %>% filter(!Family=="pool")
+```{r  fig.width = 15, fig.height = 5,warning = F}
 
 #make a wide dataframe using 'spread'
 
-widegm <- gmdata2 %>% spread(treatment, congluc_Conc, fill = NA, convert = FALSE)
+widegm <- gmdata3 %>% spread(treatment, mgluc, fill = NA, convert = FALSE)
 widegm <- widegm %>% mutate(meana = mean(a, na.rm = TRUE), 
                             meangm = mean(gm, na.rm = T),
                             meanm = mean(m, na.rm = T))
@@ -132,8 +223,9 @@ p1 <- ggplot(data = widegm, aes(x = meana, y = meangm))+
   geom_errorbarh(aes(xmin = meana - sea,
                     xmax = meana + sea,
                     width = .000000000001, colour = "blue"))+
-  labs(y = "Intraspecific treatment", x = "Alone")+
-  theme(legend.position = "none")
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  labs(y = "Intraspecific", x = "Alone")+
+  theme_pub()
     
   
   #gm intra vs m inter
@@ -145,8 +237,9 @@ p2 <- ggplot(data = widegm, aes(x = meanm, y = meangm))+
   geom_errorbarh(aes(xmin = meanm - sem,
                     xmax = meanm + sem,
                     width = .000000000001, colour = "blue"))+
-  labs(y = "Intraspecific treatment", x = "Interspecific treatment")+
-  theme(legend.position = "none")
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  labs(y = "Intraspecific", x = "Interspecific")+
+    theme_pub()
 
   
   #alone vs inter m
@@ -158,13 +251,215 @@ p3 <- ggplot(data = widegm, aes(x = meanm, y = meana))+
   geom_errorbarh(aes(xmin = meanm - sem,
                     xmax = meanm + sem,
                     width = .000000000001, colour = "blue"))+
-  labs(y = "Alone", x = "Interspecific treatment")+
-  theme(legend.position = "none")
+  geom_smooth(method = "lm", se = F)+
+  labs(y = "Alone", x = "Interspecific")+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  theme_pub()
 
 
 
-plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 1)
+plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 3)
+```
+Interaction plot
+```{r warning = F}
+ggplot(data = gmdata3, aes(x = treatment, y = mgluc, colour = Family, group = Family))+
+  stat_summary(fun.y=mean, geom="point")+
+  stat_summary(fun.y=mean, geom="line")+
+  scale_colour_discrete(name = "Population")+
+  scale_x_discrete(name = "Treatment", 
+                   labels = c("Alone", "Intraspecific competition", "Interspecific competition", "Pools"))+
+  scale_y_continuous(name = "Glucosinolates (mg/mL)")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 10, angle=30))
+```
+
+Anova
+Testing for significant interactions between gluc conc, treatment, and family
+```{r}
+MyFit <- lm(gmdata3$mgluc ~ gmdata3$Family + gmdata3$treatment + gmdata3$Family:gmdata3$treatment, data = gmdata3) 
+summary(MyFit)
+summary(aov(MyFit))
 ```
 
 
+```{r}
+
+#test for normality
+hist(residuals(MyFit),main="",xlab="Residuals", freq=FALSE)
+MyRes <- residuals(MyFit)
+xfit <- seq(min(MyRes),max(MyRes),length=100) #new x variable
+yfit <- dnorm(xfit,0,sd(MyRes)) #predicted Normal
+lines(xfit, yfit, col="blue") #add a blue line 
+shapiro.test(residuals(MyFit))
+plot(MyFit)
+
+#p-value = 0.02639 for s-w normality test
+
+#test for homoscedasticity
+plot(MyFit,1) 
+#bartlett.test(split(gmdata3$mgluc,list(gmdata3$Family, gmdata3$treatment)), data=gmdata3)
+
+```
+
+##########################################################################
+ALTERNATIVE (not controlling manually for leaf size)
+```{r}
+
+#NOT CONTROLLED FOR LEAF SIZE
+nopseudo1 <- gmdata %>% group_by(PlantID) %>% 
+  summarise(gluc = mean(gluc_Conc),
+            flav = mean(flav_Conc),
+            chla = mean(ChlorA),
+            chlb = mean(ChlorB),
+            leafa = mean(GM_LxW))
+#merge
+
+gm <- merge(nopseudo1, gmdata, by = "PlantID", all = TRUE)
+
+goodvarbs <- c("PlantID", "Family", "treatment")
+good <- gmdata %>% select(goodvarbs)
+
+gm1 <- merge(good, nopseudo1, by = "PlantID")
+
+gm1 <- unique(gm1)
+
+summary(gm1) #this includes pools
+
+#exclude pools 
+gm1 <- gm1 %>% group_by(Family) %>% filter(!Family=="pool")
+
+
+ggplot(data = gm1, aes(x = gluc))+
+  geom_histogram()
+
+```
+Model
+```{r warning = F}
+#filter NAs
+gmdata %>% filter(!is.na(gluc_Conc))
+gmdata %>% filter(!is.na(treatment))
+gmdata %>% filter(!is.na(Family))                
+
+#glucosinolate concentration as predicted by family, treatment, leaf size
+plot(density(gm1$gluc, na.rm = T))
+gluc.glm.Gamma.log <- glm(formula = gluc ~ Family + treatment + leafa,
+                         family  = Gamma(link = "log"),
+                         data    = gm1)
+summary(gluc.glm.Gamma.log)
+exp(coef(gluc.glm.Gamma.log)) #For 1 unit of increase in a predictor, gluc conc is expected to increase multiplicatively by a certain percent (see output)
+
+
+gofTest(gm1$gluc, test = "proucl.ad.gamma", distribution = "gamma")
+#p-value < 0.01.
+
+gofTest(gm1$gluc, test = "sw", distribution = "lnorm3")
+#p = 0.0448925 This could work?: Three-Parameter Lognormal Distribution
+
+summary(gluc.glm.Gamma.log)
+exp(coef(gluc.glm.Gamma.log))
+Anova(gluc.glm.Gamma.log)
+
+
+#trying out multiple regression model
+summary(lmod <- lm(gluc ~ Family + treatment + leafa, data = gm1))
+
+
+#Evaluate the extent to which the predictors are intercorrelated
+#pairs command is passed a dataframe with just the data in it
+
+lvarbs <- c("gluc", "leafa", "chla")
+
+pairs(gm1[,lvarbs], panel = panel.smooth)
+
+#turn this into numerical form with correlation
+cor(gm1[,lvarbs])
+```
+
+
+graphs
+```{r warning  = F}
+#gluc
+ggplot(data = gm1, aes(x = treatment, y = gluc, colour = Family, group = Family))+
+  stat_summary(fun.y=mean, geom="point")+
+  stat_summary(fun.y=mean, geom="line")+
+  scale_colour_discrete(name = "Population")+
+  scale_x_discrete(name = "Treatment", 
+                   labels = c("Alone", "Intraspecific competition", "Interspecific competition", "Pools"))+
+  scale_y_continuous(name = "Glucosinolates (mg/mL)")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 10, angle=30))
+
+#leaf size
+ggplot(data = gm1, aes(x = treatment, y = leafa, colour = Family, group = Family))+
+  stat_summary(fun.y=mean, geom="point")+
+  stat_summary(fun.y=mean, geom="line")+
+  scale_colour_discrete(name = "Population")+
+  scale_x_discrete(name = "Treatment", 
+                   labels = c("Alone", "Intraspecific competition", "Interspecific competition", "Pools"))+
+  scale_y_continuous(name = expression(paste("Leaf area ", (mm^2),"")))+
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 10, angle=30))
+```
+
+
+Compare gluc with and without controlling for leaf size
+```{r}
+
+g1 <- ggplot(data = gm1, aes(x = treatment, y = gluc, colour = Family, group = Family))+
+  stat_summary(fun.y=mean, geom="point")+
+  stat_summary(fun.y=mean, geom="line")+
+  scale_colour_discrete(name = "Population")+
+  scale_x_discrete(name = "Treatment", 
+                   labels = c("Alone", "Intraspecific competition", "Interspecific competition", "Pools"))+
+  scale_y_continuous(name = "Glucosinolates (mg/mL)")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 10, angle=30), legend.position = "none")
+
+gcon <- ggplot(data = gmdata3, aes(x = treatment, y = mgluc, colour = Family, group = Family))+
+  stat_summary(fun.y=mean, geom="point")+
+  stat_summary(fun.y=mean, geom="line")+
+  scale_colour_discrete(name = "Population")+
+  scale_x_discrete(name = "Treatment", 
+                   labels = c("Alone", "Intraspecific competition", "Interspecific competition", "Pools"))+
+  scale_y_continuous(name = "Glucosinolates (mg/mL)")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 10, angle=30), legend.position = "none")
+
+
+plot_grid(g1, gcon)
+```
+
+Compare (gluc controlling for leaf size) and (leaf size)
+```{r}
+leaf <- ggplot(data = gm1, aes(x = treatment, y = leafa, colour = Family, group = Family))+
+  stat_summary(fun.y=mean, geom="point")+
+  stat_summary(fun.y=mean, geom="line")+
+  scale_colour_discrete(name = "Population")+
+  scale_x_discrete(name = "Treatment", 
+                   labels = c("Alone", "Intraspecific competition", "Interspecific competition", "Pools"))+
+  scale_y_continuous(name = "Leaf area")+
+  theme_minimal()+
+  theme(axis.text.x = element_text(size = 10, angle=30), 
+        legend.position = "none")
+
+plot_grid(gcon, leaf)
+```
+
+Gluc and leaf correlation (duplicates removed, no control for leaf size)
+```{r warning = F}
+ggplot(data = gm1, aes(x = leafa, y = gluc))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE)+
+  scale_y_continuous(name = "Glucosinolate concentration (mg/mL)")+
+  scale_x_continuous(name = expression(paste("Leaf area ", (mm^2),"")))+
+  theme_pub()
+
+```
+
+Anova
+Testing for significant interactions between leaf area, treatment, and family
+```{r}
+MyFit2 <- lm(gm1$leafa ~ gm1$Family + gm1$treatment + gm1$Family:gm1$treatment, data = gm1) 
+summary(aov(MyFit))
+```
 
