@@ -12,9 +12,13 @@ dat<-read.csv("DataSynthesis.csv")
 #Assigning Germination plate column
 dat$GerminationPlate<-gsub("\\|.*","",dat$Tag)
 
+#Remove maples for the time being.
+dat<-dat[!grepl("aple",dat$Tag),]
+
 #Assign family column
 prefamily<-gsub("*.\\|","",dat$Tag)
 dat$Family<-gsub("\\-.*","",prefamily)
+
 
 #Assign Leaf number columns
 LeafNumber<-gsub(".*\\_","",dat$Sample)
@@ -24,7 +28,11 @@ for(i in 1:length(LeafNumber)){
   }
 }
 
+
+
 dat$LeafNumber<-LeafNumber
+
+
 
 ```
 
@@ -48,6 +56,9 @@ ggplot(dat2)+
   geom_abline(aes(slope=GFSlopeInt[2],intercept=GFSlopeInt[1]))
 
 
+GFSlopeInt
+
+dat
 ```
 
 
@@ -97,10 +108,31 @@ boxplot(dat$gluc_Conc[dat$DataFile=="Dat_Feb_13_2020_PM.txt" & dat$Tag=="pool"],
 
 boxplot(dat$gluc_Conc[dat$DataFile=="Dat_Feb_12_2020_PM.txt" & dat$Tag=="pool"],dat$gluc_Conc[dat$DataFile!="Dat_Feb_12_2020_PM.txt" & dat$Tag=="pool"])
 
-ggplot(dat[dat$Pool=="Yes",])+
+#ggplot(dat[dat$Pool=="Yes",])+
   geom_point(aes(y=gluc_Conc,x=DataFile,colour=DataFile))
 
 #The values seem on the lower end of the pool variation, but it is not overly concerning. No adjustments or removal of data will be made. 
+
+```
+
+```{r}
+#Quick look Thrips damage. 
+ggplot(dat2)+
+  geom_point(aes(y=ThripsDam,x=gluc_Conc))
+ggplot(dat2)+
+  geom_point(aes(y=ThripsDam,x=flav_Conc))
+dat2
+#Quick look white fungal damage. 
+ggplot(dat2)+
+  geom_point(aes(y=WhiteFungDam,x=gluc_Conc))
+ggplot(dat2)+
+  geom_point(aes(y=WhiteFungDam,x=flav_Conc))
+
+#Quick look black pathogen damage. 
+ggplot(dat2)+
+  geom_point(aes(y=BlackPathDam,x=gluc_Conc))
+ggplot(dat2)+
+  geom_point(aes(y=BlackPathDam,x=flav_Conc))
 
 ```
 

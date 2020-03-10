@@ -3,7 +3,7 @@ title: "Growth Rate Analysis"
 output: html_notebook
 ---
 
-This document is to compile the various growth rate measurements I have taken, along with initial and final manual measurements of body mass, gibberrelic acid, fern, pathogen damage. This document is also to analyse the data once it has been compiled. 
+This document is to compile the various measurements I have taken, for all genotypes in the competition experiment. The data from the fertilizer experiement is also included in this data set, but is properly integrated with the data pertaining to the fertilizer experiment in the document "FertilizerSynthesis.csv".
 
 ###File for *initial size of GM and Maples, greenhouse location, treatment and competition number*: **"Data_collection_GH.csv"**. In R/masters_thesis
 
@@ -11,6 +11,7 @@ This document is to compile the various growth rate measurements I have taken, a
 
 ###File for *final manual measurement of maple size* **Maple_data.txt**. in Python/Raw_Data.
 
+*Done*
 ###File for *final manual measurement of Alliaria leaf size* **Leaf_data.txt**. in Python/Final_GM_Data_CompetitionExp.
 
 ###File for *Growth Rate of Alliaria* **All_photo_data.txt**. in Python/python_pics_analysis.
@@ -21,7 +22,8 @@ This document is to compile the various growth rate measurements I have taken, a
 Note for analysis: 
 only record as dead if I have the barcode, because some lost the barcode but did not die. Also, ferns were recorded for only one genotype if they were in the competition treatment, but it applied to both plants in the compeition treatment. 
 
-###File for *Pathogen damage* **NOT YET MADE**.
+*Done*
+###File for *Pathogen damage* 
 
 *Done*
 ###File for *Glocosinolate,Flavonoid and Chlorophyll content* **All_UV_Data.txt**. in masters_thesis/UVSpec
@@ -161,13 +163,15 @@ ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
 #Some caution should be advised. Ensure the sample 254_1	is still in the Final data frame All_Wide, this could occur if the standard deviaiton of the samples was attempted to be integrated into this workflow where, sd() cannot take the sd of one number, but mean can so it is okay.
 
 
-#Checking for duplicated samples (not technical replicates-two samples with the same name)... 
+#Checking for duplicated samples (not technical replicates - two samples with the same name)... 
 print("These are the duplicates that we know about: 142_2,441_1,i136_1,218_2 ,264_2, 398_2, 438_1, there should be no others besides the pool below and the glucosinolate flavonoid and chlorophyll dataframes should have the same amount of erroneous duplicates (i.e. 4 technical replicates):")
 table(gluc$gluc_Sample)[table(gluc$gluc_Sample)>2 ]       
 table(ChlorNoCont$Sample)[table(ChlorNoCont$Sample)>2 ]    
 table(flav$flav_Sample)[table(flav$flav_Sample)>2 ]       
 
 # List:  218_2 264_2  398_2  438_1     
+
+
 
 #Averaging duplicates (i.e. technical replicates) 
 print("Averaging duplicates and exceptions..")
@@ -184,7 +188,7 @@ Average_ChlorNoCont<-ChlorNoCont %>% group_by(Sample) %>% summarize_at(.vars=var
 #-----
 #Add in missing columns
 
-#Remove (not summarize duplicates)
+#Remove duplicates, this is so that other columns in the chlorophyll data frame can be aded back in. 
 Col_Merger0.1<-ChlorNoCont[!duplicated(ChlorNoCont$Sample),]
 #Select relevant columns
 Col_Merger<-Col_Merger0.1 %>% select(Sample,Tag,DataFile)
@@ -211,13 +215,10 @@ if(length(All_Wide$Sample)!=length(Average_ChlorNoCont$Sample) |length(All_Wide$
 ```
 
 
+#--------Taking care of mismatching Tag/ID!!!!
 ```{r}
 
-#-------------------------------------------------------------------
-#--------Taking care of mismatching Tag/ID!!!!
-#-------------------------------------------------------------------
-
-#a273_2_dupl is a|KVEDG1-1-80|Q|273 and shares a number with d|JBCHY1-1-50|Q|273. BEcause of the a identifier, i am assiging this plant to a|KVEDG1-1-80|Q|273. "da" stands for duplicate A
+#a273_2_dupl is a|KVEDG1-1-80|Q|273 and shares a number with d|JBCHY1-1-50|Q|273. Because of the a identifier, i am assiging this plant to a|KVEDG1-1-80|Q|273. "da" stands for duplicate A
 
 #Leaf one
 All_Wide$Tag[All_Wide$Tag=="a273_1"]<-"a|KVEDG1-1-80|Q|273"
@@ -262,7 +263,7 @@ All_Wide[All_Wide$Tag=="381_1",]<-"c|MSMID1-1-20|G381"
 
 
 
-Final Merging of clean greenhouse data and clean UV data with duplicates averaged. 
+#Final Merging of clean greenhouse data and clean UV data with duplicates averaged. 
 ```{r}
 
 #This left join will keep all individuals that we have glucosinolate and flavonoid data on. 
@@ -506,8 +507,115 @@ write.csv(final,"DataSynthesis.csv")
 
 
 
+###File for *Growth Rate of Alliaria* 
+```{r}
+#Need to integrate the estimated growth rate parameters. 
+```
 
 
+
+##Insert Final Maple biomass and Data on the Control Maples - both initial and final measurements. 
+```{r}
+rm(list=ls())
+#------------------------------
+#Integrating initial maple control measurements.... initial values of maples in treatments are already in the data. 
+#read in GH data
+dat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
+
+#Fix column names
+colnames(dat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
+
+#Removing first row (Which contains no data).
+dat<-dat[2:length(dat$gh_bench),]
+
+#Isolate maple controls 
+dat<-dat[grepl("aple",dat$Tag),]
+
+#Select relevant columns. 
+CntrZero<-dat %>% select(Tag,treatment,maple_leaf_length_0,maple_height_0,maple_leaves_0)
+
+
+#------------------------------
+#Integrating final maple measurements, controls and in competition. 
+MapDat<-read.csv("Data_Moities/Maple_data.txt",header=F,stringsAsFactors = F)
+
+#Creating column names
+colnames(MapDat)<-c("Nothing","Tag","Leaf","Length","Width","Damage","SampleTime","StemHeight")
+
+
+#Replacing Characters in Tag Column. 
+MapDat$Tag<-gsub("§","|",MapDat$Tag,perl = F)
+
+#Removing strings from numeric columns. 
+MapDat$Length<-gsub("\\D","",MapDat$Length)
+MapDat$Width<-gsub("\\D","",MapDat$Width)
+MapDat$StemHeight<-gsub("\\D","",MapDat$StemHeight)
+MapDat$Leaf<-gsub("\\D","",MapDat$Leaf)
+
+#Replacing Damage with a 1 for yes and 0 for no, so that i can take the mean. This will represent the percent of damaged leaves on the plant. 
+MapDat$Damage[MapDat$Damage=="damage-n"]<-0
+MapDat$Damage[MapDat$Damage=="damage-y"]<-1
+
+#making columns numeric. 
+class(MapDat[,3])<-"numeric"
+class(MapDat[,4])<-"numeric"
+class(MapDat[,5])<-"numeric"
+class(MapDat[,6])<-"numeric"
+class(MapDat[,8])<-"numeric"
+class(MapDat[,2])<-"Factor"
+
+
+#Making a leaf area column. 
+MapDat$Area<-MapDat$Length*MapDat$Width
+
+#Summarizing data on the whole plant. 
+MapFinal<-MapDat %>% group_by(Tag) %>% summarize_at(vars("Leaf","Length","Width","Damage","StemHeight","Area"),.funs = list(~max(.),~sum(.),~mean(.)))
+
+#Selecting relevant columns
+MapFinal<-MapFinal %>% select(Tag,Leaf_max,Length_mean,Width_mean,Damage_mean,StemHeight_max,Area_sum,Area_mean)
+
+#Modyfying names to be appropriate. 
+colnames(MapFinal)[-1]<-paste("Maple",colnames(MapFinal)[-1],"End",sep = "_")
+colnames(MapFinal)[2]<-"Maple_LeafNum_End"
+
+
+#---------------------------
+#Reading in the synthesis file to integrate these data. 
+Synth<-read.csv("DataSynthesis.csv")
+Synth<-Synth %>% select(-X)
+
+
+#--------------------------
+#Integrating
+#Integrating Controls into one dataframe.
+ControlFinal<-left_join(CntrZero,MapFinal[grepl("aple",MapFinal$Tag),],by="Tag")
+#Integrating final maple data into the original synthesis file, which lack maple controls. 
+SynthFinal<-left_join(Synth,MapFinal[!grepl("aple",MapFinal$Tag),],by="Tag")
+
+#Integrating control data into the final data frame. 
+#Creating a dataframe identical to the synthesis dataframe, but containing the maple data. 
+Blank<-SynthFinal[1:31,]#Assigning column names from synth data frame
+Blank[1:31,]<-NA #Making them all NA.
+Blank$Tag<-ControlFinal$Tag
+Blank$treatment<-ControlFinal$treatment
+Blank$maple_leaf_length_0<-ControlFinal$maple_leaf_length_0
+Blank$maple_height_0<-ControlFinal$maple_height_0
+Blank$maple_leaves_0<-ControlFinal$maple_leaves_0
+Blank$Maple_LeafNum_End<-ControlFinal$Maple_LeafNum_End
+Blank$Maple_Length_mean_End<-ControlFinal$Maple_Length_mean_End
+Blank$Maple_Width_mean_End<-ControlFinal$Maple_Width_mean_End
+Blank$Maple_StemHeight_max_End<-ControlFinal$Maple_StemHeight_max_End
+Blank$Maple_Area_sum_End<-ControlFinal$Maple_Area_sum_End
+Blank$Maple_Area_mean_End<-ControlFinal$Maple_Area_mean_End
+
+#Merging maple control data with the master dataframe. 
+Final<-rbind(SynthFinal,Blank)
+
+#Writing to file. 
+write.csv(Final,"DataSynthesis.csv")
+
+
+```
 
 
 

@@ -1,0 +1,325 @@
+---
+title: "Fertilizer Spec Analysis"
+author: "Richard Honor"
+date: "06/03/2020"
+output: html_document
+---
+
+
+#Incorporate Data_collection_GH_0.csv (treatment, ID, etc.) with Glucosinolate, Flavonoid and chlorophyll data (All_UV_Data.txt).
+```{r}
+library(dplyr)
+library(ggplot2)
+
+#-------------------------------------------------------------------
+#----------GH Data Prep
+#-------------------------------------------------------------------
+
+#read in GH data
+dat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
+
+#Fix column names
+colnames(dat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
+
+#Removing first row (Which contains no data).
+dat<-dat[2:length(dat$gh_bench),]
+
+#Remove maple controls (for now) This is because the strsplit is mis identifying the maple controls for garlic mustard data. I will have to fix this later.
+dat<-dat[!grepl("aple",dat$Tag),]
+
+#TO FIX
+#The tag "c|MSMID1-1-20|Q|381" was mislabled as "c|MSMID1-1-20|G381". This is fixed below.
+dat$Tag[grep("G381",dat$Tag)]<-"c|MSMID1-1-20|Q|381"
+
+
+
+
+```
+
+
+```{r}
+#####
+#Spec data prep--------------------------------------
+
+#Importing functions created to clean up the UV spec data.
+source("UVSpecProcessingModule.R")
+
+##-----------------------------------
+
+#Seperate spec data into Chlorophyll a and b
+ChlorAB<-CleanData("Data_Moities/All_UV_Data.txt")[[2]]
+
+#.... and Glucosinolate and flavonoid data
+GF<-CleanData("Data_Moities/All_UV_Data.txt")[[1]]
+
+ChlorAB
+
+
+```
+
+#ISolate those in the fertilizer treatment, and those that are were grown alone, but were not in the main experiment (For GGMFS only). 
+```{r}
+#Removing all but fertilizer treatments. 
+ChlorAB<-ChlorAB[grepl("i",ChlorAB$Sample),]
+
+GF<-GF[grepl("i",GF$Sample),]
+
+```
+
+
+
+#Sample Identification!
+```{r}
+
+#Using the Tag (fill ID) from the greenhouse data, assign a Tag to the ID numbers in the spec data.
+
+#Glucosinolates and flavonoids.
+for(i in 1:length(GF$Sample)){
+  ID<-strsplit(GF$Sample[i],"_")[[1]][1]
+  #Ensure the lable is surrounded by symbols, not numbers to ensure no faulty matches ... ex |4 cound be in |48, but not |4| in |48|
+  ID<-paste("|",ID,"|",sep = "")
+  GF$ID[i]<-ID
+  count=0
+  for(j in 1:length(dat$Tag)){
+    #Modify tag locally to avoid mis matches. 
+    locTag<-paste(dat$Tag[j],"|",sep="")
+    if(grepl(ID,locTag,fixed=T)){
+      GF$Tag[i]<-dat$Tag[j]
+      count=count+1
+    }
+  }
+  
+  #Pool samples will be assigned a tag of simply "pool" and an ID of pool and date. 
+  if (count==0){
+    GF$Tag[i]<-GF$Sample[i]
+    GF$Sample[i]<-paste(GF$Sample[i],GF$DataFile[i],sep="-")
+  }
+}
+
+
+#Chlorophyll Samples
+for(i in 1:length(ChlorAB$Sample)){
+  ID<-strsplit(ChlorAB$Sample[i],"_")[[1]][1]
+  ID<-paste("|",ID,"|",sep = "")
+  ChlorAB$ID[i]<-ID
+  count=0
+  for(j in 1:length(dat$Tag)){
+    locTag<-paste(dat$Tag[j],"|",sep="")
+    if(grepl(ID,locTag,fixed=T)){
+      ChlorAB$Tag[i]<-dat$Tag[j]
+      count=count+1
+    }
+  }
+   #Pool samples will be assigned a tag of simply "pool" and an ID of pool and date.  
+  if (count==0){
+    ChlorAB$Tag[i]<-ChlorAB$Sample[i]
+    ChlorAB$Sample[i]<-paste(ChlorAB$Sample[i],ChlorAB$DataFile[i],sep="-")
+  }
+}
+
+#-----------------------------------------
+#Seperate GF into glucosinolate and flavonoid dataframes,these will be joined in a wide format. 
+
+#Glucosinolate
+gluc<-GF[GF$Compound=="gluc",]
+
+#Flavonoid
+flav<-GF[GF$Compound=="flav",]
+
+#Making glucosinolate specific column names
+colnames(gluc)<-paste("gluc",colnames(gluc),sep="_")
+
+#Making flavonoid specific column names
+colnames(flav)<-paste("flav",colnames(flav),sep="_")
+
+#Removing controls from chlorophyll
+ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
+
+```
+
+#Remove non-fertilizer experiement genotypes (i.e. those to be used in the GGMFS analysis).
+```{r}
+#flavonoid Dataframe.
+flav<-flav[grepl("SMITH1-3-80",flav$flav_Tag)|grepl("KVEDG1-8-60",flav$flav_Tag)|grepl("MSMID1-2-0",flav$flav_Tag),]
+
+
+#Glucosinolate Dataframe.
+gluc<-gluc[grepl("SMITH1-3-80",gluc$gluc_Tag)|grepl("KVEDG1-8-60",gluc$gluc_Tag)|grepl("MSMID1-2-0",gluc$gluc_Tag),]
+
+#Chlorophyll Dataframe.
+ChlorNoCont<-ChlorNoCont[grepl("SMITH1-3-80",ChlorNoCont$Tag)|grepl("KVEDG1-8-60",ChlorNoCont$Tag)|grepl("MSMID1-2-0",ChlorNoCont$Tag),]
+
+
+#Visualizing variation amoung leaves. There can be alot. 
+
+
+ggplot(gluc)+
+  geom_boxplot(aes(x=gluc_Sample,y=gluc_Conc))
+ggplot(flav)+
+  geom_boxplot(aes(x=flav_Sample,y=flav_Conc))
+
+```
+
+
+#Add treatment and merge dataframes. 
+```{r}
+
+#-------------------
+#Merging dataframes containing chlorophyll glucosinolate and flavonoid data. 
+if(
+!any(gluc[order(gluc$gluc_Sample),"gluc_Sample"]!=flav[order(flav$flav_Sample),"flav_Sample"])&
+!any(flav[order(flav$flav_Sample),"flav_Sample"]!=ChlorNoCont[order(ChlorNoCont$"Sample"),"Sample"])
+){
+  print("All dataframes are in the correct position. ")
+  
+  #Merging Data Frames
+FatDat0.1<-cbind(gluc[order(gluc$gluc_Sample),],flav[order(flav$flav_Sample),])
+FatDat<-cbind(FatDat0.1,ChlorNoCont[order(ChlorNoCont$Sample),])
+}
+
+
+#Selecting relevant columns. 
+FatDat<-FatDat %>% select(Tag,Sample,ID,ChlorA,ChlorB,gluc_Conc,flav_Conc)
+
+
+  
+#Averaging values for each sample. Not each leaf. Leaf can be treated as a random effect within genotype. 
+FatDat<-FatDat %>% group_by(Sample, Tag, ID) %>% summarize_at(vars(ChlorA,ChlorB,gluc_Conc,flav_Conc),.funs=list(~mean(.)))
+
+  
+
+
+#----------------------------
+#Mergind dataframes. 
+Final<-left_join(FatDat,dat,by="Tag")
+
+#Removing silly collumns. 
+Final<-Final %>% select(-new._code_needed.,-Helper.date)
+
+#Fix Final Tag name.
+Final$Tag[Final$Tag=="12d|KVEDG1-8-60|Q|i21"]<-"d|KVEDG1-8-60|Q|i21"
+
+#Assigning Family Column
+prefamily<-gsub("*.\\|","",Final$Tag)
+Final$Family<-gsub("\\-.*","",prefamily)
+
+
+
+```
+
+#Adding Fertilizer Treatment data
+```{r}
+#load in fertilizer data. 
+fertdat<-read.csv("Data_Moities/FertilizerExperiment/Pots_with_fertilizer.csv")
+
+
+
+#isolateneccesairy columns
+fertdat<-fertdat %>% select(Tag)
+
+#Assigning fertilizzer collumn
+fertdat$Fert<-"y"
+
+
+#Merging
+Final<-left_join(Final,fertdat,by="Tag")
+
+#Assigning "n" to columns with na, as these are the genotypes that did not get fertilizer. 
+Final$Fert[is.na(Final$Fert)]<-"n"
+
+
+```
+
+
+
+
+
+#Inserting Final Maple performance Data. 
+```{r}
+#Final Maple measurements. These were taken on Aug 27 2019.
+MapDat<-read.csv("Data_Moities/FertilizerExperiment/Maple_data_fertilizer.txt",header=F,stringsAsFactors = F)
+#Creating column names
+colnames(MapDat)<-c("Nothing","Tag","Leaf","Length","Width","Damage","SampleTime","StemHeight")
+#Replacing Characters in Tag Column. 
+MapDat$Tag<-gsub("§","|",MapDat$Tag,perl = F)
+
+#Removing strings from numeric columns. 
+MapDat$Length<-gsub("\\D","",MapDat$Length)
+MapDat$Width<-gsub("\\D","",MapDat$Width)
+MapDat$StemHeight<-gsub("\\D","",MapDat$StemHeight)
+MapDat$Leaf<-gsub("\\D","",MapDat$Leaf)
+
+#Replacing Damage with a 1 for yes and 0 for no, so that i can take the mean. This will represent the percent of damaged leaves on the plant. 
+MapDat$Damage[MapDat$Damage=="damage-n"]<-0
+MapDat$Damage[MapDat$Damage=="damage-y"]<-1
+
+#making columns numeric. 
+class(MapDat[,3])<-"numeric"
+class(MapDat[,4])<-"numeric"
+class(MapDat[,5])<-"numeric"
+class(MapDat[,6])<-"numeric"
+class(MapDat[,8])<-"numeric"
+class(MapDat[,2])<-"Factor"
+
+
+#Making a leaf area column. 
+MapDat$Area<-MapDat$Length*MapDat$Width
+
+#Summarizing data on the whole plant. 
+MapFinal<-MapDat %>% group_by(Tag) %>% summarize_at(vars("Leaf","Length","Width","Damage","StemHeight","Area"),.funs = list(~max(.),~sum(.),~mean(.)))
+
+#Selecting relevant columns
+MapFinal<-MapFinal %>% select(Tag,Leaf_max,Length_mean,Width_mean,Damage_mean,StemHeight_max,Area_sum,Area_mean)
+
+#Modyfying names to be appropriate. 
+colnames(MapFinal)[-1]<-paste("Maple",colnames(MapFinal)[-1],"End",sep = "_")
+colnames(MapFinal)[2]<-"Maple_LeafNum_End"
+
+
+#--------------
+#Merging with Main DataFrame. 
+Final<-left_join(Final,MapFinal,by="Tag")
+
+write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
+
+```
+
+
+
+
+#Insert Garlic Mustard leaf biomass data, as well as mortality data. 
+```{r}
+rm(list=ls())
+library(dplyr)
+library(ggplot2)
+#read in most up to date dataframe for data analysis. 
+dat<-read.csv("Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv",stringsAsFactors = F)
+#read in body mass data. 
+mass<-read.csv("Data_Moities/FertilizerExperiment/GM_Fertilizer_Body_Mass.csv",stringsAsFactors = F)
+dat<-dat %>% select(-X)
+
+#Fix genotype ID in the mass dataframe. 
+mass$ID<-gsub("§","|",mass$ID,perl = F)
+mass$ID<-gsub("/","-",mass$ID,perl = F)
+mass$ID<-gsub("_","?",mass$ID,perl = F)
+
+#Removing initial mass from the merge options. 
+mass<-mass %>% select(-Mass)
+#Modifying title. 
+colnames(mass)[2]<-"GM_Shoot_Mass"
+
+#Merge Dataframes. 
+Final<-left_join(dat,mass,by=c("Tag"="ID"))
+
+
+write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
+
+print("Done")
+```
+
+
+
+
+
+
+

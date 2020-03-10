@@ -1,0 +1,127 @@
+---
+title: "Fertilizer_Experiment_Analysis"
+author: "Richard Honor"
+date: "09/03/2020"
+output: html_document
+---
+
+
+```{r}
+Final<-read.csv("Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
+```
+
+
+
+#Visualize treatment and genotype effect on Gluc Flav and Chlorophyll
+```{r}
+#Treatment effects
+
+#-----
+#Glucosinolate. 
+
+ggplot(Final)+
+  geom_jitter(aes(x=treatment,y=gluc_Conc,colour=Fert))
+
+
+#---
+#Flavonoid
+ggplot(Final)+
+  geom_jitter(aes(x=treatment,y=flav_Conc,colour=Fert))
+
+
+#---
+#ChlorA
+ggplot(Final)+
+  geom_jitter(aes(x=treatment,y=ChlorA,colour=Fert))
+
+
+
+#---
+#genotype effects
+
+ggplot(Final[Final$treatment=="a",])+
+  geom_boxplot(aes(x=Family,y=gluc_Conc,colour=Fert))
+
+ggplot(Final[Final$treatment=="a",])+
+  geom_boxplot(aes(x=Family,y=flav_Conc,colour=Fert))
+
+ggplot(Final[Final$treatment=="gm",])+
+  geom_boxplot(aes(x=Family,y=gluc_Conc,colour=Fert))
+
+ggplot(Final[Final$treatment=="gm",])+
+  geom_boxplot(aes(x=Family,y=flav_Conc,colour=Fert))
+
+ggplot(Final[Final$treatment=="m",])+
+  geom_boxplot(aes(x=Family,y=gluc_Conc,colour=Fert))
+
+ggplot(Final[Final$treatment=="m",])+
+  geom_boxplot(aes(x=Family,y=flav_Conc,colour=Fert))
+
+#---
+
+ggplot(Final[Final$treatment=="m",])+
+  geom_boxplot(aes(x=Family,y=ChlorA,colour=Fert))
+ggplot(Final[Final$treatment=="a",])+
+  geom_boxplot(aes(x=Family,y=ChlorA,colour=Fert))
+ggplot(Final[Final$treatment=="gm",])+
+  geom_boxplot(aes(x=Family,y=ChlorA,colour=Fert))
+
+```
+
+
+
+#Visualizing the effect of Treatment on maples
+```{r}
+#Column for the change in stem height. 
+Final$Maple_StemChange<-Final$Maple_StemHeight_max_End-as.numeric(Final$maple_height_0)
+
+#Fertilized maples initially started at higher stem heights
+ggplot(Final[Final$treatment=="m",])+
+  geom_boxplot(aes(x=as.factor(Fert),y=as.numeric(maple_height_0)))
+
+#But after they recieved fertilizer, they did not grow any more than did those without fertilizer. 
+ggplot(Final[Final$treatment=="m",])+
+  geom_boxplot(aes(x=as.factor(Fert),y=as.numeric(Maple_StemChange)))
+
+ggplot(Final[Final$treatment=="m",])+
+  geom_point(aes(x=as.factor(Fert),y=Maple_Area_sum_End))
+
+
+```
+
+
+Visualizing the final biomass of the genotypes in the different treatments. 
+```{r}
+#Effect of treatment
+ggplot(Final)+
+  geom_point(aes(x=treatment,y=GM_Shoot_Mass,colour=Fert,shape=Family))
+
+#interestingly, garlic mustard plants had the highest glucosinolate expression in the gm treatment with fertilizer, but this did not translate to a change in final biomass for the genotype. 
+
+
+
+```
+
+#Visualizing the relationship between glucosinolate concentration and body mass.
+Is there a trade off?
+```{r}
+#There will be auto correlation unless the fertilizer treatment is accounted for because those with fertilizer will have higher biomass and higher glucosinolate independent of the effect of gluc on bodymass. 
+ggplot(Final[Final$Fert=="y",])+
+  geom_point(aes(y=GM_Shoot_Mass,x=gluc_Conc,colour=treatment))
+
+#No Fertilizer.
+ggplot(Final[Final$Fert=="n",])+
+  geom_point(aes(y=GM_Shoot_Mass,x=gluc_Conc,colour=treatment))
+
+#Flavonol. 
+ggplot(Final[Final$Fert=="y",])+
+  geom_point(aes(y=GM_Shoot_Mass,x=flav_Conc,colour=treatment))
+
+#No Fertilizer.
+ggplot(Final[Final$Fert=="n",])+
+  geom_point(aes(y=GM_Shoot_Mass,x=flav_Conc,colour=treatment))
+
+#All slopes appear to be zero and there is no  effect of glucosinolate or flavonoid on the final biomass of the genotypes, however, one would have to control for the initial maple size and competitor in the gm treatment to assess this because these things could also heavily influence success and therefore final body mass. 
+
+```
+

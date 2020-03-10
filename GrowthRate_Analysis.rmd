@@ -1,0 +1,129 @@
+---
+title: "GrowthRate_Analysis"
+author: "Richard Honor"
+date: "05/03/2020"
+output: html_document
+---
+
+```{r}
+#-------------------------------------------------------------------
+#----------GH Data Prep
+#-------------------------------------------------------------------
+
+#read in GH data
+AllDat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
+
+#Fix column names
+colnames(AllDat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
+
+#Removing first row (Which contains no data).
+AllDat<-AllDat[2:length(AllDat$gh_bench),]
+
+#Remove maple controls (for now) This is because the strsplit is mis identifying the maple controls for garlic mustard data. I will have to fix this later.
+AllDat<-AllDat[!grepl("aple",AllDat$Tag),]
+
+#TO FIX
+#The tag "c|MSMID1-1-20|Q|381" was mislabled as "c|MSMID1-1-20|G381". This is fixed below.
+AllDat$Tag[grep("G381",AllDat$Tag)]<-"c|MSMID1-1-20|Q|381"
+
+AllDat
+
+```
+
+Reading in data frame and assigning treatment
+```{r}
+library(dplyr)
+library(ggplot2)
+
+#GrowthRate Data
+dat<-read.csv("Data_Moities/Growth_Rate_Data.txt")
+
+
+#Assigning treatments to the genotypes. 
+dat<-left_join(dat,AllDat,by=c("Genotype"="Tag"))
+
+dat
+```
+
+
+
+```{r}
+
+
+#Average top and bottom frame pixels. 
+dat2<-dat %>% group_by(Genotype,Seconds,treatment) %>% summarize_at(vars(area),.funs = list(~sum(.)))
+
+#Generating family column
+prefamily<-gsub("*.\\|","",dat2$Genotype)
+dat2$Family<-gsub("\\-.*","",prefamily)
+
+
+
+#Wow. There does appear to be some growth reduction. 
+ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|1",])+
+  geom_path(aes(x=Seconds,y=area))
+
+
+#I need a variable to categorize all of the seconds into the day that they were taken. So that I can get an average of each genotype at each measurement to get the average growth rate of a genotype. 
+
+#There are 86,400 seconds in a day. It took two days to get the data. 
+#Rounding to calculate the day the photos were taken
+
+dat2$Day<-round(dat2$Seconds/(86400*2),digits=0)
+
+
+#Second Raw
+ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|2",])+
+  geom_path(aes(x=Seconds,y=area))
+
+#Second Rounded Day
+ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|2",])+
+  geom_path(aes(x=Day,y=area))
+
+
+#Further grouping family to take the average and standard deviation of the family values at each time point in each treatment, with the standard deviations. 
+dat3<-dat2 %>% group_by(Family,Day,treatment) %>% summarize_at(vars(area),.fun=list(~mean(.),~sd(.)))
+
+
+dat3<-dat3[!is.na(dat3$treatment),]
+
+#Viewing growthrate by treatment
+ggplot(dat3[!is.na(dat3$treatment),])+
+  geom_path(aes(y=mean,x=Day,colour=treatment))
+
+#Alone Treatment View
+ggplot(dat3[dat3$treatment=="a",])+
+  geom_path(aes(y=mean,x=Day,colour=Family))
+
+#Maple Treatment View
+ggplot(dat3[dat3$treatment=="m",])+
+  geom_path(aes(y=mean,x=Day,colour=Family))
+
+#Garlic Mustard Treatment View
+ggplot(dat3[dat3$treatment=="gm",])+
+  geom_path(aes(y=mean,x=Day,colour=Family))
+
+gm<-dat3[dat3$treatment=="gm",] 
+
+#VSGARO Has a very large ups and downs in growth rate average. going to check our individuals to see if I suspect an error. 
+ggplot(dat2[dat2$Family=="VSGARO1",])+
+  geom_path(aes(y=area,x=Day,colour=Genotype))
+
+ggplot(dat2[dat2$Family=="BWPEM1",])+
+  geom_path(aes(y=area,x=Day,colour=Genotype))
+
+#On further look, there doesnt seem to be anything that bad with the genotype. 
+```
+
+
+Things of interest: 
+**Initial**
+1) intercept (how large the plant was initially, this could make the growth rate semm lower or faster)
+**Growth**
+2) Slope/Rate of Change to the max point. How long did it take to get there. 
+3)Point of highest biomass.
+**Decline Things**
+4) Rate of decline/slope of decline. (How fast did the plant deteriorate)
+5) Point of Decline (When did the plant start to deteriorate)
+
+
