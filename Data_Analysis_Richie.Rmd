@@ -109,7 +109,7 @@ boxplot(dat$gluc_Conc[dat$DataFile=="Dat_Feb_13_2020_PM.txt" & dat$Tag=="pool"],
 boxplot(dat$gluc_Conc[dat$DataFile=="Dat_Feb_12_2020_PM.txt" & dat$Tag=="pool"],dat$gluc_Conc[dat$DataFile!="Dat_Feb_12_2020_PM.txt" & dat$Tag=="pool"])
 
 #ggplot(dat[dat$Pool=="Yes",])+
-  geom_point(aes(y=gluc_Conc,x=DataFile,colour=DataFile))
+#  geom_point(aes(y=gluc_Conc,x=DataFile,colour=DataFile))
 
 #The values seem on the lower end of the pool variation, but it is not overly concerning. No adjustments or removal of data will be made. 
 

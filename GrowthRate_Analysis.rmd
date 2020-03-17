@@ -116,6 +116,15 @@ ggplot(dat2[dat2$Family=="BWPEM1",])+
 ```
 
 
+
+
+
+
+
+
+
+
+
 Things of interest: 
 **Initial**
 1) intercept (how large the plant was initially, this could make the growth rate semm lower or faster)
@@ -125,5 +134,91 @@ Things of interest:
 **Decline Things**
 4) Rate of decline/slope of decline. (How fast did the plant deteriorate)
 5) Point of Decline (When did the plant start to deteriorate)
+
+
+Using non linear mixed models to estimate the coefficients in my data.
+```{r}
+library(nlme)
+hollingMod<-function(x,a,b,c){
+  y=(a*(x^2))/(b+c*x+x^2)
+return(y)
+}
+
+test<-function(x,a,b,c,z){
+  y=(a*x+x^z)/(b+x^c)
+  return(y)
+}
+
+Xplot<-0:100
+y<-test(Xplot,4,2,2,4)
+plot(y~Xplot)
+
+nls(area~holling(time),dat2 )
+#must test the significance of the models with "anova"
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+#Testing out functions to be used to model growth rate. This is a second order one. 
+
+test<-dat2[dat2$Genotype=="a|VSGARO1-1-0|Q|531",]
+test
+fit<-lm(area~Seconds+I(Seconds^2),data=test)
+fit
+
+x<-seq(min(test$Seconds),max(test$Seconds),length.out=20)
+
+ModY<-predict(fit,type = "response",newdata = data.frame("Seconds"=x))
+
+names(ModY)=NULL
+
+ggplot()+
+  geom_point(aes(x=test$Seconds,y=test$area))+
+  geom_path(aes(x=x,y=ModY))
+  
+
+#Testing out functions to be used to model growth rate. This is a third order one. 
+
+fit<-lm(area~Seconds+I(Seconds^2)+I(Seconds^3)+I(Seconds^4),data=test)
+fit
+
+x<-seq(min(test$Seconds),max(test$Seconds),length.out=20)
+
+ModY<-predict(fit,type = "response",newdata = data.frame("Seconds"=x,"I(Seconds^2)"=I(x^2),"I(Seconds^3)"=I(x^3)))
+
+names(ModY)=NULL
+
+ggplot()+
+  geom_point(aes(x=test$Seconds,y=test$area))+
+  geom_path(aes(x=x,y=ModY))
+  
+
+
+
+
+
+```{r}
+#Holling type IV function.
+holling<-function(x){
+  y=(a*(x^2))/(b+c*x+x^2)
+return(y)
+}
+  
+frair_fit(y~(a*(x^2))/(b+c*x+x^2),x=test$Seconds,y=test$area, )
+
+frair_responses()
+```
+
 
 

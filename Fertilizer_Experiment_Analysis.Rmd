@@ -20,19 +20,19 @@ Final<-read.csv("Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
 #Glucosinolate. 
 
 ggplot(Final)+
-  geom_jitter(aes(x=treatment,y=gluc_Conc,colour=Fert))
+  geom_boxplot(aes(x=treatment,y=gluc_Conc,colour=Fert))
 
 
 #---
 #Flavonoid
 ggplot(Final)+
-  geom_jitter(aes(x=treatment,y=flav_Conc,colour=Fert))
+  geom_boxplot(aes(x=treatment,y=flav_Conc,colour=Fert))
 
 
 #---
 #ChlorA
 ggplot(Final)+
-  geom_jitter(aes(x=treatment,y=ChlorA,colour=Fert))
+  geom_boxplot(aes(x=treatment,y=ChlorA,colour=Fert))
 
 
 
@@ -124,4 +124,16 @@ ggplot(Final[Final$Fert=="n",])+
 #All slopes appear to be zero and there is no  effect of glucosinolate or flavonoid on the final biomass of the genotypes, however, one would have to control for the initial maple size and competitor in the gm treatment to assess this because these things could also heavily influence success and therefore final body mass. 
 
 ```
+
+
+
+GM appears to be in more competition with itself, but interestingly the amount of glucosinolates do not share the same reduction. Could this mean that apparent plasticity is not at play here and true plasticity is based on the lack of change in glucosinolate concentration, despite the change in biomass?!?! 
+
+
+The same could be true with the weak negative correlation between glucosinote and leaf size, could those in the garlic mustard experiment be purposefully trying to increase the expression of glucosinolates? I think another study found that the self toxic effects of Glucosinolates may be more harmful than the effects on other species... idk. 
+
+
+
+
+
 

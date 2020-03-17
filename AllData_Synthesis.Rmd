@@ -5,10 +5,12 @@ output: html_notebook
 
 This document is to compile the various measurements I have taken, for all genotypes in the competition experiment. The data from the fertilizer experiement is also included in this data set, but is properly integrated with the data pertaining to the fertilizer experiment in the document "FertilizerSynthesis.csv".
 
+*Done*
 ###File for *initial size of GM and Maples, greenhouse location, treatment and competition number*: **"Data_collection_GH.csv"**. In R/masters_thesis
 
 ###File for *germination transplant date, and gibberelic acid treatment*. **clean_germination_data_2.csv**. In R/masters_thesis.
 
+*Done*
 ###File for *final manual measurement of maple size* **Maple_data.txt**. in Python/Raw_Data.
 
 *Done*
@@ -165,9 +167,9 @@ ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
 
 #Checking for duplicated samples (not technical replicates - two samples with the same name)... 
 print("These are the duplicates that we know about: 142_2,441_1,i136_1,218_2 ,264_2, 398_2, 438_1, there should be no others besides the pool below and the glucosinolate flavonoid and chlorophyll dataframes should have the same amount of erroneous duplicates (i.e. 4 technical replicates):")
-table(gluc$gluc_Sample)[table(gluc$gluc_Sample)>2 ]       
-table(ChlorNoCont$Sample)[table(ChlorNoCont$Sample)>2 ]    
-table(flav$flav_Sample)[table(flav$flav_Sample)>2 ]       
+#table(gluc$gluc_Sample)[table(gluc$gluc_Sample)>2 ]       
+#table(ChlorNoCont$Sample)[table(ChlorNoCont$Sample)>2 ]    
+#table(flav$flav_Sample)[table(flav$flav_Sample)>2 ]       
 
 # List:  218_2 264_2  398_2  438_1     
 
