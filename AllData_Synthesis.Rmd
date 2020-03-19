@@ -8,6 +8,7 @@ This document is to compile the various measurements I have taken, for all genot
 *Done*
 ###File for *initial size of GM and Maples, greenhouse location, treatment and competition number*: **"Data_collection_GH.csv"**. In R/masters_thesis
 
+*Done*
 ###File for *germination transplant date, and gibberelic acid treatment*. **clean_germination_data_2.csv**. In R/masters_thesis.
 
 *Done*
@@ -619,6 +620,36 @@ write.csv(Final,"DataSynthesis.csv")
 
 ```
 
+#Insert Germination date and germination treatment. 
+```{r}
+rm(list=ls())
+#Read in germination data
+dat<-read.csv("Data_Moities/clean_germination_data_2.csv",stringsAsFactors = F)
+dat<-dat %>% select(-X.1,-X)
+
+#Read in master data frame. 
+master<-read.csv("DataSynthesis.csv")
+master <- master %>% select(-X)
+
+#I was planning on using the date moved in the analysis, but i decided not to because it may not represent the date that the plant germinated, and because the same plate continued to germinate and was moved up to three times, making it not possible to identify the exact date that any given plant was moved into the growing chamber. For certain genotypes, i actually recorded the length of each hypocotyle that was moved. It is unfortunate to not use this data. 
+
+#Selecting relevant columns. 
+dat<-dat %>% select(Petri.Dish,GA3)
+
+#Cleaning up the column GA3
+dat$GA3[!grepl("y",dat$GA3)]<-"n"
+
+#Merging the dataframes. 
+
+master$GA3<-NA
+for(i in 1:length(dat$Petri.Dish)){
+  #finding all tags in the master data frame corresponding to the petri dish plate at i. 
+ master$GA3[grepl(dat$Petri.Dish[i],master$Tag,fixed=T)]<-dat$GA3[i]
+}
+
+write.csv(master,"DataSynthesis.csv")
+
+```
 
 
 
