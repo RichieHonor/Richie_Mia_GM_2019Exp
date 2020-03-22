@@ -5,6 +5,8 @@ output: html_notebook
 Load data
 ```{r}
 gmdata <- read.csv("DataSynthesis.csv",stringsAsFactors = F)
+
+options(na.action = "na.fail")
 ```
 
 Load libraries
@@ -188,7 +190,7 @@ ALN <- gmdata3[grepl("a",gmdata$treatment),]
 
 #chlorophyll a
 ggplot(data = ALN)+
-  geom_point(aes(x = mgluc, y = mchla))+
+  geom_point(aes(x = mgluc, y = mchla, colour = Family))+
   geom_smooth(aes(x = mgluc, y = mchla), method = "lm", se = FALSE)+
   scale_x_continuous(name = "Glucosinolates (mg/mL)")+
   scale_y_continuous(name = "Chlorophyll a (mg/mL)")+
@@ -300,7 +302,8 @@ plot(MyFit,1)
 #bartlett.test(split(gmdata3$mgluc,list(gmdata3$Family, gmdata3$treatment)), data=gmdata3)
 
 ```
-
+##########################################################################
+##########################################################################
 ##########################################################################
 ALTERNATIVE (not controlling manually for leaf size)
 ```{r}
@@ -447,9 +450,9 @@ plot_grid(gcon, leaf)
 
 Gluc and leaf correlation (duplicates removed, no control for leaf size)
 ```{r warning = F}
-ggplot(data = gm1, aes(x = leafa, y = gluc))+
-  geom_point()+
-  geom_smooth(method = "lm", se = FALSE)+
+ggplot(data = gm1)+
+  geom_point(aes(x = leafa, y = gluc, colour = Family))+
+  geom_smooth(aes(x = leafa, y = gluc), method = "lm", se = FALSE)+
   scale_y_continuous(name = "Glucosinolate concentration (mg/mL)")+
   scale_x_continuous(name = expression(paste("Leaf area ", (mm^2),"")))+
   theme_pub()
@@ -462,4 +465,168 @@ Testing for significant interactions between leaf area, treatment, and family
 MyFit2 <- lm(gm1$leafa ~ gm1$Family + gm1$treatment + gm1$Family:gm1$treatment, data = gm1) 
 summary(aov(MyFit))
 ```
+```{r}
+#NO CONTOL FOR LEAF SIZE
+#separate plants into alone treatment
+ALN1 <- gm1[grepl("a",gm1$treatment),]
 
+ggplot(data = ALN1)+
+  geom_point(aes(x = gluc, y = chla), colour = "seagreen", pch = 19)+
+  geom_smooth(aes(x = gluc, y = chla), method = "lm", se = FALSE, colour = "black", lwd = 1.5)+
+  scale_x_continuous(name = "Glucosinolates (mg/mL)")+
+  scale_y_continuous(name = "Chlorophyll a (mg/mL)")+
+  theme_pub()
+
+sum(!is.na(gm1$chla))
+
+summary(lm(chla ~ gluc, data = gm1))
+```
+
+Leaf size
+```{r}
+
+#make a wide dataframe using 'spread' w non controlled chemicals
+
+widegm2 <- gm1 %>% spread(treatment, leafa, fill = NA, convert = FALSE)
+
+widegm2 <- widegm2 %>% mutate(meana = mean(a, na.rm = TRUE), 
+                            meangm = mean(gm, na.rm = T),
+                            meanm = mean(m, na.rm = T))
+widegm2 <- widegm2 %>% mutate(sea = std.error(a),
+                            segm = std.error(gm),
+                            sem = std.error(m))
+
+########## BIVARIATE PLOTS ##########
+### LEAF SIZE ###
+  #gm intra vs alone
+l1 <- ggplot(data = widegm, aes(x = meana, y = meangm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm,
+                width = .000000000001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meana - sea,
+                    xmax = meana + sea,
+                    width = .000000000001, colour = "blue"))+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  labs(y = "Intraspecific", x = "Alone")+
+  theme_pub()
+    
+  
+  #gm intra vs m inter
+l2 <- ggplot(data = widegm2, aes(x = meanm, y = meangm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm, 
+                width = .000000000001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .000000000001, colour = "blue"))+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  labs(y = "Intraspecific", x = "Interspecific")+
+    theme_pub()
+
+  
+  #alone vs inter m
+l3 <- ggplot(data = widegm, aes(x = meanm, y = meana))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meana - sea, 
+                    ymax = meana + sea,
+                width = .000000000001, colour ="red"))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .000000000001, colour = "blue"))+
+  geom_smooth(method = "lm", se = F)+
+  labs(y = "Alone", x = "Interspecific")+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  theme_pub()
+
+
+
+plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 3)
+```
+
+Boxplot to show leaf area differences?
+```{r}
+ggplot(gm1, aes(x = treatment, y = leafa))+
+  geom_boxplot(fill = 'darkolivegreen3')+
+  scale_x_discrete(name = "Treatment", labels = c("Alone", "Intraspecific competition", "Interspecific competition"))+
+  scale_y_continuous(name = expression(paste("Leaf area ", (mm^2),"")))+
+  theme_pub()
+
+#1 way anova
+lmod <- lm(leafa ~ treatment, data = gm1)
+summary(lmod)
+anova(lmod)
+
+z.em <- emmeans(lmod, "treatment")
+summary(z.em)
+pwpp(z.em)
+pairs(z.em, adjust = "tukey")
+```
+
+bivariate plot for gluc w/out controlling for leaf size
+```{r  fig.width = 15, fig.height = 5,warning = F}
+
+#make a wide dataframe using 'spread'
+
+widegm8 <- gm1 %>% spread(treatment, gluc, fill = NA, convert = FALSE)
+widegm8 <- widegm8 %>% mutate(meana = mean(a, na.rm = TRUE), 
+                            meangm = mean(gm, na.rm = T),
+                            meanm = mean(m, na.rm = T))
+widegm8 <- widegm8 %>% mutate(sea = std.error(a),
+                            segm = std.error(gm),
+                            sem = std.error(m))
+
+########## BIVARIATE PLOTS ##########
+### GLUC CONC w/out control for leaf size###
+  #gm intra vs alone
+p1 <- ggplot(data = widegm8, aes(x = meana, y = meangm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm,
+                width = .000000000001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meana - sea,
+                    xmax = meana + sea,
+                    width = .000000000001, colour = "blue"))+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  labs(y = "Intraspecific", x = "Alone")+
+  theme_pub()
+    
+  
+  #gm intra vs m inter
+p2 <- ggplot(data = widegm8, aes(x = meanm, y = meangm))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm, 
+                width = .000000000001, colour = "red"))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .000000000001, colour = "blue"))+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  labs(y = "Intraspecific", x = "Interspecific")+
+    theme_pub()
+
+  
+  #alone vs inter m
+p3 <- ggplot(data = widegm8, aes(x = meanm, y = meana))+
+  geom_point()+
+  geom_errorbar(aes(ymin = meana - sea, 
+                    ymax = meana + sea,
+                width = .000000000001, colour ="red"))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .000000000001, colour = "blue"))+
+  geom_smooth(method = "lm", se = F)+
+  labs(y = "Alone", x = "Interspecific")+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  theme_pub()
+
+
+
+plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 3)
+```
+2 way anova w/out control for leaf size
+```{r}
+MyFit3 <- lm(gm1$gluc ~ gm1$Family + gm1$treatment + gm1$Family:gm1$treatment, data = gm1) 
+summary(aov(MyFit3))
+```
