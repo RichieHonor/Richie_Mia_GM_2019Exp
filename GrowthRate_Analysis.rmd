@@ -1,0 +1,248 @@
+---
+title: "GrowthRate_Analysis"
+author: "Richard Honor"
+date: "05/03/2020"
+output: html_document
+---
+
+#GH Data Prep
+```{r}
+#read in GH data
+AllDat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
+
+#Fix column names
+colnames(AllDat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
+
+#Removing first row (Which contains no data).
+AllDat<-AllDat[2:length(AllDat$gh_bench),]
+
+#Remove maple controls (for now) This is because the strsplit is mis identifying the maple controls for garlic mustard data. I will have to fix this later.
+AllDat<-AllDat[!grepl("aple",AllDat$Tag,fixed = T),]
+
+#TO FIX
+#The tag "c|MSMID1-1-20|Q|381" was mislabled as "c|MSMID1-1-20|G381". This is fixed below.
+AllDat$Tag[grep("G381",AllDat$Tag,fixed = T)]<-"c|MSMID1-1-20|Q|381"
+
+
+```
+
+#Reading in data frame, assigning treatment, fixing mis-assigned treatment bugs
+```{r}
+library(dplyr)
+library(ggplot2)
+
+#GrowthRate Data
+dat<-read.csv("Data_Moities/Growth_Rate_Data.txt")
+
+
+#Assigning treatments to the genotypes. 
+dat0.1<-left_join(dat,AllDat,by=c("Genotype"="Tag"))
+
+
+#There are still some genotypes with missing treatment data:
+dat0.1[is.na(dat0.1$treatment),]
+
+#let us fix them Below:
+
+#.... (DVGM|Q|117 was labeled with a "c" petridish in the growth rate data, but in the initial greenhouse data, it is labeled as a "b". The growth rate measurements will be greenhouse data will be taken to be correct.)
+AllDat[grepl("DVGM-20|Q|117",AllDat$Tag,fixed = T),]
+dat0.1[grepl("|117",dat0.1$Genotype,fixed = T),]
+dat$Genotype[dat$Genotype=="c|DVGM-20|Q|117"]<-"b|DVGM-20|Q|117"
+
+#...."e|JBCHY1-1-50|Q|?"Did not match, even though this genotype is in greenhouse data. What happened was the name is in the greenhouse data as  e|JBCHY1-1-50|? and in the growth rate data as both e|JBCHY1-1-50|Q|? and e|JBCHY1-1-50|?. I will change it to be e|JBCHY1-1-50|Q|? everywhere. 
+AllDat[grepl("e|JBCHY1-1-50|",AllDat$Tag,fixed = T),]
+dat0.1[grepl("e|JBCHY1-1-50|Q|?",dat0.1$Genotype,fixed = T),]
+dat$Genotype[dat$Genotype=="e|JBCHY1-1-50|?"]<-"e|JBCHY1-1-50|Q|?"
+AllDat$Tag[AllDat$Tag=="e|JBCHY1-1-50|?"]<-"e|JBCHY1-1-50|Q|?"
+
+#....The greenhouse data recorded the genotype as c|VSGARO1-1-0|536, while the growth rate data recorded the genotype as c|VSGARO1-1-0|Q|536 or c|vSGARO1-1-0|Q|536. All will be changed to c|VSGARO1-1-0|Q|536. 
+AllDat[grepl("c|VSGARO1-1-0|536",AllDat$Tag,fixed = T),]
+dat0.1[grepl("c|vSGARO1-1-0|Q|536",dat0.1$Genotype,fixed = T),]
+dat$Genotype[dat$Genotype=="c|vSGARO1-1-0|Q|536"]<-"c|VSGARO1-1-0|Q|536"
+AllDat$Tag[AllDat$Tag=="c|VSGARO1-1-0|536"]<-"c|VSGARO1-1-0|Q|536"
+
+#Lets see if that took care of all of the errors: 
+
+#.....Assigning treatments to the genotypes. 
+dat0.1<-left_join(dat,AllDat,by=c("Genotype"="Tag"))
+
+
+#All genotypes have been taken care of (Assigned to a treatment):
+dat0.1[is.na(dat0.1$treatment),]
+
+#now lets reassign the cleaned data to prepare for the next chunck:
+dat<-dat0.1
+rm(dat0.1)
+
+```
+
+
+#Averaging top and side pixel shots, creating a column for Day of image
+```{r}
+
+#Average top and bottom frame pixels. 
+dat2<-dat %>% group_by(Genotype,Seconds,treatment) %>% summarize_at(vars(area),.funs = list(~sum(.)))
+
+#Generating family column
+prefamily<-gsub("*.\\|","",dat2$Genotype)
+dat2$Family<-gsub("\\-.*","",prefamily)
+
+#There are 86,400 seconds in a day. It took two days to get the data. 
+#Rounding to calculate the day the photos were taken
+dat2$Day<-round(dat2$Seconds/(86400*3),digits=0)
+
+```
+
+#PROBLEM FIXING: average those with multiple photos taken on the same day by accident
+On some sampling days, two pictures were taken of the same plant at once. This is bad because it leads to multiple images of the same plant on the same day. These will be taken care of here in the dat2 dataframe, by averaging the seconds and area measurements from the individual taken on the same day. 
+```{r}
+#Determine how many measurements there are per genotype.. and isolating those with more than 5 measurements. 
+print("These are all of the genotypes with replicated images that need to be averaged")
+dat2 %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(n=n()) %>% filter(n>5)
+
+#This section will take the average of those errors. 
+dat2<-dat2 %>% group_by(Genotype,Day) %>% summarize(Seconds=mean(Seconds),area=mean(area),Family=first(Family),treatment=first(treatment))
+
+#Must omit those with less than 5 measurements, because there simply wont be enough data to get any meaningful measurements from these. 
+dat2 %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(n=n()) %>% filter(n<5)
+#a|WSSWM3-1-0|Q|554,b|EFCC2-4-80|Q|145,"b|RULEB1-20|N|423" are not so bad, I suspect others are not as well, but for now i need to remove these genotypes, as they can bias the mean growth rates below. 
+
+#REMOVING THOSE WITHOUT COMPLETE 5 DAY OBSERVATIONS.. calling this dataframe dat2C for dat2 "clean".
+dat2C<-dat2 %>% group_by(Genotype) %>% summarize(n=n()) %>% right_join(dat2) %>% filter(n==5)
+
+```
+
+
+
+
+
+#Visualizations
+```{r}
+
+#Wow. There does appear to be some growth reduction. 
+ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|1",])+
+  geom_path(aes(x=Seconds,y=area))
+
+
+#I need a variable to categorize all of the seconds into the day that they were taken. So that I can get an average of each genotype at each measurement to get the average growth rate of a genotype. 
+
+
+
+#Second Raw
+ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|2",])+
+  geom_path(aes(x=Seconds,y=area))
+
+#Second Rounded Day
+ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|2",])+
+  geom_path(aes(x=Day,y=area))
+
+
+#Further grouping family to take the average and standard deviation of the family values at each time point in each treatment, with the standard deviations. 
+dat3<-dat2C %>% group_by(Family,Day,treatment) %>% summarize_at(vars(area),.fun=list(~mean(.),~sd(.)))
+
+
+dat3<-dat3[!is.na(dat3$treatment),]
+
+#Viewing growthrate by treatment
+ggplot(dat3)+
+  geom_path(aes(y=mean,x=Day,colour=treatment))
+
+#Alone Treatment View
+ggplot(dat3[dat3$treatment=="a",])+
+  geom_path(aes(y=mean,x=Day,colour=Family))
+
+#Maple Treatment View
+ggplot(dat3[dat3$treatment=="m",])+
+  geom_path(aes(y=mean,x=Day,colour=Family))
+
+#Garlic Mustard Treatment View
+ggplot(dat3[dat3$treatment=="gm",])+
+  geom_path(aes(y=mean,x=Day,colour=Family))
+
+gm<-dat3[dat3$treatment=="gm",] 
+
+#VSGARO Has a very large ups and downs in growth rate average. going to check our individuals to see if I suspect an error. 
+ggplot(dat2[dat2$Family=="VSGARO1",])+
+  geom_path(aes(y=area,x=Day,colour=Genotype))
+
+ggplot(dat2[dat2$Family=="BWPEM1",])+
+  geom_path(aes(y=area,x=Day,colour=Genotype))
+
+#On further look, there doesnt seem to be anything that bad with the genotype. 
+
+```
+
+
+
+
+
+
+
+Things of interest: 
+**Initial**
+1) intercept (how large the plant was initially, this could make the growth rate semm lower or faster)
+**Growth**
+2) Slope/Rate of Change to the max point. How long did it take to get there. 
+3)Point of highest biomass.
+**Decline Things**
+4) Rate of decline/slope of decline. (How fast did the plant deteriorate)
+5) Point of Decline (When did the plant start to deteriorate)
+
+
+
+#Simply analysis of relative growthrate to determine if there is evidence for treatment effects or genetic variation for growth rate. 
+```{r}
+#dat2 contains values for each individual. These will be used to calculate relative growth rates. 
+
+#Relative growth rate = lnW2-lnW1/(t2-t1)
+
+#Creating a long data frame to have each column represent a unique growth measurement 
+
+first<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = first(Seconds),area=first(area),treatment=first(treatment),Family=first(Family)) %>% rename(Seconds1="Seconds",area1="area")#This data frame has retained the treatment and family to be used in the analysis. 
+
+second<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,2),area=nth(area,2))  %>% rename(Seconds2="Seconds",area2="area")
+
+third<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,3),area=nth(area,3))  %>% rename(Seconds3="Seconds",area3="area")
+
+fourth<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,4),area=nth(area,4)) %>% rename(Seconds4="Seconds",area4="area")
+
+fifth<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,5),area=nth(area,5))  %>% rename(Seconds5="Seconds",area5="area")
+
+#Merging these together into one dataframe (i love dplyr)
+datLong<-first %>% left_join(second,by="Genotype") %>% left_join(third,by="Genotype")%>% left_join(fourth,by="Genotype")%>% left_join(fifth,by="Genotype")
+
+#generating relative growth rate values (RGR)
+attach(datLong)
+datLong$RGR1<-(log(area2)-log(area1))/(Seconds2-Seconds1)
+datLong$RGR2<-(log(area3)-log(area2))/(Seconds3-Seconds2)
+datLong$RGR3<-(log(area4)-log(area3))/(Seconds4-Seconds3)
+datLong$RGR4<-(log(area5)-log(area4))/(Seconds5-Seconds4)
+detach(datLong)
+```
+
+#Visualizing
+```{r}
+ggplot(datLong)+
+  geom_boxplot(aes(x=treatment,y=RGR1))
+ggplot(datLong)+
+  geom_boxplot(aes(x=treatment,y=RGR2))
+ggplot(datLong)+
+  geom_boxplot(aes(x=treatment,y=RGR3))
+ggplot(datLong)+
+  geom_boxplot(aes(x=treatment,y=RGR4))
+
+datLong[datLong$RGR2==min(datLong$RGR2,na.rm = T),]
+min(datLong$RGR1)
+
+
+ggplot(dat2C[dat2C$Family=="DVGM",])+
+  geom_path(aes(y=area,x=Day,colour=Genotype))
+
+
+dat2C[dat2C$Genotype=="a|DVGM-20|Q|103",]
+```
+
+
+#Must still deal with NA's in data. But i have other things to do right now. 
+
+

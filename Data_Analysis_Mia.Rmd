@@ -20,7 +20,7 @@ Load libraries
 library(ggplot2)
 library(dplyr)
 library(tidyr)
-library(plotrix) #for std.error
+#library(plotrix) #for std.error
 library(EnvStats) #for gofTest
 library(cowplot) #for grid plots
 ```
