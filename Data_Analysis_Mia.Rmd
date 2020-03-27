@@ -44,7 +44,7 @@ for(i in 1:length(gmdata$Tag)){
 #make more efficient using apply function (or see above code chunk for more efficient way)
 
 #Filter out i Sample plants (not in competition experiment)... filtering i did not work, had to slice
-gmdata <- slice(gmdata, -775:-868)
+#gmdata <- slice(gmdata, -775:-868) #check columns each time
 ```
 
 Summary Stats
@@ -108,7 +108,7 @@ F4
 ```
 Remove chlorophyll b negative outlier
 ```{r}
-gmdata$ChlorB[which(gmdata$ChlorB < -0.25)] <- NA
+#gmdata$ChlorB[which(gmdata$ChlorB < -0.25)] <- NA
 ```
 
 Frequency distribution for leaf length

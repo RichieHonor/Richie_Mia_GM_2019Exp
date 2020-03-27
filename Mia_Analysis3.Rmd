@@ -1,0 +1,138 @@
+---
+title: "Mia Analysis 3"
+output: html_notebook
+---
+
+Load data
+```{r}
+gmdata <- read.csv("DataSynthesis.csv",stringsAsFactors = F)
+```
+
+Load libraries
+```{r}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(plotrix) #for std.error
+library(EnvStats) #for gofTest
+library(cowplot)
+library(car)
+library(faraway) #for gamma related things
+library(MuMIn)
+```
+
+```{r}
+#Assign family column
+prefamily<-gsub("*.\\|","",gmdata$Tag)
+gmdata$Family<-gsub("\\-.*","",prefamily)
+
+#Filter out i Sample plants (not in competition experiment)... filtering i did not work, had to slice
+gmdata <- slice(gmdata, -778:-952)
+
+#What populations are in the experiment
+unique(gmdata$Family)
+```
+
+Multiply gm leaf length and width to get leaf area
+```{r}
+gmdata <- gmdata %>% mutate(GM_LxW = GM_Leaf_Len * GM_Leaf_Wid)
+```
+
+Eliminate pseudoreplication by averaging values for leaves of the same plant
+```{r}
+#Assign PlantID column
+gmdata$PlantID <- gsub("\\_.*","",gmdata$Sample)
+
+#NOT CONTROLLED FOR LEAF SIZE
+nopseudo1 <- gmdata %>% group_by(PlantID) %>% 
+  summarise(gluc = mean(gluc_Conc),
+            flav = mean(flav_Conc),
+            chla = mean(ChlorA),
+            chlb = mean(ChlorB),
+            leafa = mean(GM_LxW))
+
+#merge
+gm <- merge(nopseudo1, gmdata, by = "PlantID", all = TRUE)
+
+goodvarbs <- c("PlantID", "Family", "treatment")
+good <- gmdata %>% select(goodvarbs)
+
+gm1 <- merge(good, nopseudo1, by = "PlantID")
+
+gm1 <- unique(gm1)
+
+#exclude pools 
+gm1 <- gm1 %>% group_by(Family) %>% filter(!Family=="pool")
+
+summary(gm1)
+```
+Remove missing values
+```{r}
+#filter NAs
+gm1 %>% filter(!is.na(gluc), !is.na(flav), !is.na(leafa))
+```
+
+Gluc analysis
+```{r}
+glucfit <- lm(gm1$gluc ~ gm1$Family + gm1$treatment + gm1$Family:gm1$treatment, data = gm1)
+
+summary(glucfit)
+summary(aov(glucfit))
+```
+```{r}
+
+#test for normality
+hist(residuals(glucfit), main = "", xlab = "Residuals", freq = FALSE)
+
+MyRes <- residuals(glucfit)
+xfit <- seq(min(MyRes),max(MyRes),length=100) #new x variable
+yfit <- dnorm(xfit,0,sd(MyRes)) #predicted Normal
+lines(xfit, yfit, col="blue") #add a blue line 
+shapiro.test(residuals(glucfit))
+plot(glucfit)
+
+#p-value = 3.726e-09 for s-w normality test
+
+#test for homoscedasticity
+plot(glucfit,1) 
+
+#test for points of undue influence
+#influenceIndexPlot(glucfit)
+```
+
+
+Model selection
+```{r}
+#Backwards selection
+#glucosinolate concentration as predicted by family, treatment, leaf size, chla
+
+glucfitfull <- lm(gm1$gluc ~ gm1$Family + gm1$treatment + gm1$Family:gm1$treatment + gm1$leafa + gm1$chla, data = gm1)
+
+Anova(glucfitfull) #remove treatment/genotype interaction
+
+noinx <- lm(gm1$gluc ~ gm1$Family + gm1$treatment + gm1$leafa + gm1$chla, data = gm1)
+
+anova(noinx, glucfitfull) #no difference in explanatory power
+Anova(noinx) #remove treatment
+
+notrt <- lm(gm1$gluc ~ gm1$Family + gm1$leafa + gm1$chla, data = gm1)
+anova(notrt, noinx) #no difference in explanatory power
+Anova(notrt) #this is the minimum adequate model
+```
+
+Visualize
+```{r}
+ggplot(gm1, aes(x = chla, y = gluc))+
+  geom_point(size = 3, alpha = 0.6)+
+  geom_smooth(method = "lm", formula = y ~ x, colour = "red", se = F)+
+  scale_y_continuous(name = "Glucosinolate content (mg/mL)")+
+  scale_x_continuous(name = "Chlorophyll a content (mg/mL)")
+```
+Flav analysis
+```{r}
+flavfit <- lm(gm1$flav ~ gm1$Family + gm1$treatment + gm1$Family:gm1$treatment, data = gm1)
+
+summary(flavfit)
+summary(aov(flavfit))
+```
+
