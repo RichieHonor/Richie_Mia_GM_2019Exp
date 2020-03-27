@@ -80,18 +80,13 @@ ChlorAB<-CleanData("Data_Moities/All_UV_Data.txt")[[2]]
 #.... and Glucosinolate and flavonoid data
 GF<-CleanData("Data_Moities/All_UV_Data.txt")[[1]]
 
-
 ```
 
 
 
 
-
-```{r}
-###-----------------------------------------------------------------
 #Sample Identification!
-####----------------------------------------------------------------
-
+```{r}
 #Using the Tag (fill ID) from the greenhouse data, assign a Tag to the ID numbers in the spec data.
 
 #Glucosinolates and flavonoids.
@@ -147,6 +142,7 @@ gluc<-GF[GF$Compound=="gluc",]
 #Flavonoid
 flav<-GF[GF$Compound=="flav",]
 
+
 #Making glucosinolate specific column names
 colnames(gluc)<-paste("gluc",colnames(gluc),sep="_")
 
@@ -155,32 +151,37 @@ colnames(flav)<-paste("flav",colnames(flav),sep="_")
 
 #Removing controls from chlorophyll
 ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
+
+ChlorNoCont[grepl("Feb_13",ChlorNoCont$DataFile),]
+
+
+
+
+
+```
+
+#Removing Duplicates and checking for errors. 
+```{r}
+
+#Searching for those with more replicates than they should have. They should have 2 because each leaf has two technical replicates. For some reason, the same sample is appearing for those that should not have more than 1 sample per leaf (i.e. those not in the fertilizer treatment)
+errors<-gluc %>% group_by(gluc_Sample) %>% summarize(n=n()) %>% filter(n>2)
+errors<-errors[!grepl("i",errors$gluc_Sample),]
+
+#Datafile containing the errors... I must go through each one and check it. they will be deleted, not averaged if there is a duplicate. 
+errors<-gluc %>% select(gluc_Sample,gluc_DataFile,gluc_Tag,gluc_Conc) %>% right_join(errors,by="gluc_Sample") %>% filter(gluc_Tag!="pool")
+
+
+
+# I went through these errors and could not explain them. I believe these errors were brought about because of poor transcribing during the data collection  process. This is unfortunate, but they must be deleted from the analysis because i an unsure of which sample is the correct sample and which is the transcribing error. This is done in the next chunk.
+
 ```
 
 
-```{r}
-####-----------------------------------------------------
-#Removing Duplicates and checking for errors. 
-####-----------------------------------------------------
-
-#Some caution should be advised. Ensure the sample 254_1	is still in the Final data frame All_Wide, this could occur if the standard deviaiton of the samples was attempted to be integrated into this workflow where, sd() cannot take the sd of one number, but mean can so it is okay.
-
-
-#Checking for duplicated samples (not technical replicates - two samples with the same name)... 
-print("These are the duplicates that we know about: 142_2,441_1,i136_1,218_2 ,264_2, 398_2, 438_1, there should be no others besides the pool below and the glucosinolate flavonoid and chlorophyll dataframes should have the same amount of erroneous duplicates (i.e. 4 technical replicates):")
-#table(gluc$gluc_Sample)[table(gluc$gluc_Sample)>2 ]       
-#table(ChlorNoCont$Sample)[table(ChlorNoCont$Sample)>2 ]    
-#table(flav$flav_Sample)[table(flav$flav_Sample)>2 ]       
-
-# List:  218_2 264_2  398_2  438_1     
-
-
-
 #Averaging duplicates (i.e. technical replicates) 
-print("Averaging duplicates and exceptions..")
-
+```{r}
 #gluc
-Average_gluc<-gluc %>% group_by(gluc_Sample) %>% summarize_at(vars(gluc_Conc), .funs=mean)
+Average_gluc<-gluc %>% group_by(gluc_Sample) %>% summarize(gluc_Conc=mean(gluc_Conc))
+
 
 #flav
 Average_flav<-flav %>% group_by(flav_Sample) %>% summarize_at(.vars = vars(flav_Conc),.funs=mean)
@@ -191,7 +192,7 @@ Average_ChlorNoCont<-ChlorNoCont %>% group_by(Sample) %>% summarize_at(.vars=var
 #-----
 #Add in missing columns
 
-#Remove duplicates, this is so that other columns in the chlorophyll data frame can be aded back in. 
+#Remove duplicates, this is so that other columns in the chlorophyll data frame can be aded back in. #the column Datafile, is no longer relevant for fertilizer files as samples were averaged over multiple datafiles. 
 Col_Merger0.1<-ChlorNoCont[!duplicated(ChlorNoCont$Sample),]
 #Select relevant columns
 Col_Merger<-Col_Merger0.1 %>% select(Sample,Tag,DataFile)
@@ -204,6 +205,7 @@ if(length(Col_Merger$Sample)!=length(Average_ChlorNoCont$Sample)){
 #Merging dataframs.
 Average_ChlorNoCont2<-left_join(Average_ChlorNoCont,Col_Merger,by="Sample")
 
+
 #------
 #Merge all three dataframes into a wide format. 
 All_Wide0.1<-left_join(Average_ChlorNoCont2,Average_gluc,by=c("Sample"="gluc_Sample"))
@@ -215,6 +217,13 @@ if(length(All_Wide$Sample)!=length(Average_ChlorNoCont$Sample) |length(All_Wide$
 
   stop("gluc, flav and chlorophyll samples did not match upafter duplicates were averaged.")
 }
+
+
+#removing errors found in the previous chunk. Sample size reduced from 1108 to 1093
+All_Wide<-All_Wide %>% filter(!Tag %in% errors$gluc_Tag)
+
+
+
 ```
 
 
@@ -244,13 +253,13 @@ All_Wide$Sample[All_Wide$Sample=="d273_JBCHY_1_dup-Dat_Dec_9_2019.txt"]<-"273dd_
 All_Wide$Tag[All_Wide$Tag=="d273_Jbchy_2"]<-"d|JBCHY1-1-50|Q|273"
 All_Wide$Sample[All_Wide$Sample=="d273_Jbchy_2-Dat_Jan_17_2020_PM.txt"]<-"273dd_2"
 
-#b?wsswm3-1-0_2 is unknown because we did not record the number. It is being removed from the analysis unless evidence is found to indicate the treatment. 
+#b?wsswm3-1-0_2 is unknown because we did not record the number.There is one genotype which is actually named "b|WSSWM3-1-0|?" Let us see if it is this genotype that is missing from All_Wide..
 All_Wide<-All_Wide[!All_Wide$Tag=="b?wsswm3-1-0_2",]
 All_Wide<-All_Wide[!All_Wide$Tag=="b?wsswm3-1-0_dup",]
 
 
-#"e?JBCHY_dup" is also unknown, because we do not know the treatment and it is therefore also going to be removed. 
-All_Wide<-All_Wide[!All_Wide$Tag=="e?JBCHY_dup",]
+#"e?JBCHY_dup" Belongs to the genotype "e|JBCHY1-1-50|?". This will be modified. 
+All_Wide$Tag[All_Wide$Tag=="e?JBCHY_dup"]<-"e|JBCHY1-1-50|?"
 
 
 
@@ -262,11 +271,13 @@ All_Wide[All_Wide$Sample=="381_1-Dat_Jan_21_2020_AM.txt",]<-"381_1"
 All_Wide[All_Wide$Tag=="381_1",]<-"c|MSMID1-1-20|G381"
 
 
+
 ```
 
 
 
-#Final Merging of clean greenhouse data and clean UV data with duplicates averaged. 
+
+#Final Merging of clean greenhouse data and clean UV data with duplicates averaged.
 ```{r}
 
 #This left join will keep all individuals that we have glucosinolate and flavonoid data on. 
@@ -338,7 +349,6 @@ if(colnames(final)[1]=="X"){
 write.csv(final,"DataSynthesis.csv")
 
 
-
 ```
 
 
@@ -357,8 +367,12 @@ dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
 #Removing all data from runs on Dec 6 2019 and Dec 8 2019 
 dat<-dat[dat$DataFile!="Dat_Dec_6_2019.txt"& dat$DataFile!="Dat_Dec_8_2019.txt",]
 
-#Removing glucosinolate and flavonoid runs from Dat_Jan_30_2020_PM.txt, Dat_Jan_31_2020_AM.txt, Dat_Jan_31_2020_PM.txt
+
+
+#Removing only glucosinolate and flavonoid runs from Dat_Jan_30_2020_PM.txt, Dat_Jan_31_2020_AM.txt, Dat_Jan_31_2020_PM.txt
 dat[dat$DataFile=="Dat_Jan_30_2020_PM.txt" | dat$DataFile=="Dat_Jan_31_2020_AM.txt"| dat$DataFile=="Dat_Jan_31_2020_PM.txt",c("gluc_Conc","flav_Conc")]<-NA
+
+
 
 #Visualizing Maybles Run
 Feb3Pool<-dat$flav_Conc[dat$DataFile=="Dat_Feb_3_2020_AM.txt" & dat$Tag=="pool"]
@@ -411,6 +425,9 @@ hist(as.numeric(dat$flav_Conc))
 #[dat$DataFile=="Dat_Feb_6_2020_AM.txt" & dat$Tag=="pool"]
 
 write.csv(dat,"DataSynthesis.csv")
+
+
+
 
 ```
 
@@ -555,6 +572,13 @@ MapDat$Width<-gsub("\\D","",MapDat$Width)
 MapDat$StemHeight<-gsub("\\D","",MapDat$StemHeight)
 MapDat$Leaf<-gsub("\\D","",MapDat$Leaf)
 
+
+#Fixing genotype labels. 
+#DVGM-20|Q|108 has a germination plate of "b" elsewhere, but it is "a" in this maple file. "b" will be taken as correct as this appears to be consistent will all of the other data files. Therefore, the "a" is changed to a "b" in the final maple dataset here. 
+MapDat$Tag[MapDat$Tag=="a|DVGM-20|Q|108"]<-"b|DVGM-20|Q|108"
+
+
+
 #Replacing Damage with a 1 for yes and 0 for no, so that i can take the mean. This will represent the percent of damaged leaves on the plant. 
 MapDat$Damage[MapDat$Damage=="damage-n"]<-0
 MapDat$Damage[MapDat$Damage=="damage-y"]<-1
@@ -615,9 +639,11 @@ Blank$Maple_Area_mean_End<-ControlFinal$Maple_Area_mean_End
 Final<-rbind(SynthFinal,Blank)
 
 #Writing to file. 
+
 write.csv(Final,"DataSynthesis.csv")
 
-
+#Are some maples missing data from the beggining? 
+#dat2[is.na(dat2$Maple_Length_mean_End)&!is.na(dat2$maple_height_0),]
 ```
 
 #Insert Germination date and germination treatment. 

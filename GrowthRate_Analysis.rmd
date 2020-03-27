@@ -7,6 +7,8 @@ output: html_document
 
 #GH Data Prep
 ```{r}
+library(ggplot2)
+library(cowplot)
 #read in GH data
 AllDat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
 
@@ -77,7 +79,7 @@ rm(dat0.1)
 ```
 
 
-#Averaging top and side pixel shots, creating a column for Day of image
+#Averaging top and side pixel shots, creating a column for SampleSession of image
 ```{r}
 
 #Average top and bottom frame pixels. 
@@ -87,9 +89,9 @@ dat2<-dat %>% group_by(Genotype,Seconds,treatment) %>% summarize_at(vars(area),.
 prefamily<-gsub("*.\\|","",dat2$Genotype)
 dat2$Family<-gsub("\\-.*","",prefamily)
 
-#There are 86,400 seconds in a day. It took two days to get the data. 
+#There are 86,400 seconds in a day. It took two-three days to get the data for each SampleSession. 
 #Rounding to calculate the day the photos were taken
-dat2$Day<-round(dat2$Seconds/(86400*3),digits=0)
+dat2$SampleSession<-round(dat2$Seconds/(86400*3),digits=0)
 
 ```
 
@@ -101,32 +103,30 @@ print("These are all of the genotypes with replicated images that need to be ave
 dat2 %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(n=n()) %>% filter(n>5)
 
 #This section will take the average of those errors. 
-dat2<-dat2 %>% group_by(Genotype,Day) %>% summarize(Seconds=mean(Seconds),area=mean(area),Family=first(Family),treatment=first(treatment))
+dat2<-dat2 %>% group_by(Genotype,SampleSession) %>% summarize(Seconds=mean(Seconds),area=mean(area),Family=first(Family),treatment=first(treatment))
 
 #Must omit those with less than 5 measurements, because there simply wont be enough data to get any meaningful measurements from these. 
 dat2 %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(n=n()) %>% filter(n<5)
 #a|WSSWM3-1-0|Q|554,b|EFCC2-4-80|Q|145,"b|RULEB1-20|N|423" are not so bad, I suspect others are not as well, but for now i need to remove these genotypes, as they can bias the mean growth rates below. 
 
-#REMOVING THOSE WITHOUT COMPLETE 5 DAY OBSERVATIONS.. calling this dataframe dat2C for dat2 "clean".
+#REMOVING THOSE WITHOUT COMPLETE 5 SampleSession OBSERVATIONS.. calling this dataframe dat2C for dat2 "clean".
 dat2C<-dat2 %>% group_by(Genotype) %>% summarize(n=n()) %>% right_join(dat2) %>% filter(n==5)
+
 
 ```
 
 
-
+```{r}
+#Remove those that are not replicated in all three treatments. ( genotypes with an "i" in the lable. These are for use to analyze the GGMFS only).
+#Removing, calling this data set dat2CC because it only contains genotypes with all 5 measurements and it now excludes geontypes without full replication in each treatment. 
+dat2C<-dat2C[!grepl("\\|i\\d",dat2C$Genotype),]
+```
 
 
 #Visualizations
 ```{r}
 
-#Wow. There does appear to be some growth reduction. 
-ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|1",])+
-  geom_path(aes(x=Seconds,y=area))
-
-
-#I need a variable to categorize all of the seconds into the day that they were taken. So that I can get an average of each genotype at each measurement to get the average growth rate of a genotype. 
-
-
+#This is to ensure that SampleSession is a decent representation of seconds. It appears to not change the structure that much in graphical analysis. SampleSession is not used to calculate statistics. 
 
 #Second Raw
 ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|2",])+
@@ -134,41 +134,51 @@ ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|2",])+
 
 #Second Rounded Day
 ggplot(dat2[dat2$Genotype=="a|BWPEM1-9-0|Q|2",])+
-  geom_path(aes(x=Day,y=area))
+  geom_path(aes(x=SampleSession,y=area))
 
 
 #Further grouping family to take the average and standard deviation of the family values at each time point in each treatment, with the standard deviations. 
-dat3<-dat2C %>% group_by(Family,Day,treatment) %>% summarize_at(vars(area),.fun=list(~mean(.),~sd(.)))
+dat3<-dat2C %>% group_by(Family,SampleSession,treatment) %>% summarize_at(vars(area,Seconds),.fun=list(~mean(.),~sd(.)))
+#Seconds_mean is a more accurate representation of SampleSession, and can be used for graphing family means. SampleSession, is the average of three days in order to pool samples that were done on the same SampleSession. After we have all the samples from the same SampleSession, the average seconds for that SampleSession are taken and these can be used for graphing. In the actual stats, the exact seconds for every genotype is used. 
 
-
-dat3<-dat3[!is.na(dat3$treatment),]
-
-#Viewing growthrate by treatment
-ggplot(dat3)+
-  geom_path(aes(y=mean,x=Day,colour=treatment))
-
-#Alone Treatment View
-ggplot(dat3[dat3$treatment=="a",])+
-  geom_path(aes(y=mean,x=Day,colour=Family))
-
-#Maple Treatment View
-ggplot(dat3[dat3$treatment=="m",])+
-  geom_path(aes(y=mean,x=Day,colour=Family))
-
-#Garlic Mustard Treatment View
-ggplot(dat3[dat3$treatment=="gm",])+
-  geom_path(aes(y=mean,x=Day,colour=Family))
-
-gm<-dat3[dat3$treatment=="gm",] 
+dat3$Day<-round(dat3$Seconds_mean/86400,0)
 
 #VSGARO Has a very large ups and downs in growth rate average. going to check our individuals to see if I suspect an error. 
 ggplot(dat2[dat2$Family=="VSGARO1",])+
-  geom_path(aes(y=area,x=Day,colour=Genotype))
+  geom_path(aes(y=area,x=SampleSession,colour=treatment))
+
+#I should determine which genotypes in the competition experiment killed their competitors and when to switch those over.
 
 ggplot(dat2[dat2$Family=="BWPEM1",])+
-  geom_path(aes(y=area,x=Day,colour=Genotype))
+  geom_path(aes(y=area,x=SampleSession,colour=treatment))
 
-#On further look, there doesnt seem to be anything that bad with the genotype. 
+#On further look, there doesnt seem to be anything that bad with the genotype.
+
+dat3
+
+```
+
+Official Visualization
+```{r}
+#Making Treatment a factor
+dat3$treatment<-factor(dat3$treatment)
+#standardizing the day measurement
+dat3$Day<-dat3$Day-min(dat3$Day)
+
+levels(dat3$treatment)<-c("Alone","Garlic Mustard","Maple")
+
+#pdf("GrowthRateFigures/FamilyGrowthRate.pdf",height=6,width=12)
+ggplot(dat3)+
+  geom_path(aes(y=area_mean,x=Day,colour=Family))+
+  facet_grid(.~treatment)+
+  scale_y_continuous(name="Leaf Area (Pixels)")+
+  theme_classic()+
+  panel_border()+
+  theme(legend.position = "top",
+        legend.box.margin = margin(0,-100,0,-100)
+      )
+#dev.off()
+
 
 ```
 
@@ -187,6 +197,9 @@ Things of interest:
 **Decline Things**
 4) Rate of decline/slope of decline. (How fast did the plant deteriorate)
 5) Point of Decline (When did the plant start to deteriorate)
+
+
+
 
 
 
@@ -222,27 +235,164 @@ detach(datLong)
 
 #Visualizing
 ```{r}
-ggplot(datLong)+
-  geom_boxplot(aes(x=treatment,y=RGR1))
-ggplot(datLong)+
-  geom_boxplot(aes(x=treatment,y=RGR2))
-ggplot(datLong)+
-  geom_boxplot(aes(x=treatment,y=RGR3))
-ggplot(datLong)+
-  geom_boxplot(aes(x=treatment,y=RGR4))
+#Modifying Factor Names
 
-datLong[datLong$RGR2==min(datLong$RGR2,na.rm = T),]
-min(datLong$RGR1)
+datLong$treatment<-factor(datLong$treatment)
+levels(datLong$treatment)<-c("Alone","Garlic Mustard", "Maple")
+
+#Visualizations should be based on the average of the family means, because it is this that is the sampling unit, otherwise there is pheudo replication and it can look like there is more variation than there actually is if one individual has alot of variation for some reason. 
+datLongMean<-datLong %>% group_by(Family, treatment) %>% summarize_at(vars(RGR1,RGR2,RGR3,RGR4),.funs = ~mean(.))
+
+attach(datLongMean)
+yMin<-min(c(RGR1,RGR2,RGR3,RGR4))
+yMax<-max(c(RGR1,RGR2,RGR3,RGR4))
+detach(datLongMean)
+
+a<-ggplot(datLongMean)+
+  geom_boxplot(aes(x=treatment,y=RGR1))+theme_classic()+theme(axis.title.x = element_blank())+scale_y_continuous(limits=c(yMin,yMax))
+
+b<-ggplot(datLongMean)+
+  geom_boxplot(aes(x=treatment,y=RGR2))+theme_classic()+theme(axis.title.x = element_blank())+scale_y_continuous(limits=c(yMin,yMax))
+
+c<-ggplot(datLongMean)+
+  geom_boxplot(aes(x=treatment,y=RGR3))+theme_classic()+theme(axis.title.x = element_blank())+scale_y_continuous(limits=c(yMin,yMax))
+
+d<-ggplot(datLongMean)+
+  geom_boxplot(aes(x=treatment,y=RGR4))+theme_classic()+theme(axis.title.x = element_blank())+scale_y_continuous(limits=c(yMin,yMax))
 
 
-ggplot(dat2C[dat2C$Family=="DVGM",])+
-  geom_path(aes(y=area,x=Day,colour=Genotype))
+library(ggpubr)
 
+#pdf("GrowthRateFigures/FamilyRGR.pdf",height=6,width=12)
+ggarrange(a,b,c,d)
+#dev.off()
 
-dat2C[dat2C$Genotype=="a|DVGM-20|Q|103",]
 ```
 
 
-#Must still deal with NA's in data. But i have other things to do right now. 
+
+#Mixed-models containing RGR data. 
+
+
+#Trying out a model with: 
+Fixed effects:Seconds, treatment
+Ramdom slope and intercept: area~seconds per family with genotype nested inside.
+
+```{r}
+library(nlme)
+
+#making an interaction column. 
+datLong$GXE<-paste(datLong$treatment,datLong$Family,sep="-")
+
+#RGR1
+fit1.1<-lme(RGR1~treatment,data=datLong,random=~1|Family)
+fit1.2<-lme(RGR1~treatment,data=datLong,random=~1|GXE)
+fit1.3<-lme(RGR1~treatment,data=datLong,random=~1|Family/treatment)#This is the correct interaction term, as it adds another level of variation, that is the variation of each family within each treatment. 
+summary(fit1.1)
+summary(fit1.2)
+summary(fit1.3)
+anova(fit1.1,fit1.2)
+#There is not a GXE interaction, but it is close, p=0.08. and the variation explained by the GXE is more than that explained by G alone. 
+anova(fit1.1,fit1.3)
+
+#RGR2
+fit2.1<-lme(RGR2~treatment,data=datLong,random=~1|Family)
+fit2.2<-lme(RGR2~treatment,data=datLong,random=~1|GXE)
+
+summary(fit2.1)
+summary(fit2.2)
+anova(fit2.1,fit2.2)
+
+
+#RGR3
+fit3.1<-lme(RGR3~treatment,data=datLong,random=~1|Family)
+fit3.2<-lme(RGR3~treatment,data=datLong,random=(~1|GXE))
+
+summary(fit3.1)
+summary(fit3.2)
+anova(fit3.1,fit3.2)
+
+
+#RGR4 #maple significantly less, i.e. maple treatment suffered a higher reduction in growth/ more senescence. 
+fit4.1<-lme(RGR4~treatment,data=datLong,random=~1|Family)
+fit4.2<-lme(RGR4~treatment,data=datLong,random=~1|GXE)
+
+summary(fit4.1)
+summary(fit4.2)
+anova(fit4.1,fit4.2)
+
+
+
+```
+
+#Model checking
+```{r}
+
+#Standardized residuals, looking for deviation from homoscedasticity. 
+plot(fit1.1)
+plot(fit1.1,RGR1~fitted(.))
+
+#Confidence intervals on parameters 
+intervals(fit1.1)
+
+#simple anova of the model 
+anova(fit1.1)
+
+#looking at the diffences in magnitude of the effect of treatment and family. 
+plot.design(data.frame(datLong$RGR1,datLong$Family,datLong$treatment))
+#There is slightly more variation in the family category than there is in the treatment category, but not much. 
+
+
+#This model check demonstrates normaility in the residuals. 
+qqnorm(fit1.1,~resid(.)|Family)
+
+
+#this examines the contrasts of the model. 
+model.matrix(RGR1~treatment,datLong[datLong$Family=="BWPEM1",])
+
+#I think what i need is a model that creates an estimate for each genotype in each treatment and determine if these estimates are better than one with just a genotype effect. Can you compare mixed models with different random effects? IDK. 
+
+#Groups with larger means have more variation, but it is not huge here. I.e. Larger the growth rate, larger the variation. 
+```
+
+Is there an effect of genotype on growth rate? Variance Component Analysis
+```{r}
+
+summary(fit1.1)
+
+100*c(6.411059e-08,3.963266e-07)/sum(c(6.411059e-08,3.963266e-07))
+
+
+
+#Genotype only accounts for 13% of the variation, wheras there is still 86% of the variation in the residuals. I do not think that genotype is even a worthwhile thing to account for in these models. 
+
+#Interestingly, there appears to be a GXE interaction when testing it out in a linear model framework. 
+fit.lm.GXE<-lm(RGR1~treatment*Family,data=datLong)
+fit.lm.GandE<-lm(RGR1~treatment+Family,data=datLong)
+
+fit.lm.E<-lm(RGR1~treatment,data=datLong) 
+fit.lm.G<-lm(RGR1~Family,data=datLong)
+
+summary(fit.lm.E)
+summary(fit.lm.GXE)
+summary(fit.lm.GandE)
+
+AIC(fit.lm.E)#This is the best model
+AIC(fit.lm.GandE)
+AIC(fit.lm.GXE)
+AIC(fit.lm.G) #This is the worst model. 
+
+
+
+summary(fit.lm.G) 
+anova(fit.lm.GXE,fit.lm.E)
+anova(fit.lm.GXE,fit.lm.GandE)
+anova(fit.lm.GXE,fit.lm.G)
+
+```
+
+
+
+
 
 

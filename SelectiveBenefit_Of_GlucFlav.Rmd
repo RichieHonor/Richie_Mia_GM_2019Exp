@@ -1,0 +1,321 @@
+---
+title: "Selective benefit of Glucosinolate and flavonoids"
+output: html_notebook
+---
+#Part 1
+The purpose of this notebook is to determine the selective benefit of glucosinolate and flavonoid compounds through plant competition by creating selection gradients. Selection gradients will involve final body mass as the proxy for fitness, but this will be replaced with fitness once the measurement is in. Concentration will be on the x-axis. This analysis will be done in each treatment seperately and account for family and greenhouse location. 
+
+#Part 2
+The second purpose is to determine if glucosinolates and flavonoids influence suscpetibility to pathogens and if this susceptibility results in increased fitness
+
+Read in and prep data
+```{r}
+library(ggplot2)
+library(nlme)
+
+#read in data
+rm(list=ls())
+dat<-read.csv("DataSynthesis.csv")
+
+#Remove maple data from the data set for the time being.
+dat<-dat[!grepl("aple",dat$Tag, fixed =T),]
+#(including maple controls): 
+dat<-dat[!dat$treatment=="mcnt",]
+
+#Removing NA's
+dat<-dat[!is.na(dat$Sample),]
+dat<-dat[!is.na(dat$gluc_Conc),]
+
+#Assign family column
+prefamily<-gsub("*.\\|","",dat$Tag)
+dat$Family<-gsub("\\-.*","",prefamily)
+
+#remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
+dat<-dat[!grepl("i",dat$Sample,fixed=T),]
+
+
+
+```
+
+
+#Correlation between Glucosinolate and Flavonol Concentration
+```{r}
+
+SlopeCalc<-function(x,y){
+  int<-lm(y~x)$coefficients[[1]]
+  slope<-lm(y~x)$coefficients[[2]]
+  return(c(int,slope))
+}
+
+
+#Remove Pools
+dat2<-dat[dat$Pool=="No",]
+
+#Average Duplicates. 
+dat2<-dat2 %>% select(-X) %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),GA3=first(GA3),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam))
+
+#There may be an issue with pathogen damage because it appears that the number varies amoung leaves within the same plant. ... Fuck a duck i did record pathogen damage on each leaf! that is remarkable. I will need to update the analysis below including leaf number and pathogen damage. 
+dat
+
+#%>% left_join(select(dat2,Tag,Family,GA3,treatment),by="Tag")
+
+
+GFSlopeInt<-SlopeCalc(x=dat2$gluc_Conc,y=dat2$flav_Conc)
+ggplot(dat2)+
+  geom_point(aes(x=gluc_Conc,y=flav_Conc))+
+  geom_abline(aes(slope=GFSlopeInt[2],intercept=GFSlopeInt[1]))
+
+
+```
+
+
+#Standardizing greenhouse location 
+The purpose of this is to get one numeric vector which can be used to determine the location of individuals in the greenhouse. It will summarize the distance to the walls of the greenhouse. 
+
+```{r}
+
+dat2
+
+plot(dat2$gluc_Conc~dat2$gh_bench*dat2$gh_row)
+
+hist(dat2$gluc_Conc)
+
+#Investigating genetic differences
+boxplot(gluc_Conc~Family,data=dat2[dat2$treatment=="a",])
+boxplot(gluc_Conc~Family,data=dat2[dat2$treatment=="m",])
+boxplot(gluc_Conc~Family,data=dat2[dat2$treatment=="gm",])
+
+boxplot(GM_TotalLeaf_Area~Family,data=dat2[dat2$treatment=="a",])
+boxplot(GM_TotalLeaf_Area~Family,data=dat2[dat2$treatment=="m",])
+boxplot(GM_TotalLeaf_Area~Family,data=dat2[dat2$treatment=="gm",])
+
+#I will nest as bench/row/collumn and determine from there what effects need to be retained or not via anova. 
+dat2$GM_TotalLeaf_Area
+```
+
+
+#Effect of glucosinolates & flavonols on fitness (bodymass for proxy)
+```{r}
+#removing those without fitness measurements
+dat2<-dat2[!is.na(dat2$GM_TotalLeaf_Area),]
+
+#in the maple treatment
+ggplot(dat2[dat2$treatment=="m",])+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc,colour=Family))
+
+#in the garlic mustard treatment
+ggplot(dat2[dat2$treatment=="gm",])+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc))
+
+#alone
+ggplot(dat2[dat2$treatment=="a",])+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc))
+
+#there does not appear to be any on competition  what so ever, however, maybe trends will appear after accounting for gh location. This looks at whether there is an interaction between gluc conc and treatment, which is needed to infer a benefit of glucosinolate concentration. 
+library(lattice)
+
+PlotResult<-groupedData(GM_TotalLeaf_Area~gluc_Conc|Family,data=dat2[dat2$treatment=="m",])
+PlotResult<-groupedData(GM_TotalLeaf_Area~gluc_Conc|Family,data=dat2[dat2$treatment=="gm",])
+
+plot(PlotResult)
+#Event though there does not appear to be a relationship for any given genotype, when we account for their average differences across treatment and greenhouse bench, a trend comes out.
+
+
+
+
+
+
+
+```
+
+#Remove genotypes that had thier competitor die while in the GM treatment. This needs to be done!!!
+```{r}
+table(dat2$comp_number)
+dat
+dat2
+```
+
+
+
+
+
+
+#Modelling 
+Leaf number excluded
+```{r}
+library(lme4)
+library(lmerTest)
+
+#Family was not a significant predictor in the final model, but because we need family in the model to avoid psuedo replication, i will keep it in and remove models that exclude family. 
+
+#Perhaps i should have included pathogen damage in this category, 
+
+
+summary(fit3.1)
+local({
+  
+  #--------------------------------------------
+#Fixed: Estimate Slopes and intercepts for each treatment (effect of treatment on relationship with glucosinolate)
+#--------------------------------------------
+  
+#Random: slopes and intercepts within treatment (GXE effect)
+fit3.1<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(gluc_Conc|treatment/Family)+(1|gh_bench/gh_row), data=dat2)
+fit3.2<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(gluc_Conc|treatment/Family)+(1|gh_bench), data=dat2)
+fit3.3<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(gluc_Conc|treatment/Family), data=dat2)
+
+
+#Random: slope and intercept for each family, (NO GXE effect)
+fit2.1<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(gluc_Conc|Family)+(1|gh_bench/gh_row), data=dat2)
+fit2.2<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(gluc_Conc|Family)+(1|gh_bench), data=dat2)
+fit2.3<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(gluc_Conc|Family), data=dat2)
+
+
+# Random intercept only (i.e. no slope differences amoung families)
+fit1.1<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(1|Family)+(1|gh_bench/gh_row), data=dat2)
+fit1.2<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(1|Family)+(1|gh_bench), data=dat2)
+fit1.3<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(1|Family), data=dat2)
+
+#--------------------------------------------
+#Fixed: grand Slope and with multiple intercepts
+#--------------------------------------------
+
+#Random: slope and intercept
+fit2.1.n<-lmer(GM_TotalLeaf_Area~treatment+gluc_Conc+(gluc_Conc|Family)+(1|gh_bench/gh_row), data=dat2)
+fit2.2.n<-lmer(GM_TotalLeaf_Area~treatment+gluc_Conc+(gluc_Conc|Family)+(1|gh_bench), data=dat2)
+fit2.3.n<-lmer(GM_TotalLeaf_Area~treatment+gluc_Conc+(gluc_Conc|Family), data=dat2)
+
+# Random: intercept only
+fit1.1.n<-lmer(GM_TotalLeaf_Area~treatment+gluc_Conc+(1|Family)+(1|gh_bench/gh_row), data=dat2)
+fit1.2.n<-lmer(GM_TotalLeaf_Area~treatment+gluc_Conc+(1|Family)+(1|gh_bench), data=dat2)
+fit1.3.n<-lmer(GM_TotalLeaf_Area~treatment+gluc_Conc+(1|Family), data=dat2)
+
+#--------------------------------------------
+#Fixed: no effect of glucosinolate. 
+#--------------------------------------------
+
+# Random intercept only (no slope anyways)
+fit1.1.nn<-lmer(GM_TotalLeaf_Area~treatment+(1|Family)+(1|gh_bench/gh_row), data=dat2)
+fit1.2.nn<-lmer(GM_TotalLeaf_Area~treatment+(1|Family)+(1|gh_bench), data=dat2)
+fit1.3.nn<-lmer(GM_TotalLeaf_Area~treatment+(1|Family), data=dat2)
+
+#fit null 
+fit.null<-lmer(GM_TotalLeaf_Area~1+(1|Family)+(1|gh_bench/gh_row), data=dat2)
+
+
+#getting results
+Results<-anova(fit3.1,fit3.2,fit3.3,fit2.1,fit2.2,fit2.3,fit1.1,fit1.2,fit1.3,
+            fit2.1.n,fit2.2.n,fit2.3.n,fit1.1.n,fit1.2.n,fit1.3.n,fit1.1.nn,fit1.2.nn,fit1.3.nn,fit.null)
+
+print(Results[order(Results$AIC),])    
+      
+})#end local
+
+
+#The top model is fit 1.2 with an AIC value of 8043.4 This is a model with a different slope and intercept for each treatment, a random intercept for each family, and accounting for the greenhouse bench. 
+
+#Diagnostics
+summary(fit1.2)
+
+confint(fit1.2)
+
+
+coef(fit1.2)
+#no heteroscedasticity
+plot(fit1.2)
+#fairly normal. 
+qqnorm(resid(fit1.2))
+
+#fixed effects have large t values all greater than 2. 
+#The slope and intercept of the random variable are correlated with each other, which may be problematic. I must read on it. 
+
+fit1.2
+fit1.2<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+(1|Family)+(1|gh_bench), data=dat2)
+
+
+fit1.2.d<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungDam+ThripsDam+(1|Family)+(1|gh_bench), data=dat2)
+
+summary(fit1.2.d)
+#Black pathogen damage is a strong predictor of fitness., but white fungal damage and thrips damage are not it seems. 
+
+#Testing if the model is better with black path dam and then with balck path dam and without gluc conc. 
+fit1.2.d<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+(1|Family)+(1|gh_bench), data=dat2)
+
+fit1.2.dg<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+BlackPathDam+(1|Family)+(1|gh_bench), data=dat2)
+
+#Best by far is to include both terms
+AIC(fit1.2,fit1.2.d,fit1.2.dg)
+
+summary(fit1.2.dg)
+
+summary(fit1.2.d,fit1.2.dg)
+
+
+is.na(dat$BlackPathDam)
+dat2
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#-----------------------------------------
+#Part 2
+
+
+
+
+#assessing 
+```{r}
+#Quick look Thrips damage. 
+ggplot(dat2)+
+  geom_point(aes(y=ThripsDam,x=gluc_Conc))
+ggplot(dat2)+
+  geom_point(aes(y=ThripsDam,x=flav_Conc))
+dat2
+#Quick look white fungal damage. 
+ggplot(dat2)+
+  geom_point(aes(y=WhiteFungDam,x=gluc_Conc))
+ggplot(dat2)+
+  geom_point(aes(y=WhiteFungDam,x=flav_Conc))
+
+#Quick look black pathogen damage. 
+ggplot(dat2)+
+  geom_point(aes(y=BlackPathDam,x=gluc_Conc))
+ggplot(dat2)+
+  geom_point(aes(y=BlackPathDam,x=flav_Conc))
+
+#Quick glm 
+summary(glm(WhiteFungDam~gluc_Conc,family=poisson,data=dat2))#white path dam highly significant
+summary(glm(ThripsDam~gluc_Conc,family=poisson,data=dat2))#thrips damage highly significant. 
+
+
+```
+
+
+
+
+

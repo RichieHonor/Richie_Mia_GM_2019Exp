@@ -87,6 +87,7 @@ ggplot(Final[Final$treatment=="m",])+
   geom_point(aes(x=as.factor(Fert),y=Maple_Area_sum_End))
 
 
+
 ```
 
 
