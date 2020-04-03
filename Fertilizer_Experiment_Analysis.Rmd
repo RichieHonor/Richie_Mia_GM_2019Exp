@@ -7,6 +7,7 @@ output: html_document
 
 
 ```{r}
+library(ggplot2)
 Final<-read.csv("Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
 ```
 

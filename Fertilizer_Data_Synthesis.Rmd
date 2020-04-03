@@ -10,6 +10,8 @@ output: html_document
 ```{r}
 library(dplyr)
 library(ggplot2)
+library(lme4)
+
 
 #-------------------------------------------------------------------
 #----------GH Data Prep
@@ -52,17 +54,16 @@ ChlorAB<-CleanData("Data_Moities/All_UV_Data.txt")[[2]]
 #.... and Glucosinolate and flavonoid data
 GF<-CleanData("Data_Moities/All_UV_Data.txt")[[1]]
 
-ChlorAB
+
 
 
 ```
 
 #ISolate those in the fertilizer treatment, and those that are were grown alone, but were not in the main experiment (For GGMFS only). 
 ```{r}
-#Removing all but fertilizer treatments. 
-ChlorAB<-ChlorAB[grepl("i",ChlorAB$Sample),]
-
-GF<-GF[grepl("i",GF$Sample),]
+#Removing all but genotypes in the fertilizer experiment and those to be used in the GGMFS. (These all start with i), this includes removing pools.
+#ChlorAB<-ChlorAB[grepl("i",ChlorAB$Sample),]
+#GF<-GF[grepl("i",GF$Sample),]
 
 ```
 
@@ -140,25 +141,21 @@ ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
 #Remove non-fertilizer experiement genotypes (i.e. those to be used in the GGMFS analysis).
 ```{r}
 #flavonoid Dataframe.
-flav<-flav[grepl("SMITH1-3-80",flav$flav_Tag)|grepl("KVEDG1-8-60",flav$flav_Tag)|grepl("MSMID1-2-0",flav$flav_Tag),]
-
+flav<-flav[grepl("SMITH1-3-80|MSMID1-2-0|KVEDG1-8-60",flav$flav_Tag),]
 
 #Glucosinolate Dataframe.
-gluc<-gluc[grepl("SMITH1-3-80",gluc$gluc_Tag)|grepl("KVEDG1-8-60",gluc$gluc_Tag)|grepl("MSMID1-2-0",gluc$gluc_Tag),]
+gluc<-gluc[grepl("SMITH1-3-80|MSMID1-2-0|KVEDG1-8-60",gluc$gluc_Tag),]
 
 #Chlorophyll Dataframe.
-ChlorNoCont<-ChlorNoCont[grepl("SMITH1-3-80",ChlorNoCont$Tag)|grepl("KVEDG1-8-60",ChlorNoCont$Tag)|grepl("MSMID1-2-0",ChlorNoCont$Tag),]
+ChlorNoCont<-ChlorNoCont[grepl("SMITH1-3-80|MSMID1-2-0|KVEDG1-8-60",ChlorNoCont$Tag),]
 
-
+#Assign family column
+prefamily<-gsub("*.\\|","",ChlorNoCont$Tag)
+ChlorNoCont$Family<-gsub("\\-.*","",prefamily)
 #Visualizing variation amoung leaves. There can be alot. 
 
-
-ggplot(gluc)+
-  geom_boxplot(aes(x=gluc_Sample,y=gluc_Conc))
-ggplot(flav)+
-  geom_boxplot(aes(x=flav_Sample,y=flav_Conc))
-
 ```
+
 
 
 #Add treatment and merge dataframes. 
@@ -178,10 +175,53 @@ FatDat<-cbind(FatDat0.1,ChlorNoCont[order(ChlorNoCont$Sample),])
 }
 
 
+
 #Selecting relevant columns. 
-FatDat<-FatDat %>% select(Tag,Sample,ID,ChlorA,ChlorB,gluc_Conc,flav_Conc)
+FatDat<-FatDat %>% select(Tag,Sample,ID,ChlorA,ChlorB,gluc_Conc,flav_Conc,Family)
+
+```
+
+#Analyizing variation in the method. 
+```{r}
+
+ggplot(gluc)+
+  geom_boxplot(aes(x=gluc_Sample,y=gluc_Conc))
+ggplot(flav)+
+  geom_boxplot(aes(x=flav_Sample,y=flav_Conc))
+
+glucFit<-lmer(gluc_Conc~1+(1|gluc_Tag/gluc_Sample/gluc_DataFile),data=gluc)
+flavFit<-lmer(flav_Conc~1+(1|flav_Tag/flav_Sample/flav_DataFile),data=flav)
+summary(glucFit)
+summary(flavFit)
+
+glucVar<-data.frame(Variance=c(0.034892, 0.011657,0.025294,0.008855),Variable=c("AmoungDate","AmoungLeaf", "AmoungPlant", "TechnicalReplicate"))
+glucVar$Percent<-glucVar$Variance/sum(glucVar$Variance)*100
+
+flavVar<-data.frame(Variance=c(0.028906,0.017942,0.010610,0.007991),Variable=c("AmoungDate","AmoungLeaf", "AmoungPlant", "TechnicalReplicate"))
+flavVar$Percent<-flavVar$Variance/sum(flavVar$Variance)*100
+
+ggplot(glucVar)+
+  geom_col(aes(x=Variable,y=Percent))+labs(title="Glucosinolate Variance")
+ggplot(flavVar)+
+  geom_col(aes(x=Variable,y=Percent))+labs(title="Flavonol Variance")
 
 
+table(FatDat$Sample)
+flav[flav$flav_Sample=="i27_1",]
+
+#The sampling Date, i.e. the take that the sample was analyzed account for almost 50% of the variation! 
+
+boxplot(gluc_Conc~gluc_DataFile,data=gluc)
+
+#I am unsure if this is valid considering that there are  many dates used to analyze these samples, making thier groups much smaller and therefore allowing them to account for more variation. 
+
+
+unique(gluc$gluc_DataFile)
+```
+
+
+
+```{R}
   
 #Averaging values for each sample. Not each leaf. Leaf can be treated as a random effect within genotype. 
 FatDat<-FatDat %>% group_by(Sample, Tag, ID) %>% summarize_at(vars(ChlorA,ChlorB,gluc_Conc,flav_Conc),.funs=list(~mean(.)))
@@ -280,7 +320,7 @@ colnames(MapFinal)[2]<-"Maple_LeafNum_End"
 #Merging with Main DataFrame. 
 Final<-left_join(Final,MapFinal,by="Tag")
 
-write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
+#write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
 
 ```
 
@@ -312,7 +352,7 @@ colnames(mass)[2]<-"GM_Shoot_Mass"
 Final<-left_join(dat,mass,by=c("Tag"="ID"))
 
 
-write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
+#write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
 
 print("Done")
 ```

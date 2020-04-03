@@ -374,7 +374,7 @@ dat[dat$DataFile=="Dat_Jan_30_2020_PM.txt" | dat$DataFile=="Dat_Jan_31_2020_AM.t
 
 
 
-#Visualizing Maybles Run
+#Visualizing Mables Run
 Feb3Pool<-dat$flav_Conc[dat$DataFile=="Dat_Feb_3_2020_AM.txt" & dat$Tag=="pool"]
 OtherPool<-dat$flav_Conc[dat$DataFile!="Dat_Feb_3_2020_AM.txt" & dat$Tag=="pool"]
 boxplot(Feb3Pool,OtherPool)
@@ -430,6 +430,24 @@ write.csv(dat,"DataSynthesis.csv")
 
 
 ```
+
+
+
+
+#Account for sampling differences amoung days using the pool data. 
+#Determine if the simple relationship with of subtracint the control data from the stain data is adequate. I have reason to believe that it may not be a 1:1 relationship. 
+ggplot(glucPool)+
+  geom_point(aes(x=gluc_ControlData,y=gluc_StainData))+
+  geom_abline(intercept=0.680,slope=0.7648)
+
+lm(gluc_StainData~gluc_ControlData,data=glucPool)
+
+hist(glucPool$gluc_Conc)
+
+
+
+
+
 
 
 
@@ -536,6 +554,7 @@ write.csv(final,"DataSynthesis.csv")
 
 ##Insert Final Maple biomass and Data on the Control Maples - both initial and final measurements. 
 ```{r}
+library(dplyr)
 rm(list=ls())
 #------------------------------
 #Integrating initial maple control measurements.... initial values of maples in treatments are already in the data. 
@@ -544,6 +563,7 @@ dat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
 
 #Fix column names
 colnames(dat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
+
 
 #Removing first row (Which contains no data).
 dat<-dat[2:length(dat$gh_bench),]
@@ -574,8 +594,9 @@ MapDat$Leaf<-gsub("\\D","",MapDat$Leaf)
 
 
 #Fixing genotype labels. 
-#DVGM-20|Q|108 has a germination plate of "b" elsewhere, but it is "a" in this maple file. "b" will be taken as correct as this appears to be consistent will all of the other data files. Therefore, the "a" is changed to a "b" in the final maple dataset here. 
-MapDat$Tag[MapDat$Tag=="a|DVGM-20|Q|108"]<-"b|DVGM-20|Q|108"
+#DVGM-20|Q|117 has a genotype lable of "b" in the main synthesis file, but it is "c" here. I will change it in the final maple data file and take the main file as correct.
+MapDat$Tag[MapDat$Tag=="c|DVGM-20|Q|117"]<-"b|DVGM-20|Q|117"
+
 
 
 
@@ -601,6 +622,8 @@ MapFinal<-MapDat %>% group_by(Tag) %>% summarize_at(vars("Leaf","Length","Width"
 #Selecting relevant columns
 MapFinal<-MapFinal %>% select(Tag,Leaf_max,Length_mean,Width_mean,Damage_mean,StemHeight_max,Area_sum,Area_mean)
 
+
+
 #Modyfying names to be appropriate. 
 colnames(MapFinal)[-1]<-paste("Maple",colnames(MapFinal)[-1],"End",sep = "_")
 colnames(MapFinal)[2]<-"Maple_LeafNum_End"
@@ -618,6 +641,7 @@ Synth<-Synth %>% select(-X)
 ControlFinal<-left_join(CntrZero,MapFinal[grepl("aple",MapFinal$Tag),],by="Tag")
 #Integrating final maple data into the original synthesis file, which lack maple controls. 
 SynthFinal<-left_join(Synth,MapFinal[!grepl("aple",MapFinal$Tag),],by="Tag")
+
 
 #Integrating control data into the final data frame. 
 #Creating a dataframe identical to the synthesis dataframe, but containing the maple data. 
@@ -637,7 +661,7 @@ Blank$Maple_Area_mean_End<-ControlFinal$Maple_Area_mean_End
 
 #Merging maple control data with the master dataframe. 
 Final<-rbind(SynthFinal,Blank)
-
+Final
 #Writing to file. 
 
 write.csv(Final,"DataSynthesis.csv")

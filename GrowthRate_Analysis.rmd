@@ -389,10 +389,14 @@ anova(fit.lm.GXE,fit.lm.E)
 anova(fit.lm.GXE,fit.lm.GandE)
 anova(fit.lm.GXE,fit.lm.G)
 
+
+
 ```
 
+#Writting to csv for future analyses
+```{R}
+#write.csv(datLong,"GrowthRateIntegrated.csv")
 
-
-
+```
 
 
