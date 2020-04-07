@@ -21,16 +21,97 @@ library(faraway) #for gamma related things
 library(MuMIn)
 ```
 
+theme_pub() for pretty figures
+```{r}
+theme_pub <- function (base_size = 12, base_family = "") {
+
+  theme_classic(base_size = base_size, base_family = base_family) %+replace%
+
+    theme(
+
+      axis.text = element_text(colour = "black"),
+
+      axis.title.x = element_text(size=16, margin=margin(t=5)),
+
+      axis.text.x = element_text(size=10),
+
+      axis.title.y = element_text(size=16,angle=90, margin=margin(r=5)),
+
+      axis.text.y = element_text(size=10),
+
+      axis.ticks = element_blank(),
+
+      panel.background = element_rect(fill="white"),
+
+      panel.border = element_blank(),
+
+      plot.title=element_text(face="bold", size=20),
+
+      legend.position="none"
+
+    )
+
+}
+```
+
 ```{r}
 #Assign family column
 prefamily<-gsub("*.\\|","",gmdata$Tag)
 gmdata$Family<-gsub("\\-.*","",prefamily)
 
+#make a pool dataframe
+pools <- gmdata %>% group_by(Family) %>% filter(Family=="pool")
+
 #Filter out i Sample plants (not in competition experiment)... filtering i did not work, had to slice
-gmdata <- slice(gmdata, -778:-952)
+gmdata <- slice(gmdata, -777:-1018) #ALERT... data loads differently sometimes, always check where you're slicing!
+
 
 #What populations are in the experiment
 unique(gmdata$Family)
+```
+
+
+Pools analysis
+```{r}
+summary(pools)
+
+#manually add a "pool" column: Yes = it's a pool, No = regular sample
+write.csv(gmdata,"/Users/user/Documents/2019-20 School Year/BIOL 537/gmdata.csv", row.names = T)
+poolgmdata <- read.csv("/Users/user/Documents/2019-20 School Year/BIOL 537/gmdata.csv", header = TRUE)
+
+#filter NAs
+poolgmdata <- poolgmdata %>% filter(!is.na(gluc_Conc), !is.na(flav_Conc))
+
+#plot for glucs
+glucp <- ggplot(poolgmdata)+
+  geom_boxplot(aes(x = Pool, 
+                    y = gluc_Conc))+
+  scale_x_discrete(name = "Pool")+
+  scale_y_continuous(name = "Glucosinolates (mg/mL)")+
+  theme_pub()
+
+#plot for flavs
+flavp <- ggplot(poolgmdata)+
+  geom_boxplot(aes(x = Pool, 
+                    y = flav_Conc))+
+  scale_x_discrete(name = "Pool")+
+  scale_y_continuous(name = "Flavonoids (mg/mL)")+
+  theme_pub()
+
+#composite plot
+plot_grid(glucp, flavp,labels = "AUTO", label_size = 18,
+          hjust = -0.2, vjust = 1)
+
+#some stats
+summary(poolgmdata)
+sumpools <- poolgmdata %>% group_by(Pool) %>% 
+  summarise(meanG = mean(gluc_Conc),
+            nG = sum(!is.na(gluc_Conc)),
+            sdG = sd(gluc_Conc),
+            meanF = mean(flav_Conc),
+            nF = sum(!is.na(flav_Conc)),
+            sdF = sd(flav_Conc))
+            
 ```
 
 Multiply gm leaf length and width to get leaf area
@@ -54,7 +135,7 @@ nopseudo1 <- gmdata %>% group_by(PlantID) %>%
 #merge
 gm <- merge(nopseudo1, gmdata, by = "PlantID", all = TRUE)
 
-goodvarbs <- c("PlantID", "Family", "treatment")
+goodvarbs <- c("PlantID", "Family", "treatment", "GM_NumberOfLeaves")
 good <- gmdata %>% select(goodvarbs)
 
 gm1 <- merge(good, nopseudo1, by = "PlantID")
@@ -69,7 +150,8 @@ summary(gm1)
 Remove missing values
 ```{r}
 #filter NAs
-gm1 %>% filter(!is.na(gluc), !is.na(flav), !is.na(leafa))
+gm1 <- gm1 %>% filter(!is.na(gluc), !is.na(flav), !is.na(leafa), !is.na(leafa))
+summary(gm1)
 ```
 
 Gluc analysis
@@ -134,5 +216,248 @@ flavfit <- lm(gm1$flav ~ gm1$Family + gm1$treatment + gm1$Family:gm1$treatment, 
 
 summary(flavfit)
 summary(aov(flavfit))
+```
+Leaf area analysis
+```{r}
+leaffit <- lm(gm1$leafa ~ gm1$Family + gm1$treatment + gm1$Family:gm1$treatment, data = gm1)
+
+sum(!is.na(gm1$leafa))
+summary(leaffit)
+summary(aov(leaffit))
+```
+
+Chlorophyll and allelochemical analysis
+```{r}
+# chla x gluc
+sum(!is.na(gm1$chla))
+summary(lm(chla ~ gluc, data = gm1))
+
+# chlb x gluc
+summary(lm(chlb ~ gluc, data = gm1))
+
+# chla x flav
+summary(lm(chla ~ flav, data = gm1))
+
+#chlb x flav
+summary(lm(chlb ~ flav, data = gm1))
+```
+
+graph
+```{r}
+#separate plants into alone treatment
+ALN1 <- gm1[grepl("a",gm1$treatment),]
+
+ga <- ggplot(data = ALN1)+
+  geom_point(aes(x = gluc, y = chla), colour = "seagreen", pch = 19)+
+  geom_smooth(aes(x = gluc, y = chla), method = "lm", se = FALSE, colour = "black", lwd = 1)+
+  scale_x_continuous(name = "Gluc (mg/mL)")+
+  scale_y_continuous(name = "Chla (mg/mL)")+
+  theme_pub()
+
+gb <- ggplot(data = ALN1)+
+  geom_point(aes(x = gluc, y = chlb), colour = "seagreen", pch = 19)+
+  geom_smooth(aes(x = gluc, y = chlb), method = "lm", se = FALSE, colour = "black", lwd = 1)+
+  scale_x_continuous(name = "Gluc (mg/mL)")+
+  scale_y_continuous(name = "Chlb (mg/mL)")+
+  theme_pub()
+
+fa <- ggplot(data = ALN1)+
+  geom_point(aes(x = flav, y = chla), colour = "seagreen", pch = 19)+
+  geom_smooth(aes(x = flav, y = chla), method = "lm", se = FALSE, colour = "black", lwd = 1)+
+  scale_x_continuous(name = "Flav (mg/mL)")+
+  scale_y_continuous(name = "Chla (mg/mL)")+
+  theme_pub()
+
+fb <- ggplot(data = ALN1)+
+  geom_point(aes(x = flav, y = chlb), colour = "seagreen", pch = 19)+
+  geom_smooth(aes(x = flav, y = chlb), method = "lm", se = FALSE, colour = "black", lwd = 1)+
+  scale_x_continuous(name = "Flav (mg/mL)")+
+  scale_y_continuous(name = "Chlb (mg/mL)")+
+  theme_pub()
+```
+
+graph chlorophyll and allelochemicals
+```{r}
+plot_grid(ga, gb, fa, fb, labels = "AUTO", label_size = 18,
+          hjust = -0.2, vjust = 1)
+```
+
+
+```{r}
+#Evaluate the extent to which the predictors are intercorrelated
+#pairs command is passed a dataframe with just the data in it
+
+lvarbs <- c("gluc", "flav", "chla", "chlb", "leafa")
+
+pairs(gm1[,lvarbs], panel = panel.smooth)
+
+#turn this into numerical form with correlation
+cor(gm1[,lvarbs])
+```
+
+group_by to see highest mean chemistry across treatments
+```{r width = 15}
+
+trtt <- gm1 %>% group_by(treatment) %>% 
+  summarise(mgluc = mean(gluc),
+            ng = sum(!is.na(gluc)),
+            sg = sd(gluc),
+            SE = sg/sqrt(ng),
+            UCL = mgluc + SE*qt(0.975, ng - 1),
+            LCL = mgluc - SE*qt(0.975, ng - 1),
+            mflav = mean(flav),
+            nf = sum(!is.na(flav)),
+            sf = sd(flav),
+            SEf = sf/sqrt(nf),
+            fUCL = mflav + SEf*qt(0.975, nf - 1),
+            fLCL = mflav - SEf*qt(0.975, nf - 1),
+            mchla = mean(chla),
+            na = sum(!is.na(chla)),
+            sa = sd(chla),
+            SEa = sa/sqrt(na),
+            aUCL = mchla + SEa*qt(0.975, na - 1),
+            aLCL = mflav - SEa*qt(0.975, na - 1),
+            mchlb = mean(chlb),
+            nb = sum(!is.na(chlb)),
+            sb = sd(chlb),
+            SEb = sb/sqrt(nb),
+            bUCL = mchla + SEb*qt(0.975, nb - 1),
+            bLCL = mflav - SEb*qt(0.975, nb - 1)
+            )
+             
+
+#graph gluc according to treatment showing means and 95% CIs
+glucmeans <- ggplot(trtt, aes(x = treatment, 
+                    y = mgluc, colour = treatment))+
+  geom_point(size = 5)+
+  geom_errorbar(ymin = trtt$LCL,
+                ymax = trtt$UCL, width = 0.1)+
+  scale_x_discrete(name = "Treatment")+
+  scale_y_continuous(limits = c(0.9,1.02), name = "Glucosinolates (mg/mL)")+
+ theme_pub()
+
+#graph flav according to treatment showing means and 95% CIs
+
+flavmeans <- ggplot(trtt, aes(x = treatment, 
+                    y = mflav, colour = treatment))+
+  geom_point(size = 5)+
+  geom_errorbar(ymin = trtt$fLCL,
+                ymax = trtt$fUCL, width = 0.1)+
+  scale_x_discrete(name = "Treatment")+
+  scale_y_continuous(limits = c(0.8,0.92), name = "Flavonoids (mg/mL)")+
+ theme_pub()
+
+plot_grid(glucmeans, flavmeans, labels = "AUTO", label_size = 18,
+          hjust = -0.2, vjust = 1)
+```
+
+Bivariate plot for mean glucosinolates for a genotype
+```{r  fig.width = 15, fig.height = 5,warning = F}
+
+#make a wide dataframe using 'spread'
+
+widegm8 <- gm1 %>% spread(treatment, gluc, fill = NA, convert = FALSE)
+widegm8 <- widegm8 %>% mutate(meana = mean(a, na.rm = TRUE), 
+                            meangm = mean(gm, na.rm = T),
+                            meanm = mean(m, na.rm = T))
+widegm8 <- widegm8 %>% mutate(sea = std.error(a),
+                            segm = std.error(gm),
+                            sem = std.error(m))
+```
+
+```{r  fig.width = 15, fig.height = 5,warning = F}
+########## BIVARIATE PLOTS ##########
+### GLUC CONC w/out control for leaf size###
+  #gm intra vs alone
+p1 <- ggplot(data = widegm8, aes(x = meana, y = meangm, colour = Family))+
+  geom_point(size = 3)+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm,
+                width = .000000000001))+
+  geom_errorbarh(aes(xmin = meana - sea,
+                    xmax = meana + sea,
+                    width = .000000000001))+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  labs(y = "Intraspecific", x = "Alone")+
+  theme_pub()
+    
+  
+  #gm intra vs m inter
+p2 <- ggplot(data = widegm8, aes(x = meanm, y = meangm, colour = Family))+
+  geom_point(size = 3)+
+  geom_errorbar(aes(ymin = meangm - segm, 
+                    ymax = meangm + segm, 
+                width = .000000000001))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .000000000001))+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  labs(y = "Intraspecific", x = "Interspecific")+
+    theme_pub()
+
+  
+  #alone vs inter m
+p3 <- ggplot(data = widegm8, aes(x = meanm, y = meana, colour = Family))+
+  geom_point(size = 3)+
+  geom_errorbar(aes(ymin = meana - sea, 
+                    ymax = meana + sea,
+                width = .000000000001))+
+  geom_errorbarh(aes(xmin = meanm - sem,
+                    xmax = meanm + sem,
+                    width = .000000000001))+
+  geom_smooth(method = "lm", se = F)+
+  labs(y = "Alone", x = "Interspecific")+
+  geom_smooth(method = "lm", se = F, colour = "black")+
+  theme_pub()
+
+
+
+plot_grid(p1, p2, p3, labels = c('A', 'B', 'C'), label_size = 10, ncol = 3)
+
+```
+
+Leaf area norms of reaction plot
+```{r}
+ggplot(data = gm1, aes(x = treatment, y = leafa, colour = Family, group = Family))+
+  stat_summary(fun.y=mean, geom="point")+
+  stat_summary(fun.y=mean, geom="line")+
+  scale_colour_discrete(name = "Population")+
+  scale_x_discrete(name = "Treatment", 
+                   labels = c("Alone", "Intraspecific competition", "Interspecific competition", "Pools"))+
+  scale_y_continuous(name = expression(paste("Leaf area ", (mm^2),"")))+
+  theme_pub()
+```
+
+Leaf number analysis
+```{r}
+ggplot(data = gm1, aes(x = treatment, y = GM_NumberOfLeaves, colour = Family, group = Family))+
+  stat_summary(fun.y=mean, geom="point")+
+  stat_summary(fun.y=mean, geom="line")+
+  scale_colour_discrete(name = "Population")+
+  scale_x_discrete(name = "Treatment", 
+                   labels = c("Alone", "Intraspecific competition", "Interspecific competition", "Pools"))+
+  scale_y_continuous(name = "Leaf number")+
+  theme_pub()
+```
+leaf number 2 way anova
+```{r}
+leafnum <- lm(gm1$GM_NumberOfLeaves ~ gm1$Family + gm1$treatment + gm1$Family:gm1$treatment, data = gm1)
+
+sum(!is.na(gm1$GM_NumberOfLeaves))
+summary(leafnum)
+summary(aov(leafnum))
+```
+
+See if leaf number is correlated in any way with chemistry?
+```{r}
+lnum <- lm(gm1$gluc ~ gm1$GM_NumberOfLeaves)
+summary(lnum)
+plot(gm1$gluc ~ gm1$GM_NumberOfLeaves)
+abline(lm(gm1$gluc ~ gm1$GM_NumberOfLeaves))
+
+lnum2 <- lm(gm1$flav ~ gm1$GM_NumberOfLeaves)
+summary(lnum2)
+plot(gm1$flav ~ gm1$GM_NumberOfLeaves)
+abline(lm(gm1$flav ~ gm1$GM_NumberOfLeaves))
 ```
 
