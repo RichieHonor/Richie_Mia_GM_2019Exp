@@ -40,7 +40,7 @@ theme_simple_multiCol<-function(){
       legend.position="none",
       
       #Theme of axis text and ticks
-      axis.text.x = element_text(color = "black", size = 12, face = "bold"),
+      axis.text.x = element_text(color = "black", size = 16, face = "bold"),
       axis.text.y = element_text(color = "black", size = 12, face = "bold"),
       axis.ticks = element_blank(),
       

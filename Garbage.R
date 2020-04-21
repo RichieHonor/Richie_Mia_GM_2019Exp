@@ -375,7 +375,49 @@ lm(RGR4~gluc_Conc,data = GrowthDatMean %>% filter(treatment=="a"))
 
 
 
-```
+####Body Size integration garbage. 
+
+
+
+#First Remove those without bodydata from the final data frame. 
+
+#Full data set without samples (leaf data) lacking final measurement.
+FullDataSetLeafData<-final %>% select(Tag,Sample) %>% filter(!Sample %in% Remainder$Sample[!is.na(Remainder$Sample)])
+
+LeavesWithGenotypeInFinal<-final %>% select(Tag,Sample) %>% filter(Sample %in% Remainder$Sample[!is.na(Remainder$Sample)])
+
+#Full data set without genotypes lacking final measurement.
+FullDataSetNoLeafData<-final %>% select(Tag,Sample) %>% filter(!Sample %in% Remainder$Sample[is.na(Remainder$Sample)])
+
+#Determine which samples (leaf data) in the remainder do not have genotypes in the final data set.
+Remainder %>% filter(!Tag %in% FullDataSetLeafData$Tag)
+#These individuals do not have genotypes in the final data set and the average of the leaf data and glucosinolate data can be taken for these leaves. 
+
+#However, there are 12 leaf which do have body mass and pathogen data available at the level of the plant. These ill will fill in with the average pathogen data available for the plant, as well as the final body mass and number of leaves. 
+Remainder %>% filter(Tag %in% UnJoined$Genotype)
+
+#Code Here
+
+#Now all genotypes in the remainder that have bodymass data available have been filled with that data. However, are there still genotypes that we have bodymass data on that are not in the final data frame?
+
+
+
+#If the genotype is not in the final data frame, i want to add in the average of the pathogen data for that genotype. 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -3,39 +3,31 @@ title: "Selective benefit of Glucosinolate and flavonoids"
 output: html_notebook
 ---
 #Part 1
-The purpose of this notebook is to determine the selective benefit of glucosinolate and flavonoid compounds through plant competition by creating selection gradients. Selection gradients will involve final body mass as the proxy for fitness, but this will be replaced with fitness once the measurement is in. Concentration will be on the x-axis. This analysis will be done in each treatment seperately and account for family and greenhouse location. 
+The purpose of this notebook is to determine the selective benefit of glucosinolate and flavonoid compounds through plant competition by creating selection gradients. Selection gradients will involve final body mass as the proxy for fitness, but this will be replaced with fitness once the measurement is in. Concentration will be on the x-axis. This analysis will account for family and greenhouse location. 
 
 #Part 2
 The second purpose is to determine if glucosinolates and flavonoids influence suscpetibility to pathogens and if this susceptibility results in increased fitness
 
-#Need to add in graph to model how ferns affect fitness and one to model how   flavonoid reducing fern abundance. 
 
 
 
-Read in and prep data
+#Read in and prep data
 ```{r}
 library(ggplot2)
-library(dplyr)
 library(lme4)
+library(tidyr)
+library(cowplot)
+library(grid)
+library(gridExtra)
+library(dplyr)
+source("GGPlot_Themes.R")
 
 #read in data
 rm(list=ls())
 dat<-read.csv("DataSynthesis.csv")
 
-ggplot(dat)+
-  geom_boxplot(aes(y=gluc_Conc,x=Pool))
-
-ggplot(dat)+
-  geom_boxplot(aes(y=flav_Conc,x=Pool))
-
-#Remove maple data from the data set for the time being.
-dat<-dat[!grepl("aple",dat$Tag, fixed =T),]
-#(including maple controls): 
-dat<-dat[!dat$treatment=="mcnt",]
-
-#Removing NA's
-dat<-dat[!is.na(dat$Sample),]
-dat<-dat[!is.na(dat$gluc_Conc),]
+#Remove maple controls data from the data set.
+dat<-dat %>% filter(treatment!="mcnt") %>% droplevels()
 
 #Assign family column
 prefamily<-gsub("*.\\|","",dat$Tag)
@@ -44,164 +36,97 @@ dat$Family<-gsub("\\-.*","",prefamily)
 #remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
 dat<-dat[!grepl("i",dat$Sample,fixed=T),]
 
+#Initializing columns to avoid constant error messages. 
+dat$WhiteFungLogis<-NA
+dat$BlackFungLogis<-NA
+```
+
+
+#Generating data frames with summarized leaf data (dat2) and summarized genotype data (dat3)
+```{r}
+#Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
+dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col))
+
+
+#All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
+dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
+
+#Removing those with dead competitors from the garlic mustard treatment. ("e|JBCHY1-1-50|Q|240") did not die, we are simply missing the final measurement for it.
+
+dead_competitors<-dead %>% filter(treatment=="gm",Tag!="e|JBCHY1-1-50|Q|240") %>% select(comp_number)
+
+#Removing those with dead competitors from the analysis. 
+dat2<-dat2 %>% filter(!comp_number %in% dead_competitors$comp_number)
+
+
+##Summarizing: Taking the mean value of plants. This tibble contains data at the level of the family means within each treatment. 
+dat3<-dat2 %>% drop_na(GM_TotalLeaf_Area) %>% group_by(Family,treatment)  %>% summarize_if(is.numeric,mean)
 
 ```
 
 
-#Correlation between Glucosinolate and Flavonol Concentration
+#Searching for a fitness trade-off between the alone and interspecific competition treatment. 
 ```{r}
+source("GGPlot_Themes.R")
 
-SlopeCalc<-function(x,y){
-  int<-lm(y~x)$coefficients[[1]]
-  slope<-lm(y~x)$coefficients[[2]]
-  return(c(int,slope))
-}
-
-
-#Remove Pools
-dat2<-dat[dat$Pool=="No",]
-
-#Average Duplicates. 
-dat2<-dat2 %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),GA3=first(GA3),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col))
-
-
-#Visualizing mean result.
-
-dat3<-dat2 %>% group_by(Family,treatment) %>% drop_na(GM_TotalLeaf_Area) %>% summarize_if(is.numeric,mean)
-
-
-table(dat2$Family)
-
-
-#There may be an issue with pathogen damage because it appears that the number varies amoung leaves within the same plant. ... Fuck a duck i did record pathogen damage on each leaf! that is remarkable. I will need to update the analysis below including leaf number and pathogen damage. 
-
-
-GFSlopeInt<-SlopeCalc(x=dat2$gluc_Conc,y=dat2$flav_Conc)
-ggplot(dat2)+
-  geom_point(aes(x=gluc_Conc,y=flav_Conc))+
-  geom_abline(aes(slope=GFSlopeInt[2],intercept=GFSlopeInt[1]))
-
-boxplot(gluc_Conc~treatment,data=dat2)
-
-
-
-```
-
-#This is looking at a fitness trade off. I should do this on thefull dataset too. 
-```{r}
 #Calculating family means within treatment. 
 TradeOff<-dat3 %>% filter(treatment=="a") %>% drop_na(GM_TotalLeaf_Area) %>%  select(LeafSizeAlone=GM_TotalLeaf_Area,Family,gluc_ConcAlone=gluc_Conc) %>% right_join(dat3 %>% filter(treatment=="m") %>%  select(LeafSizeMaple=GM_TotalLeaf_Area,Family,gluc_ConcMaple=gluc_Conc),by="Family")
 
+#Calculating standard error of each family
+StdErr<-dat2 %>% select(Family,treatment,GM_TotalLeaf_Area) %>% group_by(Family,treatment) %>% drop_na(GM_TotalLeaf_Area) %>%  summarize(StdErr=sd(GM_TotalLeaf_Area)/sqrt(length(GM_TotalLeaf_Area)),size=length(GM_TotalLeaf_Area))
 
+#Shifting the data to be in long form. 
+StdErr2<-StdErr %>% filter(treatment=="a") %>% select(StdErrAlone=StdErr,Family) %>% right_join(StdErr %>% filter(treatment=="m") %>% select(StdErrMaple=StdErr,Family),by="Family")
 
+TradeOff2<-StdErr2 %>% left_join(TradeOff)
 
-TradeOff
-#Note these are now standard erors, not confidence intervals. 
-ConfInt<-dat2 %>% select(Family,treatment,GM_TotalLeaf_Area) %>% group_by(Family,treatment) %>% drop_na(GM_TotalLeaf_Area) %>%  summarize(ConfInt=sd(GM_TotalLeaf_Area)/sqrt(length(GM_TotalLeaf_Area)),size=length(GM_TotalLeaf_Area))
-
-ConfInt
-
-ConfInt2<-ConfInt %>% filter(treatment=="a") %>% select(ConfIntAlone=ConfInt,Family) %>% right_join(ConfInt %>% filter(treatment=="m") %>% select(ConfIntMaple=ConfInt,Family),by="Family")
-
-TradeOff2<-ConfInt2 %>% left_join(TradeOff)
-library(tidyr)
-TradeOff2
 
 #tiff("Selection_Figures/TradeOff.tiff", units="in", width=10, height=6, res=300)
+
 ggplot(TradeOff2,aes(y=LeafSizeAlone,x=LeafSizeMaple))+
   geom_point()+
-  geom_linerange(aes(ymin = LeafSizeAlone - ConfIntAlone, 
-                    ymax = LeafSizeAlone + ConfIntAlone))+
-  geom_errorbarh(aes(xmin = LeafSizeMaple - ConfIntMaple,
-                    xmax = LeafSizeMaple + ConfIntMaple))+
+  geom_linerange(aes(ymin = LeafSizeAlone - StdErrAlone, 
+                    ymax = LeafSizeAlone + StdErrAlone))+
+  geom_errorbarh(aes(xmin = LeafSizeMaple - StdErrMaple,
+                    xmax = LeafSizeMaple + StdErrMaple))+
 theme_simple()+
   xlab("Performance with Maple")+
   ylab("Performance Alone")
 #dev.off()
 summary(lm(LeafSizeAlone~LeafSizeMaple,data=TradeOff2))
+
 ```
 
 
 
 
 
-
-#Standardizing greenhouse location 
-The purpose of this is to get one numeric vector which can be used to determine the location of individuals in the greenhouse. It will summarize the distance to the walls of the greenhouse. 
-
+#Visualizing genetic variation and greenhouse variation, which will be controlled for. 
 ```{r}
-
-plot(dat2$gluc_Conc~dat2$gh_bench*dat2$gh_row)
-
-
-
+#GH Bench
 ggplot(dat2)+
-  geom_point(aes(y=gluc_Conc,x=gh_row,colour=as.factor(gh_bench)))
+  geom_point(aes(y=gluc_Conc,x=gh_bench,colour=as.factor(gh_bench)))
 
+#GH Col
 ggplot(dat2)+
   geom_point(aes(y=gluc_Conc,x=gh_col,colour=as.factor(gh_bench)))
 
-
-plot(dat2$gluc_Conc~as.numeric(dat2$gh_row))
-
-#Investigating genetic differences
+#Investigating genetic differences by treatment
+#gluc_Conc
 boxplot(gluc_Conc~Family,data=dat2[dat2$treatment=="a",])
 boxplot(gluc_Conc~Family,data=dat2[dat2$treatment=="m",])
 boxplot(gluc_Conc~Family,data=dat2[dat2$treatment=="gm",])
-
+#bodymass
 boxplot(GM_TotalLeaf_Area~Family,data=dat2[dat2$treatment=="a",])
 boxplot(GM_TotalLeaf_Area~Family,data=dat2[dat2$treatment=="m",])
 boxplot(GM_TotalLeaf_Area~Family,data=dat2[dat2$treatment=="gm",])
-
-#I will nest as bench/row/collumn and determine from there what effects need to be retained or not via anova. 
-dat2$GM_TotalLeaf_Area
-```
-
-
-#Effect of glucosinolates & flavonols on fitness (bodymass for proxy)
-```{r}
-#removing those without fitness measurements
-dat2<-dat2[!is.na(dat2$GM_TotalLeaf_Area),]
-
-#in the maple treatment
-ggplot(dat2[dat2$treatment=="m",])+
-  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc))
-
-#in the garlic mustard treatment
-ggplot(dat2[dat2$treatment=="gm",])+
-  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc))
-
-#alone
-ggplot(dat2[dat2$treatment=="a",])+
-  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc))
-
-
-#in the maple treatment
-ggplot(dat3[dat3$treatment=="m",])+
-  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc,colour=Family))
-
-#in the garlic mustard treatment
-ggplot(dat3[dat3$treatment=="gm",])+
-  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc))
-
-#alone
-ggplot(dat3[dat3$treatment=="a",])+
-  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc))
-
-
-#Trade off in alone and maple treatment 
-
-
-
 ```
 
 
 
-
-#Based on these results, it seems as though i need to include family to avoid psuedo replication, and i need to include bench, but adding greenhouse row does not seem to increase the predictive power that much so i will leave that out. Now i will compare all variables which i am interested in predicting fitness with these random effects.  
-
+#Modelling: What influences performance (total leaf area)
 ```{r}
-#This is the full model, i expect that the influence of gluc conc and flav conc could vary between treatments because of allelopathy, but i have no reason to think that pathogens could influence fitness differently in different treatments. The same goes with ferns. Competition from ferns would affect fitness equally in all treatments, even though there may be more ferns in certain treatments, but this is not what i am testing with this analyis. Let us continue with backwards model selection. 
+#This is the full model.I expect that the influence of gluc conc and flav conc could vary between treatments because of allelopathy, therefore, i include interactions with these variables. However, i have no reason to think that pathogens or fern abundance could influence fitness differently in different treatments, therefore, no interactions are included.
 
 #First lets ensure we are using the correct random effects.
 fitfull0<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc*flav_Conc+BlackPathDam+WhiteFungDam+ThripsDam+Fern+(1|Family), data=dat2)
@@ -212,142 +137,97 @@ fitfull2<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc*flav_Conc+BlackPathDam+Whit
 
 fitfull3<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc*flav_Conc+BlackPathDam+WhiteFungDam+ThripsDam+Fern+(1|Family)+(1|gh_bench/gh_col), data=dat2)
 
-
-#Gh_Col is the best predictor for the data by far, so i will use that as the random effects in the model. 
-
 anova(fitfull0,fitfull) #Strong evidence to use bench.
- #Strong evidence to use bench.
-
 anova(fitfull,fitfull2) #Using bench/row is the same as the null model.
-anova(fitfull,fitfull3) #There is strong evidence to use bench/collumn however. 
+anova(fitfull,fitfull3) #There is evidence to use bench/collumn however. 
 
-#Modelling fixed effects. 
+#Modelling fixed effects. -----------
+
+#Full Model
 fitfull3<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc*flav_Conc+BlackPathDam+WhiteFungDam+ThripsDam+Fern+(1|Family)+(1|gh_bench/gh_col), data=dat2)
 
 #Removing three way interaction
 fit.1<-update(fitfull3, ~.-treatment:gluc_Conc:flav_Conc)
 anova(fitfull3,fit.1) #Good to remove
 
+#Removing two way interaction gluc:flav
 fit.2<-update(fit.1,~.-gluc_Conc:flav_Conc)
 anova(fit.2,fit.1) #Good to remove. 
 
+#Removing treatment:flavonoid interactions
 fit.3<-update(fit.2,~.-treatment:flav_Conc)
 anova(fit.2,fit.3) #Good to remove. 
 
 fit.4<-update(fit.3,~.-treatment:gluc_Conc)
 anova(fit.4,fit.3)  #That significantly affected the predictive power. Did Not Remove 
 
-#It seems as though flav conc has less sample size and so an anova cannot be done.I will refit the model with the same data set but without flav_Conc to test if it is significant. 
+#Flavonoid Concentration has missing samples. Therefore, I refit the model with and without flav_Conc, but using the same limited dataset.
+#No flav_Conc
 fit.4<-lmer(GM_TotalLeaf_Area ~ treatment + gluc_Conc + BlackPathDam + WhiteFungDam +  
     ThripsDam + Fern +   treatment:gluc_Conc+ (1 | Family) + (1 | gh_bench/gh_col)  ,data=dat2[!is.na(dat2$flav_Conc),])
-
+#Yes flav_Conc
 fit.3<-lmer(GM_TotalLeaf_Area ~ treatment + gluc_Conc + BlackPathDam + WhiteFungDam +  
     ThripsDam + Fern +   treatment:gluc_Conc+flav_Conc+ (1 | Family) + (1 | gh_bench/gh_col)  ,data=dat2[!is.na(dat2$flav_Conc),])
 
+anova(fit.3,fit.4) #Flav_Conc is a significant predictor. 
+
+#Now that I know flav_conc is significant, I will conduct the rest of the model simplification using the whole data set (i.e. flav_Conc excluded --fit4) 
+
+fit.nf<-lmer(GM_TotalLeaf_Area ~ treatment + gluc_Conc + BlackPathDam + WhiteFungDam +  
+    ThripsDam + Fern +   treatment:gluc_Conc+ (1 | Family) + (1 | gh_bench/gh_col)  ,data=dat2)
 
 
-anova(fit.3,fit.4) #Did not remove.  
-#Flav_Conc is a significant predictor on its own. 
+fit.1.nf<-update(fit.nf,~.-BlackPathDam)
+anova(fit.nf,fit.1.nf) #Black pathogen damage is a significant predictor. Did not remove.
 
-fit.4<-update(fit.3,~.-BlackPathDam)
-anova(fit.3,fit.4) #do not remove black path dam.
+fit.2.nf<-update(fit.nf,~.-WhiteFungDam)
+anova(fit.nf,fit.2.nf)  #White Fungal Damage was not significant, however, both the AIC and BIC was lower with it included, suggesting it may be an important variable. 
+dat2
 
-fit.4<-update(fit.3,~.-WhiteFungDam)
-anova(fit.3,fit.4)  #removing whitefungdam. Not significant but lower AIC value. 
+fit.3.nf<-update(fit.nf,~.-ThripsDam)
+anova(fit.nf,fit.3.nf)  #Thrips Damage was also not a significant predictor, however, both the AIC and BIC was lower with it included, suggesting it may be an important predictor. 
 
-fit.5<-update(fit.4,~.-ThripsDam)
-anova(fit.5,fit.4)  #removing ThripsDam. #but model has lower AIC value and lower BIC value too. 
-
-fit.6<-update(fit.5,~.-Fern)
-anova(fit.6,fit.5)  #Fern is significnat predictor of garlic mustard fitness! 
-
-#fit.6 is therefore the best model
-#Is the effect of glucosinolate and treatment still apparent when using the whole dataset? 
-fit.6.Whole<-lmer(GM_TotalLeaf_Area ~ treatment*gluc_Conc + 
-(1 | Family) + (1 | gh_bench/gh_col) ,data=dat2)
-fit.6.noInt<-lmer(GM_TotalLeaf_Area ~ treatment+gluc_Conc + 
-(1 | Family) + (1 | gh_bench/gh_col) ,data=dat2) 
-anova(fit.6.Whole,fit.6.noInt)#The effect is still significant. 
+fit.4.nf<-update(fit.nf,~.-Fern)
+anova(fit.nf,fit.4.nf)  #Fern abundance is significnat predictor performance.
 
 
-
-#Is family even a significant predictor?
-fit.6.Whole.nf<-lmer(GM_TotalLeaf_Area ~ treatment*gluc_Conc + (1 | gh_bench/gh_col) ,data=dat2)
-anova(fit.6.Whole,fit.6.Whole.nf) #No it is not. 
-
-
-#Is it gluc_Conc still significant without family?
-fit.6.Whole.nf.ng<-lmer(GM_TotalLeaf_Area ~ treatment+gluc_Conc + (1 | gh_bench/gh_col) ,data=dat2)
-anova(fit.6.Whole.nf,fit.6.Whole.nf.ng) #yes it is - but excluding family will alter the results. 
-
-#Is there an effect of whitefungal damage on the whole dataset? 
-fit.6.Whole<-lmer(GM_TotalLeaf_Area ~ treatment + 
-(1 | Family) + (1 | gh_bench/gh_col) ,data=dat2[!is.na(dat2$WhiteFungDam),])
-fit.6.Whole.wf<-lmer(GM_TotalLeaf_Area ~ treatment + WhiteFungDam+
-(1 | Family) + (1 | gh_bench/gh_col) ,data=dat2[!is.na(dat2$WhiteFungDam),])
-anova(fit.6.Whole,fit.6.Whole.wf) #The effect is not significant, but the AIC is about the same. 
-
-#What is the effect of black of black path damage. 
-fit.6.Whole<-lmer(GM_TotalLeaf_Area ~ 
-(1 | Family) + (1 | gh_bench/gh_col) ,data=dat2[!is.na(dat2$BlackPathDam),])
-fit.6.Whole.bf<-lmer(GM_TotalLeaf_Area ~ BlackPathDam+
-(1 | Family) + (1 | gh_bench/gh_col) ,data=dat2[!is.na(dat2$BlackPathDam),])
-anova(fit.6.Whole,fit.6.Whole.bf) #The effect is very significant,
-
-#Does it change if we remove gh_col from the analysis? 
-fit.6.nocolG<-lmer(GM_TotalLeaf_Area ~ treatment*gluc_Conc + 
-(1 | Family) + (1 | gh_bench) ,data=dat2)
-fit.6.nocol<-lmer(GM_TotalLeaf_Area ~ treatment+gluc_Conc + 
-(1 | Family) + (1 | gh_bench) ,data=dat2)
-anova(fit.6.nocolG,fit.6.nocol) #No it does not. 
-
-#Since family is not significant, what will happen if i remove it? 
 library(lmerTest)
+#The best model is therefore: 
+
+#With limited dataset containing flavonoid data
 summary(lmer(GM_TotalLeaf_Area ~ treatment*gluc_Conc+Fern+BlackPathDam +flav_Conc + (1 | gh_bench/gh_col) ,data=dat2))
 
+#with whole data set lacking flavonoid data
+summary(lmer(GM_TotalLeaf_Area ~ treatment*gluc_Conc+Fern+BlackPathDam  + (1 | gh_bench/gh_col) ,data=dat2))
+
+#The negative slope associated with the alone treamtment is no longer significant, suggesting that there is only a postive slope of glucosinolates in the maple treatment. However, the issue with this analysis is that is does not account for the competitive strength of the maple competitor, which may be correlated with glucosinolate concentration. 
+
+
+
 
 ```
 
 
-
-Perhaps i need to include treatment in the nesting because each family may have different amount of individuals in different treatments, which could bias the fitness estimate of that family (the total estimate). 
-
+#Model Diagnostics. 
 ```{r}
 #GlucConcInteraction
-fit.6.Whole<-lmer(GM_TotalLeaf_Area ~ treatment*gluc_Conc + BlackPathDam+Fern+
+fit.Whole<-lmer(GM_TotalLeaf_Area ~ treatment*gluc_Conc + BlackPathDam+Fern+flav_Conc+
 (1 | Family) + (1 | gh_bench/gh_col) ,data=dat2)
 
-#BlackPathDam effect
-summary(fit.6.Whole.bf)
+confint(fit.Whole)
 
-summary(fit.6.Whole)
-
-confint(fit.6.Whole)
-
-coef(fit.6.Whole)
+coef(fit.Whole)
 #no heteroscedasticity
-plot(fit.6.Whole)
+plot(fit.Whole)
 #fairly normal. 
-qqnorm(resid(fit.6.Whole))
+qqnorm(resid(fit.Whole))
 
-#Flavonoid is significant, but just barely, there are also alot of samples missing there and I know there is a decent amount of sampling variance there, so i think i will ignore the small positive eeffect of flavonoids on the reduced dataset and continue with the whole one. 
+#The model appears to be a good fit.
 ```
 
-
-
-
-
-#Conclusion, there is a benefit to producing glucosniolates in the maple treamtment and it is detrimental in the alone treatment. In the garlic mustard treatment, there were mixed results. 
 
 #Visualization -- The conditional benefit of glucosinolates (allelopathy)
 ```{r}
-library(ggplot2)
-library(cowplot)
-library(grid)
-library(gridExtra)
-source("GGPlot_Themes.R")
-
-summary(fit.6.Whole)
 
 aloneSlope<-function(x){
   y=-3966.60*x+ 13751.96
@@ -363,36 +243,34 @@ mustardSlope<-function(x){
   return(y)
 }
 
-minM<-min(dat2$gluc_Conc[dat2$treatment=="m"])
-maxM<-max(dat2$gluc_Conc[dat2$treatment=="m"])
+minM<-min(dat2$gluc_Conc[dat2$treatment=="m"],na.rm = T)
+maxM<-max(dat2$gluc_Conc[dat2$treatment=="m"],na.rm = T)
 
-minA<-min(dat2$gluc_Conc[dat2$treatment=="a"])
-maxA<-max(dat2$gluc_Conc[dat2$treatment=="a"])
+minA<-min(dat2$gluc_Conc[dat2$treatment=="a"],na.rm = T)
+maxA<-max(dat2$gluc_Conc[dat2$treatment=="a"],na.rm = T)
 
-minG<-min(dat2$gluc_Conc[dat2$treatment=="gm"])
-maxG<-max(dat2$gluc_Conc[dat2$treatment=="gm"])
+minG<-min(dat2$gluc_Conc[dat2$treatment=="gm"],na.rm = T)
+maxG<-max(dat2$gluc_Conc[dat2$treatment=="gm"],na.rm = T)
 
-tiff("Selection_Figures/Gluc_Benefit.tiff", units="in", width=10, height=6, res=300)
+#tiff("Selection_Figures/Gluc_Benefit.tiff", units="in", width=10, height=6, res=300)
 library(ggplot2)
 ggplot(dat2)+
   geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc,colour=treatment),size=2)+
   geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
-    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+theme_simple()+
+    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
   geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple()+
   ylab(bquote(bold("Performance\n(Total Leaf Area "~(mm^2)~")")))+xlab(bquote(bold("[Total Glucosinolate] " (mg/ml))))+
   scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))
-dev.off()
+#dev.off()
 
-
+minA
 
 
 ```
 
-The Effect of Flavonoid
+#Visualizing the effect of flavonoid on fitness.
 ```{r}
 summary(lmer(GM_TotalLeaf_Area~treatment+flav_Conc+BlackPathDam+Fern+(1|Family)+(1|gh_bench/gh_col), data=dat2))
-
-summary(fit.6.Whole)
 
 aloneSlope<-function(x){
   y=2024.62 *x+  8035.30
@@ -431,7 +309,6 @@ ggplot(dat2)+
 
 #Visualization-- The Detriment of pathogens and ferns
 ```{r}
-
 summary(lmer(GM_TotalLeaf_Area ~ Fern+
 (1 | Family) + (1 | gh_bench/gh_col) ,data=dat2))
 
@@ -496,37 +373,6 @@ grid.arrange(d,left=y.grob)
 
 
 
-#Visualization-- The unconditional benefit of flavonoids. 
-```{r}
-#Getting the effect of flavonols
-summary(lmer(GM_TotalLeaf_Area~flav_Conc+(1|Family)+(1|gh_bench/gh_col), data=dat2))
-
-library(ggplot2)
-
-#tiff("Selection_Figures/FlavonolEffect.tiff", units="in", width=10, height=6, res=300)
-ggplot(dat2)+
-  geom_point(aes(y=GM_TotalLeaf_Area,x=flav_Conc))+
-  geom_abline(intercept=4328,slope=4226,size=1.5)+theme_simple()+ 
-  
-  ylab(bquote(bold("Shoot Area "(mm^2))))+xlab(bquote(bold("[Total Flavonoid] " (mg/ml))))
-#dev.off()
-
-
-
-
-```
-
-
-
-
-
-
-
-
-
-
-
-
 #-----------------------------------------
 #Part 2
 
@@ -541,8 +387,7 @@ hist(dat$ThripsDam)
 hist(dat$WhiteFungDam)
 hist(dat$BlackPathDam)
 
-#This data is insanely zero inflated and a poisson model will be too overdispersed. I am afraid that a negative binomial will be as well. 
-
+#This data is very zero inflated and a poisson model will be too overdispersed. I am afraid that a negative binomial will be as well. 
 ```
 
 
@@ -550,15 +395,10 @@ hist(dat$BlackPathDam)
 
 
 
-
-#Remodelling as a logistic regression, because of the massive amount of zero inflation. And for white pathogen damage, the amount of fungus there may have been subjective
-
-
-#WhitePathDam -- lostistic 
+#WhitePathDam -- logistic regression
 ```{r}
-
-#Remodelling data. ... The model is too complex and there are singular fits. I will try to do this with dat2 and remove the variation in the leaf. ...That did the trick
-
+#Because of how zero inflated white pathogen damage is, i will use a logistic regression to model it.
+dat2$WhiteFungLogis<-NA
 dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-0
 dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-1
 
@@ -567,86 +407,82 @@ dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-1
 fit_full_g<-glmer(WhiteFungLogis~treatment*gluc_Conc+flav_Conc+(1|Family),family=binomial,data=dat2[!is.na(dat2$flav_Conc),])
 
 fit.1<-update(fit_full_g,~.-flav_Conc)
-anova(fit_full_g,fit.1) #Flavonoids not significant. 
+anova(fit_full_g,fit.1) #Flavonoid Concentration is not significant. 
 
+
+#Testing glucosinolate treatment interaction. 
 fit.2<-glmer(WhiteFungLogis~treatment*gluc_Conc+(1|Family),family=binomial,data=dat2)
 fit.3<-glmer(WhiteFungLogis~treatment+gluc_Conc+(1|Family),family=binomial,data=dat2)
+anova(fit.2,fit.3) #Glucosinolate:Treatment interaction is not significant.
 
-anova(fit.2,fit.3) #Interaction not significant. 
+#Testing glucosinolate involvment at all.
+fit.4<-glmer(WhiteFungLogis~treatment+(1|Family),family=binomial,data=dat2[!is.na(dat2$gluc_Conc),])
+fit.3<-glmer(WhiteFungLogis~treatment+gluc_Conc+(1|Family),family=binomial,data=dat2[!is.na(dat2$gluc_Conc),])
+anova(fit.4,fit.3) #Glucosinolate Concentration is not a significant predictor
+
+#Testing effect of treatment
 fit.4<-glmer(WhiteFungLogis~treatment+(1|Family),family=binomial,data=dat2)
-anova(fit.4,fit.3) #GlucConc not significant.
-
 fit.5<-glmer(WhiteFungLogis~1+(1|Family),family=binomial,data=dat2)
 anova(fit.4,fit.5)
 #treatment is significant......
 
-summary(fit.4) #Maples have less occurence of fungal colonization. 
+summary(fit.4) #Garlic mustard in the maple treatment have less occurence of fungal colonization. 
 
 plot(fit.4)
-
-
 ```
 
 #Visualizing -- effect of treatment on proportion of fungal abundance. 
 ```{r}
-
-fit.1<-glmer(WhiteFungLogis~1+(1|Family),family=binomial,data=dat2)
-fit.2<-glmer(WhiteFungLogis~treatment+(1|Family)+(1|gh_bench),family=binomial,data=dat2)
-summary(fit.2)
-
-
-dat2$BlackPathLogis[dat2$BlackPathDam==0]<-0
-dat2$BlackPathLogis[dat2$BlackPathDam>0]<-1
-
-
-
+#Summarizing for Display: generating frequency of white funal infection by treatment
 plot<-dat2 %>% drop_na(WhiteFungLogis) %>% group_by(treatment) %>% summarize(PercWhitFung=sum(WhiteFungLogis)/length(WhiteFungLogis)*100)
 
-plot0.1<-dat2 %>% drop_na(WhiteFungLogis) %>% group_by(treatment) %>% summarize(PercWhitFung=mean(WhiteFungLogis))
 
+#tiff("Defence_Figures/TreatMeanWhiteFung.tiff", units="in", width=8, height=5, res=300)
+ggplot(plot)+
+  geom_col(aes(x=treatment,y=PercWhitFung,fill=treatment))+theme_simple()+ylab("Fungal Abundance\n (% Infected)")+
+  scale_y_continuous(breaks = seq(0,30,5))+
+scale_x_discrete(name="",labels=c("Alone","Garlic Mustard","Maple"))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme_simple_multiCol()+theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0)))
+#dev.off()
+
+```
+
+#Visualizing --- the distribution of pathogens by treatment. 
+```{r}
 
 plot2<-dat2 %>% drop_na(BlackPathDam) %>% group_by(treatment) %>% summarize(BlackPathAve=mean(BlackPathDam,na.rm=T))
 
 plot3<-dat2 %>% drop_na(ThripsDam) %>% group_by(treatment) %>% summarize(ThripsDam=mean(ThripsDam,na.rm=T))
 
-dat2$BlackPathDam
+plot4<-dat2 %>% drop_na(Fern) %>% group_by(treatment) %>% summarize(Fern=mean(Fern,na.rm=T))
 
 
-sum(dat2$BlackPathDam<0,na.rm=T)
-
-ggplot(plot)+
-  geom_col(aes(x=treatment,y=PercWhitFung,fill=treatment))+theme_simple()+ylab("Fungal Abundance\n (% colonized)")+xlab("Treatment")+theme(legend.position = "none")
-
-ggplot(plot0.1)+
-  geom_col(aes(x=treatment,y=PercWhitFung,fill=treatment))+theme_simple()+ylab("Fungal Abundance\n (% colonized)")+xlab("Treatment")+theme(legend.position = "none")
-
-
-
+#Black Pathogen abundance by treamtent
 ggplot(plot2)+
   geom_col(aes(x=treatment,y=BlackPathAve,fill=treatment))+theme_simple()+ylab("Fungal Abundance\n (% colonized)")+xlab("Treatment")+theme(legend.position = "none")
 
-
+#Thrips abundance by treatment. 
 ggplot(plot3)+
   geom_col(aes(x=treatment,y=ThripsDam,fill=treatment))+theme_simple()+ylab("Fungal Abundance\n (% colonized)")+xlab("Treatment")+theme(legend.position = "none")
+
+#I would need to account for the garlic mustard being psuedoreplicated iwth the fern data, because each gm in the gm treatment was grown with another gm in the same pot. 
+ggplot(plot4)+
+  geom_col(aes(x=treatment,y=Fern,fill=treatment))+theme_simple()+ylab("Average Fern Abundance (#Ferns/pot)")+xlab("Treatment")+theme(legend.position = "none")+
+  scale_x_discrete(name="",labels=c("Alone","Garlic Mustard","Maple"))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme_simple_multiCol()+theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0)))
+#dev.off()
+
+
 
 ```
 
 
-#WhitePathDam -- poisson. 
+#Modelling -- what influences White pathogen damage?
 ```{r}
-#Glucosinolate and flavonoids are correlated, but the R2 is only 0.39, so i dont think it is a very big deal. 
-
-library(lme4)
-library(MASS)
-dat2$WhiteFungDam<-ceiling(dat2$WhiteFungDam)
-datWFnonzero<-dat2[dat2$WhiteFungDam>0,]
-
-
-fit.G<-glm.nb(WhiteFungDam~treatment+gluc_Conc,data=dat2,init.theta=100)
-summary(fit.G)
-plot(fit.G)
-
-getME(fit.G,"glmer.nb.theta")
+#Rounding to integers for white fung dam. 
+dat$WhiteFungDam<-ceiling(dat$WhiteFungDam)
 
 fit_full<-glmer(WhiteFungDam~treatment*gluc_Conc+treatment*flav_Conc+(1|Family/Tag)+(1|gh_bench),family=poisson,data=dat)
 
@@ -657,24 +493,42 @@ anova(fit.1,fit_full) #Fit1 is a better model
 fit.2<-update(fit.1,~.-gluc_Conc:treatment)
 anova(fit.2,fit.1) #models are the same... eliminating interaction.
 
-
 fit.3<-update(fit.2,~.-gluc_Conc)
 anova(fit.3,fit.2) #The model including glucConc is better. 
 
 fit.2<-update(fit.2,data=dat[!is.na(dat$flav_Conc),]) #Using a model with a data subset.
 fit.3<-update(fit.2,~.-flav_Conc) 
-anova(fit.3,fit.2)#flav_Conc is unimportant. 
+anova(fit.3,fit.2)#flav_Conc is unimportant, even though the AIC and BIC are lower.
 
-#going to now model using the full data set. 
-fit.3<-glmer(WhiteFungDam~gluc_Conc+(1|Family/Tag)+(1|gh_bench),family=poisson,data=dat)
-fit.4<-glmer(WhiteFungDam~gluc_Conc+treatment+(1|Family/Tag)+(1|gh_bench),family=poisson,data=dat)
+#Therefore, the best model is:
+summary(glmer(WhiteFungDam~treatment+gluc_Conc+(1|Family/Tag)+(1|gh_bench),family=poisson,data=dat))
 
-anova(fit.3,fit.4)
-#treatment is also important.
+#the inclusion of GH_Bench does not affect the outcome of the model, thereofre, I am excluding it as the other model was saturated and took alot time to compute. 
+summary(glmer(WhiteFungDam~treatment+gluc_Conc+(1|Family/Tag),family=poisson,data=dat))
+#Using a Permutation test to determine the probability of getting a significant glucosinolate concentration predictor, if the data is ramdomly sampled. 
 
-#Therefore, the best model is: fit.4 using gluc_Conc and treatment to explain whitefungal damage. 
-summary(fit.4)
+datPerTest<-dat
+pStore<-c()
+for(i in 1:100){
+  #Randomize glucosinolate concentration.
+  datPerTest$gluc_Conc<-sample(dat$gluc_Conc,length(dat$gluc_Conc),replace = F)
+  
+  #Run Model with randomized glucConc and extract p-value
+  glucPval<-summary(glmer(WhiteFungDam~treatment+gluc_Conc+(1|Family/Tag),family=poisson,data=datPerTest))$coef[3,4]
+  
+  #Store P value.
+  pStore[i]<-glucPval
+}
+
+sum(pStore<0.05)/length(pStore)
+
+
+#Given that 64% of the models return a significant p value, I would say that this is a very very very bad model. 
 ```
+
+
+
+
 #Visuallizing -- white fungal damage is influenced by gluc and treatmnet. 
 ```{r}
 
@@ -683,26 +537,16 @@ PoisSlope=function(x,int){
   return(y)
 }
 
-
 glucplot=seq(min(dat$gluc_Conc),max(dat$gluc_Conc),length.out = 695)
 
 FungA<-PoisSlope(glucplot,-0.15701)
 FungM<-PoisSlope(glucplot,-0.15701-0.82060)
 FungGM<-PoisSlope(glucplot,-0.15701+0.02483)
 
-FungA[1]
-FungM[2]
-FungGM[3]
-
-any(is.na(FungM))
-
-
 fit.g<-glm(WhiteFungDam~gluc_Conc+treatment,family=poisson,data=dat)
 summary(fit.g)
 
-
 predict(fit.g,type="response",newdata=data.frame("treatment"=rep("a",695),"gluc_Conc"=glucplot))
-
 
 datv<-dat[!is.na(dat$WhiteFungDam),]
 
@@ -717,14 +561,13 @@ ggplot(datv[datv$WhiteFungDam<30,])+
 xlab(bquote(bold("[Total Glucosinolate] " (mg/ml))))
 #dev.off()
 
-
-
-
 ```
 
 
-#BlackPathDam
+#Modelling -- What influences Black Pathogen Damage?
 ```{r}
+dat$BlackPathDam
+dat$BlackPathDam<-ceiling(dat$BlackPathDam)
 #Glucosinolate and flavonoids are correlated, but the R2 is only 0.39, so i dont think it is a very big deal. 
 summary(lm(gluc_Conc~flav_Conc,dat=dat))
 
@@ -761,6 +604,26 @@ ggplot(dat)+
 
 summary(fit.4) #Flav conc is actually a very significant predictor. 
 
+
+#Permutation test. 
+
+datPerTest<-dat
+pStore<-c()
+for(i in 1:100){
+  #Randomize glucosinolate concentration.
+  datPerTest$flav_Conc<-sample(dat$flav_Conc,length(dat$flav_Conc),replace = F)
+  
+  #Run Model with randomized glucConc and extract p-value
+  flavPval<-summary(glmer(BlackPathDam~flav_Conc+(1|Family/Tag),family=poisson,data=datPerTest))$coef[2,4]
+  
+  #Store P value.
+  pStore[i]<-flavPval
+}
+
+sum(pStore<0.05)/length(pStore)
+
+#Approximitely half of the p values are less than 0.05, this suggests that this model is quite horrible. 
+
 ```
 
 #Visuallizing -- Black Pathogen damage is influenced by flavonols. 
@@ -790,7 +653,7 @@ xlab(bquote(bold("[Total Flavonoid] " (mg/ml))))
 ```
 
 
-#ThripsDam
+#What influences Thrips damage?
 ```{r}
 #Glucosinolate and flavonoids are correlated, but the R2 is only 0.39, so i dont think it is a very big deal. 
 summary(lm(gluc_Conc~flav_Conc,dat=dat))
@@ -821,9 +684,30 @@ fit.4<-glmer(ThripsDam~flav_Conc+(1|Family/Tag)+(1|gh_bench),family=poisson,data
 
 summary(fit.4) #Flav conc is again, a very significant predictor. 
 
+
+
+#Permutation test. 
+dat$ThripsDam<-ceiling(dat$ThripsDam)
+datPerTest<-dat
+pStore<-c()
+for(i in 1:100){
+  #Randomize glucosinolate concentration.
+  datPerTest$flav_Conc<-sample(dat$flav_Conc,length(dat$flav_Conc),replace = F)
+  
+  #Run Model with randomized glucConc and extract p-value
+  flavPval<-summary(glmer(ThripsDam~flav_Conc+(1|Family/Tag),family=poisson,data=datPerTest))$coef[2,4]
+  
+  #Store P value.
+  pStore[i]<-flavPval
+}
+
+sum(pStore<0.05)/length(pStore)
+
+#About half of those with thrips dam is also significant. I need either a different model, or to use a logistic regression. 
+
 ```
 
-#Visualizing
+#Visualizing - influence of flavonoids on thrips damage. 
 ```{r}
 
 PoisSlope=function(x){
@@ -851,63 +735,7 @@ xlab(bquote(bold("[Total Flavonoid] " (mg/ml))))
 
 
 
-
-
-
-
-
-# Influence of treament and secondary compounds on Fern abundance.
-```{r}
-
-
-
-
-
-
-#Glucosinolate and flavonoids are correlated, but the R2 is only 0.39, so i dont think it is a very big deal. 
-summary(lm(gluc_Conc~flav_Conc,dat=dat))
-
-fit_full<-glmer(Fern~treatment+gluc_Conc+flav_Conc+(1|Family)+(1|gh_bench/gh_col),family=poisson,data=dat2)
-
-glmer(Fern~treatment+gluc_Conc+flav_Conc+(1|Family)+(1|gh_bench/gh_col),family=poisson,data=dat2)
-
-glmer.nb(Fern~treatment+gluc_Conc+flav_Conc+(1|Family)+(1|gh_bench/gh_col),data=dat2)
-
-
-
-fit.1<-update(fit_full,~.-gluc_Conc)
-anova(fit.1,fit_full) #Gluc Conc is in no way a significant predictor. 
-
-
-fit.2<-update(fit.1,~.-treatment)
-anova(fit.1,fit.2) #treatment is a significant predictor. This will be retained
-
-
-fit.1<-update(fit.1,data=dat[!is.na(dat$flav_Conc),])#Changing data set to account for missing flavonoid data. 
-fit.2<-update(fit.1,~.-flav_Conc)
-anova(fit.1,fit.2) #Flav Conc is a significant predictor. This is the simplest,best model. (fit.1)
-
-summary(fit.1) #Flav conc and treatment predict fern abudnance. 
-
-#Is there an interaction? I didnt check 
-fit.11<-glmer(Fern~treatment*flav_Conc+(1|Family)+(1|gh_bench),family=poisson,data=dat2)
-fit.1<-glmer(Fern~treatment+flav_Conc+(1|Family)+(1|gh_bench),family=poisson,data=dat2)
-
-anova(fit.11,fit.1)# There is strong evidence for an interation actually. 
-
-glmer.nb(Fern~flav_Conc+(1|Family)+(1|gh_bench),family=poisson,data=dat2)
-
-summary(fit.11)
-
-plot(fit.1)
-check_over
-
-#Maples have more ferns and flavonols decrease their abundance. 
-
-```
-
-
-#effect on maples
+#Visualizing -- effect of flavonoids on fern abundance. 
 ```{r}
 
 PoisSlope=function(x,int){
@@ -937,6 +765,7 @@ xlab(bquote(bold("[Total Flavonoid] " (mg/ml))))
 
 ```
 
+How can we know that healthy plants dont just exhibit more secondary compounds and not that those with more secondary compounds are healthier?
 
 
 
