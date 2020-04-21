@@ -74,10 +74,17 @@ unique(gmdata$Family)
 Pools analysis
 ```{r}
 summary(pools)
+<<<<<<< HEAD
 
 #manually add a "pool" column: Yes = it's a pool, No = regular sample
 write.csv(gmdata,"/Users/user/Documents/2019-20 School Year/BIOL 537/gmdata.csv", row.names = T)
 poolgmdata <- read.csv("/Users/user/Documents/2019-20 School Year/BIOL 537/gmdata.csv", header = TRUE)
+=======
+poolgmdata<-gmdata
+#manually add a "pool" column: Yes = it's a pool, No = regular sample
+#write.csv(gmdata,"/Users/user/Documents/2019-20 School Year/BIOL 537/gmdata.csv", row.names = T)
+#poolgmdata <- read.csv("/Users/user/Documents/2019-20 School Year/BIOL 537/gmdata.csv", header = TRUE)
+>>>>>>> cd92b2db3ac8c22192e0ce4ad52228d100a45ddf
 
 #filter NAs
 poolgmdata <- poolgmdata %>% filter(!is.na(gluc_Conc), !is.na(flav_Conc))
@@ -326,6 +333,11 @@ trtt <- gm1 %>% group_by(treatment) %>%
             )
              
 
+<<<<<<< HEAD
+=======
+
+
+>>>>>>> cd92b2db3ac8c22192e0ce4ad52228d100a45ddf
 #graph gluc according to treatment showing means and 95% CIs
 glucmeans <- ggplot(trtt, aes(x = treatment, 
                     y = mgluc, colour = treatment))+
@@ -351,6 +363,58 @@ plot_grid(glucmeans, flavmeans, labels = "AUTO", label_size = 18,
           hjust = -0.2, vjust = 1)
 ```
 
+<<<<<<< HEAD
+=======
+#Richie modified above plots (Plasticity of gluc and flav) 
+```{r}
+source("GGPlot_Themes.R")
+
+glucmeans <- ggplot(trtt, aes(x = treatment, 
+                    y = mgluc, colour = treatment))+
+  geom_point(size = 5)+
+  geom_errorbar(ymin = trtt$LCL,
+                ymax = trtt$UCL, width = 0.1)+
+  scale_x_discrete(name="",labels=c("Alone","Garlic Mustard","Maple"))+
+  scale_y_continuous(limits = c(0.9,1.03), name = "Glucosinolates (mg/mL)",breaks=c(0.9,0.925,0.95,0.975,1,1.025))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme_simple_multiCol()+theme(
+    axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90),
+  )
+
+glucmeans
+
+
+flavmeans <- ggplot(trtt, aes(x = treatment, 
+                    y = mflav, colour = treatment))+
+  geom_point(size = 5)+
+  geom_errorbar(ymin = trtt$fLCL,
+                ymax = trtt$fUCL, width = 0.1)+
+  scale_y_continuous(limits = c(0.8,0.93), name = "Flavonoids (mg/mL)",breaks = seq(0.8,0.925,by=0.025))+
+  scale_x_discrete(name="",labels=c("Alone","Garlic Mustard","Maple"))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme_simple_multiCol()+theme(
+    axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90),
+  )
+
+
+#tiff("Plasticity_Figures/TreatMeanWithCI.tiff", units="in", width=12, height=5, res=300)
+plot_grid(glucmeans, flavmeans, ncol = 2,rel_widths = c(1,1))
+#dev.off()
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+>>>>>>> cd92b2db3ac8c22192e0ce4ad52228d100a45ddf
 Bivariate plot for mean glucosinolates for a genotype
 ```{r  fig.width = 15, fig.height = 5,warning = F}
 

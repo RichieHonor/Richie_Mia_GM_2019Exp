@@ -1,0 +1,337 @@
+---
+title: "Competitive Ability and the influence of glucosinolates and flavonols"
+author: "Richard Honor"
+date: "31/03/2020"
+output: html_document
+---
+
+Read in and prep data
+```{r}
+library(ggplot2)
+library(dplyr)
+library(lme4)
+
+#read in data
+rm(list=ls())
+dat<-read.csv("DataSynthesis.csv")
+
+#Remove maple data from the data set for the time being.
+#dat<-dat[!grepl("aple",dat$Tag, fixed =T),]
+#(including maple controls): 
+#dat<-dat[!dat$treatment=="mcnt",]
+
+#Removing NA's
+dat<-dat[!is.na(dat$Tag),]
+dat<-dat[!is.na(dat$treatment),]
+
+#dat<-dat[!is.na(dat$gluc_Conc),]
+
+#Assign family column
+prefamily<-gsub("*.\\|","",dat$Tag)
+dat$Family<-gsub("\\-.*","",prefamily)
+
+#remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
+dat<-dat[!grepl("i",dat$Sample,fixed=T),]
+
+#Remove Pools
+#dat2<-dat[dat$Pool=="No",]
+
+#Average Duplicates. 
+dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_max_End=mean(Maple_StemHeight_max_End),Maple_Length_mean_End=mean(Maple_Length_mean_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_Area_sum_End=mean(Maple_Area_sum_End),MapleDamage=mean(Maple_Damage_mean_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0))
+
+
+
+
+```
+
+#Creating a maple dataframe. 
+```{r}
+Maple<-dat2[dat2$treatment=="m"|dat2$treatment=="mcnt",]
+
+Maple<-Maple[!is.na(Maple$Tag),]
+
+Maple[is.na(Maple$Maple_StemHeight_max_End),]
+
+#b|EFCC2-4-80|Q|144 and f|JBCHY1-1-50|Q|247 are simply not in the datafile. Nothing to do there, they will be deleted fromt the analyis. 
+Maple<-Maple[!is.na(Maple$Maple_StemHeight_max_End),]
+
+```
+
+
+#Examining differences between sugar maple in the experiment and in the control.
+```{r}
+#Is there an interaction between initial hieght and initial longest leaf size.
+
+
+fitTreat<-lm(Maple_Area_sum_End~maple_height_0*maple_leaf_length_0*maple_leaves_0+treatment,data=Maple)
+
+fitTreat.01<-update(fitTreat,~.-maple_height_0:maple_leaf_length_0:maple_leaves_0)
+anova(fitTreat,fitTreat.01)#no evidence for three way interaction.
+AIC(fitTreat,fitTreat.01)
+
+fitTreat.02<-update(fitTreat.01,~.-maple_height_0:maple_leaf_length_0)
+anova(fitTreat.01,fitTreat.02)#no evidence for two way interaction.
+AIC(fitTreat.01,fitTreat.02)
+
+fitTreat.03<-update(fitTreat.02,~.-maple_leaf_length_0:maple_leaves_0)
+anova(fitTreat.03,fitTreat.02)#no evidence for two way interaction.
+AIC(fitTreat.03,fitTreat.02)
+
+fitTreat.04<-update(fitTreat.03,~.-maple_height_0:maple_leaves_0)
+anova(fitTreat.03,fitTreat.03)#no evidence for three way interaction.
+AIC(fitTreat.03,fitTreat.04)
+
+#These variables are also all correlated. I think i need to correct for the initial size using a pca. idk what to do. 
+
+
+fitTreat.04<-update(fitTreat.03,~.-maple_height_0:maple_leaves_0)
+anova(fitTreat.03,fitTreat.03)#no evidence for three way interaction.
+AIC(fitTreat.03,fitTreat.04)
+
+summary(fitTreat.04)
+
+anova(fitTreat,fitTreat.01) #no 
+
+fitTreat.01<-lm(Maple_Area_sum_End~maple_height_0*treatment+maple_leaf_length_0,data=Maple)
+fitTreat.01<-lm(Maple_Area_sum_End~treatment,data=Maple)
+
+anova(fitTreat,fitTreat.01) #no 
+
+summary(fitTreat) #there is still significant differences between treatments here.
+summary(fitTreat.01)
+
+
+
+table(Maple$Family)
+ggplot(Maple)+
+  geom_boxplot(aes(y=Maple_Area_sum_End,x=treatment))
+
+ggplot(Maple)+
+  geom_boxplot(aes(y=maple_leaf_length_0,x=treatment))
+
+ggplot(Maple)+
+  geom_boxplot(aes(y=maple_leaves_0,x=treatment))
+
+maple_leaves_0
+
+#The maple is dispersed across the x axis suggesting the initial leaf length didnt make a huge difference. 
+ggplot(Maple)+
+  geom_point(aes(y=Maple_Area_sum_End,x=maple_leaf_length_0,colour=treatment))
+
+dat
+ggplot(Maple)+
+  geom_point(aes(y=Maple_Area_sum_End,x=maple_height_0,colour=treatment))
+```
+
+#Redoing model selection with different variable. 
+```{r}
+#What affects maple growth? secondary compounds, initial leaf size (to control for starting leaf area size), Fern, and maple Stem height (signifies the year of the plant).  
+
+
+fitFull<-lmer(Maple_Area_sum_End~gluc_Conc*MapleDamage+MapleDamage*flav_Conc+maple_height_0+Fern+maple_leaf_length_0+(1|Family)+(1|gh_bench),data=Maple)
+
+summary(fitFull)
+
+Maple$Family
+
+
+#Removing interaction
+fit.1<-update(fitFull,~.-MapleDamage:flav_Conc)
+anova(fitFull,fit.1) #This interaction is NOT significant... removing it. 
+
+
+fit.2<-update(fit.1,~.-MapleDamage:gluc_Conc)
+anova(fit.2,fit.1) #The interaction is also not significant -- Removing this. 
+
+fit.2<-update(fit.2,data=Maple[!is.na(Maple$flav_Conc),])#Using flav_conc subset (accounting for missing values. )
+fit.3<-update(fit.2,~.-flav_Conc)
+anova(fit.3,fit.2) #Flavonoids are not significant... removing from data set.  
+
+fit.3<-update(fit.3,data=Maple[!is.na(Maple$gluc_Conc),])#Using gluc_conc subset (accounting for missing values. )
+fit.4<-update(fit.3,~.-gluc_Conc)
+anova(fit.4,fit.3) #The AIC is the same and the BIC is even lower, it is not a significant predictor, but it would belong in the candidate model set. 
+
+
+fit.5<-update(fit.4,~.-Fern)
+anova(fit.5,fit.4) #Fern is not significant. 
+
+
+
+
+
+fit.6<-update(fit.5,~.-maple_height_0)
+anova(fit.6,fit.5)  # Maple stem height is NOT a significant predictor.
+
+fit.7<-update(fit.6,~.-maple_leaf_length_0)
+anova(fit.7,fit.6)  # Initial Maple leaf length  is also not a significant predictor
+
+fit.8<-update(fit.7,~.-MapleDamage)
+anova(fit.8,fit.7)  # Damage is also a  NOT a significant predictor
+
+
+#Best model is fit 8. ... Is family a significant predictor? 
+fit.9<-update(fit.8,~.-(1|Family))
+anova(fit.9,fit.8)  # Family is not a significant predictor. Is bench?
+
+
+fit.10<-update(fit.8,~.-(1|gh_bench))
+anova(fit.10,fit.8)  #Bench isnt either really. 
+
+
+fit.11<-update(fit.10,~.+(1|gh_bench/gh_col),)
+anova(fit.11,fit.8)  #neither is gh column....
+
+
+summary(fit.8)
+
+```
+
+
+#If non of the random effects are significant, can i just do a regular linear regression?
+```{r}
+#Testing over flavonoid data set.... are flavonoids significant?
+
+#Interaction with damage
+fit.f1<-lm(Maple_Area_sum_End~MapleDamage*flav_Conc+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+
+#no interaction with damage
+fit.f2<-lm(Maple_Area_sum_End~MapleDamage+flav_Conc+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+
+#no flavonoid at all. 
+fit.f3<-lm(Maple_Area_sum_End~flav_Conc+MapleDamage+maple_height_0+Fern+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+
+AIC(fit.f1,fit.f2,fit.f3)
+
+#The best model is one with flavonoid, this model is just as good as the interaction, meaning the interaction probably isnt a significant predictor. 
+
+#Testing over gluc data set. 
+fit.g1<-lm(Maple_Area_sum_End~gluc_Conc*MapleDamage+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$gluc_Conc),])
+
+fit.g2<-lm(Maple_Area_sum_End~gluc_Conc+MapleDamage+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$gluc_Conc),])
+
+fit.g3<-lm(Maple_Area_sum_End~MapleDamage+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$gluc_Conc),])
+
+AIC(fit.g1,fit.g2,fit.g3)
+
+#The model with and without glucosinolates are just as good, meaning the model with glucosinolate is likely not good. 
+
+#Effects of other things... 
+fit.o1<-lm(Maple_Area_sum_End~MapleDamage+maple_height_0+maple_leaf_length_0,data=Maple)
+
+fit.o2<-lm(Maple_Area_sum_End~maple_height_0+maple_leaf_length_0,data=Maple)
+
+fit.o3<-lm(Maple_Area_sum_End~MapleDamage+maple_leaf_length_0,data=Maple)
+
+fit.o4<-lm(Maple_Area_sum_End~MapleDamage+maple_height_0,data=Maple)
+
+AIC(fit.o1,fit.o2,fit.o3,fit.o4)
+
+#Model without damage is better and maple stem height and leaf length initial are important. Thereofore the best model is. 
+
+
+fit.final<-lm(Maple_Area_sum_End~flav_Conc+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+#Testing the significance of flav concentration again... 
+fit.final.2<-lm(Maple_Area_sum_End~maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+
+
+AIC(fit.final)
+AIC(fit.final.2)
+
+anova(fit.final,fit.final.2)
+
+#Flav conc is not a good predictor. 
+summary(fit.final.2)
+
+```
+```
+
+
+
+
+
+
+
+
+
+
+
+#visualization 
+```{R}
+ggplot(Maple)+
+  geom_point(aes(y=Maple_Area_sum_End,x=gluc_Conc,colour=MapleDamage))
+
+ggplot(Maple)+
+  geom_point(aes(y=Maple_Area_sum_End,x=flav_Conc,colour=MapleDamage))
+
+
+#this should not be analyzed as linear because there is a limit at zero. 
+ggplot(Maple)+
+  geom_point(aes(y=Maple_Area_sum_End,x=Maple_StemHeight_0))
+  
+  
+Maple
+
+
+ggplot(Maple)+
+  geom_point(aes(y=Maple_Area_sum_End,x=maple_leaf_length_0))
+
+summary(lm(maple_leaf_length_0~gluc_Conc,data=Maple)) #Adjusted r squared is only 0.1. 
+
+
+fit.1<-lmer(Maple_Area_sum_End~maple_leaf_length_0+maple_height_0+gluc_Conc*MapleDamage+MapleDamage*flav_Conc+(1|Family)+(1|gh_bench/gh_col),data=Maple)
+
+summary(fit.1)
+
+
+```
+
+
+
+
+
+
+
+
+
+
+#Competitive effect on Ferns
+# Influence of treament and secondary compounds on Fern abundance.
+```{r}
+#Glucosinolate and flavonoids are correlated, but the R2 is only 0.39, so i dont think it is a very big deal. 
+summary(lm(gluc_Conc~flav_Conc,dat=dat))
+
+fit_full<-glmer(Fern~treatment+gluc_Conc+flav_Conc+(1|Family)+(1|gh_bench/gh_col),family=poisson,data=dat2)
+
+
+
+fit.1<-update(fit_full,~.-gluc_Conc)
+anova(fit.1,fit_full) #Gluc Conc is in no way a significant predictor. 
+
+
+fit.2<-update(fit.1,~.-treatment)
+anova(fit.1,fit.2) #treatment is a significant predictor. This will be retained
+
+
+fit.1<-update(fit.1,data=dat[!is.na(dat$flav_Conc),])#Changing data set to account for missing flavonoid data. 
+fit.2<-update(fit.1,~.-flav_Conc)
+anova(fit.1,fit.2) #Flav Conc is a significant predictor. This is the simplest,best model. (fit.1)
+
+summary(fit.1) #Flav conc and treatment predict fern abudnance. 
+
+
+ggplot(dat)+
+  geom_point(aes(y=Fern,x=flav_Conc,colour=treatment))
+
+#Maples have more ferns and flavonols decrease their abundance. 
+
+```
+
+
+
+
+
+
+
+
+
+

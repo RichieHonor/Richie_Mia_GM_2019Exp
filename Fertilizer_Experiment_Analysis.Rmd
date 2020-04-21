@@ -7,6 +7,7 @@ output: html_document
 
 
 ```{r}
+library(ggplot2)
 Final<-read.csv("Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
 ```
 
@@ -85,6 +86,7 @@ ggplot(Final[Final$treatment=="m",])+
 
 ggplot(Final[Final$treatment=="m",])+
   geom_point(aes(x=as.factor(Fert),y=Maple_Area_sum_End))
+
 
 
 ```

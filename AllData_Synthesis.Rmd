@@ -38,6 +38,8 @@ only record as dead if I have the barcode, because some lost the barcode but did
 #Incorporate Data_collection_GH_0.csv (treatment, ID, etc.) with Glucosinolate, Flavonoid and chlorophyll data (All_UV_Data.txt).
 ```{r}
 library(dplyr)
+library(tidyr)
+
 
 #-------------------------------------------------------------------
 #----------GH Data Prep
@@ -59,9 +61,6 @@ dat<-dat[!grepl("aple",dat$Tag),]
 #The tag "c|MSMID1-1-20|Q|381" was mislabled as "c|MSMID1-1-20|G381". This is fixed below.
 dat$Tag[grep("G381",dat$Tag)]<-"c|MSMID1-1-20|Q|381"
 
-
-
-
 ```
 
 
@@ -80,18 +79,13 @@ ChlorAB<-CleanData("Data_Moities/All_UV_Data.txt")[[2]]
 #.... and Glucosinolate and flavonoid data
 GF<-CleanData("Data_Moities/All_UV_Data.txt")[[1]]
 
-
 ```
 
 
 
 
-
-```{r}
-###-----------------------------------------------------------------
 #Sample Identification!
-####----------------------------------------------------------------
-
+```{r}
 #Using the Tag (fill ID) from the greenhouse data, assign a Tag to the ID numbers in the spec data.
 
 #Glucosinolates and flavonoids.
@@ -147,6 +141,7 @@ gluc<-GF[GF$Compound=="gluc",]
 #Flavonoid
 flav<-GF[GF$Compound=="flav",]
 
+
 #Making glucosinolate specific column names
 colnames(gluc)<-paste("gluc",colnames(gluc),sep="_")
 
@@ -155,32 +150,34 @@ colnames(flav)<-paste("flav",colnames(flav),sep="_")
 
 #Removing controls from chlorophyll
 ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
+
+ChlorNoCont[grepl("Feb_13",ChlorNoCont$DataFile),]
+
+
+```
+
+#Removing Duplicates and checking for errors. 
+```{r}
+
+#Searching for those with more replicates than they should have. They should have 2 because each leaf has two technical replicates. For some reason, the same sample is appearing for those that should not have more than 1 sample per leaf (i.e. those not in the fertilizer treatment)
+errors<-gluc %>% group_by(gluc_Sample) %>% summarize(n=n()) %>% filter(n>2)
+errors<-errors[!grepl("i",errors$gluc_Sample),]
+
+#Datafile containing the errors... I must go through each one and check it. they will be deleted, not averaged if there is a duplicate. 
+errors<-gluc %>% select(gluc_Sample,gluc_DataFile,gluc_Tag,gluc_Conc) %>% right_join(errors,by="gluc_Sample") %>% filter(gluc_Tag!="pool")
+
+
+
+# I went through these errors and could not explain them. I believe these errors were brought about because of poor transcribing during the data collection  process. This is unfortunate, but they must be deleted from the analysis because i an unsure of which sample is the correct sample and which is the transcribing error. This is done in the next chunk.
+
 ```
 
 
-```{r}
-####-----------------------------------------------------
-#Removing Duplicates and checking for errors. 
-####-----------------------------------------------------
-
-#Some caution should be advised. Ensure the sample 254_1	is still in the Final data frame All_Wide, this could occur if the standard deviaiton of the samples was attempted to be integrated into this workflow where, sd() cannot take the sd of one number, but mean can so it is okay.
-
-
-#Checking for duplicated samples (not technical replicates - two samples with the same name)... 
-print("These are the duplicates that we know about: 142_2,441_1,i136_1,218_2 ,264_2, 398_2, 438_1, there should be no others besides the pool below and the glucosinolate flavonoid and chlorophyll dataframes should have the same amount of erroneous duplicates (i.e. 4 technical replicates):")
-#table(gluc$gluc_Sample)[table(gluc$gluc_Sample)>2 ]       
-#table(ChlorNoCont$Sample)[table(ChlorNoCont$Sample)>2 ]    
-#table(flav$flav_Sample)[table(flav$flav_Sample)>2 ]       
-
-# List:  218_2 264_2  398_2  438_1     
-
-
-
 #Averaging duplicates (i.e. technical replicates) 
-print("Averaging duplicates and exceptions..")
-
+```{r}
 #gluc
-Average_gluc<-gluc %>% group_by(gluc_Sample) %>% summarize_at(vars(gluc_Conc), .funs=mean)
+Average_gluc<-gluc %>% group_by(gluc_Sample) %>% summarize(gluc_Conc=mean(gluc_Conc))
+
 
 #flav
 Average_flav<-flav %>% group_by(flav_Sample) %>% summarize_at(.vars = vars(flav_Conc),.funs=mean)
@@ -191,7 +188,7 @@ Average_ChlorNoCont<-ChlorNoCont %>% group_by(Sample) %>% summarize_at(.vars=var
 #-----
 #Add in missing columns
 
-#Remove duplicates, this is so that other columns in the chlorophyll data frame can be aded back in. 
+#Remove duplicates, this is so that other columns in the chlorophyll data frame can be aded back in. #the column Datafile, is no longer relevant for fertilizer files as samples were averaged over multiple datafiles. 
 Col_Merger0.1<-ChlorNoCont[!duplicated(ChlorNoCont$Sample),]
 #Select relevant columns
 Col_Merger<-Col_Merger0.1 %>% select(Sample,Tag,DataFile)
@@ -204,6 +201,7 @@ if(length(Col_Merger$Sample)!=length(Average_ChlorNoCont$Sample)){
 #Merging dataframs.
 Average_ChlorNoCont2<-left_join(Average_ChlorNoCont,Col_Merger,by="Sample")
 
+
 #------
 #Merge all three dataframes into a wide format. 
 All_Wide0.1<-left_join(Average_ChlorNoCont2,Average_gluc,by=c("Sample"="gluc_Sample"))
@@ -215,6 +213,13 @@ if(length(All_Wide$Sample)!=length(Average_ChlorNoCont$Sample) |length(All_Wide$
 
   stop("gluc, flav and chlorophyll samples did not match upafter duplicates were averaged.")
 }
+
+
+#removing errors found in the previous chunk. Sample size reduced from 1108 to 1093
+All_Wide<-All_Wide %>% filter(!Tag %in% errors$gluc_Tag)
+
+
+
 ```
 
 
@@ -231,9 +236,6 @@ All_Wide$Sample[All_Wide$Sample=="a273_1-Dat_Jan_17_2020_PM.txt"]<-"273da_1"
 All_Wide$Tag[All_Wide$Tag=="a273_2_dupl"]<-"a|KVEDG1-1-80|Q|273"
 All_Wide$Sample[All_Wide$Sample=="a273_2_dupl-Dat_Dec_6_2019.txt"]<-"273da_2"
 
-
-
-
 #d273_JBCHY_1_dup is the second duplicate from above. It will be changed to d|JBCHY1-1-50|Q|273 "dd" stand for duplicate "d". - this is because of the germination treatment.
 
 #Leaf 1
@@ -244,15 +246,14 @@ All_Wide$Sample[All_Wide$Sample=="d273_JBCHY_1_dup-Dat_Dec_9_2019.txt"]<-"273dd_
 All_Wide$Tag[All_Wide$Tag=="d273_Jbchy_2"]<-"d|JBCHY1-1-50|Q|273"
 All_Wide$Sample[All_Wide$Sample=="d273_Jbchy_2-Dat_Jan_17_2020_PM.txt"]<-"273dd_2"
 
-#b?wsswm3-1-0_2 is unknown because we did not record the number. It is being removed from the analysis unless evidence is found to indicate the treatment. 
+#b?wsswm3-1-0_2 is unknown because we did not record the number.There is one genotype which is actually named "b|WSSWM3-1-0|?" Let us see if it is this genotype that is missing from All_Wide..
 All_Wide<-All_Wide[!All_Wide$Tag=="b?wsswm3-1-0_2",]
 All_Wide<-All_Wide[!All_Wide$Tag=="b?wsswm3-1-0_dup",]
 
 
-#"e?JBCHY_dup" is also unknown, because we do not know the treatment and it is therefore also going to be removed. 
-All_Wide<-All_Wide[!All_Wide$Tag=="e?JBCHY_dup",]
-
-
+#"e?JBCHY_dup" Belongs to the genotype "e|JBCHY1-1-50|?". This will be modified. 
+All_Wide$Tag[All_Wide$Tag=="e?JBCHY_dup"]<-"e|JBCHY1-1-50|?"
+All_Wide$Sample[All_Wide$Tag=="e|JBCHY1-1-50|?"]<-"?_1"
 
 
 #Sample 381 is listed as G381, which is why it was not identified, i will change it to be appropriate
@@ -262,15 +263,20 @@ All_Wide[All_Wide$Sample=="381_1-Dat_Jan_21_2020_AM.txt",]<-"381_1"
 All_Wide[All_Wide$Tag=="381_1",]<-"c|MSMID1-1-20|G381"
 
 
+
+
 ```
 
 
 
-#Final Merging of clean greenhouse data and clean UV data with duplicates averaged. 
+
+#Merging of clean greenhouse data (initial measurements from the greenhouse) and clean UV data with duplicates averaged.
 ```{r}
 
-#This left join will keep all individuals that we have glucosinolate and flavonoid data on. 
-Final<-left_join(All_Wide,dat,by="Tag")
+#This full join will keep all data from all individuals, whether or not we have glucosinolate and flavonoid data for them. 
+
+Final<-full_join(All_Wide,dat,by="Tag")
+
 
 Final<-Final %>% select(-new._code_needed.,-Helper.date)
 
@@ -278,6 +284,16 @@ Final<-Final %>% select(-new._code_needed.,-Helper.date)
 #Check for those that did not get properly identified. 
 Final[is.na(Final$gh_bench)&Final$Tag!="pool",]
 
+#i110_1 belongs to the genotype “c|CBMCK1-2-80|N|i110”. I know this genotype is in the alone treatment because of the i prefix and that is it not in the fertilizer experiement. Unfortunately, i do not have information on its greenhouse location, but i will fill out what i know about it. 
+
+#Filling in sample #
+Final[Final$Tag=="i110_1"|Final$Tag=="i110_2","Sample"]<-Final[Final$Tag=="i110_1"|Final$Tag=="i110_2","Tag"]
+
+#Filling in tag name
+Final[Final$Tag=="i110_1"|Final$Tag=="i110_2","Tag"]<-"c|CBMCK1-2-80|N|i110"
+
+#Filling in treatment
+Final[Final$Tag=="c|CBMCK1-2-80|N|i110"|Final$Tag=="i110_2","treatment"]<-"a"
 
 write.csv(Final,"DataSynthesis.csv")
 
@@ -294,14 +310,12 @@ Integrating
 ```{r}
 #Clear Environment. 
 rm(list=ls())
-
 library(dplyr)
 
 
 #Read in data
 dat<-read.csv("Data_Moities/fern_cover.csv",stringsAsFactors = F)
 
-#dat<-dat[!grepl("aple",),]
 final0.1<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
 
 #Modyfiyng tag to match final document. 
@@ -321,26 +335,31 @@ dat<-dat[!duplicated(dat$Tag),]
 final<-left_join(final0.1,dat,by="Tag")
 
 
-#Those that we did not enter must be made to zero for both. 
+#Blank values from the fern file in the garlic mustard treatment must be made to match the competitior in the sheet. This is because fern abundance was only recorded for one of the competititors. This will need to be accounted for later to avoid pseudoreplicaiton, because both individuals in the garlic mustard treatment are facing the same amount of ferns. 
+
+
+#Assigning the same values to those with the same competition number (only one genotype was recorded for efficiency)
+final<-final %>% filter(treatment=="gm") %>% drop_na(comp_number) %>% group_by(comp_number) %>% summarize(Fern2=min(Fern,na.rm = T)) %>% right_join(final,by="comp_number")
+
+#Replacing fern values for those in the competition treatment with correct values. 
 for(i in 1:length(final$Fern)){
-  if(is.na(final$Fern[i])){
-    final$Moss.tf[i]<-"n"
-    final$Fern[i]<-0
+  if(!is.na(final$Fern2[i])){ #If there is a value in fern2 column...
+    final$Fern[i]<-final$Fern2[i]#assign the fern 2 column to fern. 
   }
-  else next
 }
 
-if(colnames(final)[1]=="X"){
-  final<-select(final,-X)
-}
+#Cleaning the dataframe. (i.e. those that are NA are now zero and those that are Inf are now zero. This is because we did not sample those that did not have ferns in order to save time. )
+final$Fern[is.na(final$Fern)]<-0
+final$Fern[is.infinite(final$Fern)]<-0
+
+#Removing helper column: fern2 and random column X
+final<-final %>% select(-Fern2,-X)
 
 
 write.csv(final,"DataSynthesis.csv")
 
 
-
 ```
-
 
 
 
@@ -352,18 +371,13 @@ library(dplyr)
 dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
 
 
+#Removing all spec data from runs on Dec 6 2019 and Dec 8 2019 
+dat[which(dat$DataFile=="Dat_Dec_6_2019.txt"| dat$DataFile=="Dat_Dec_8_2019.txt"),c("gluc_Conc","flav_Conc","ChlorA","ChlorB")]<-NA
 
 
-#Removing all data from runs on Dec 6 2019 and Dec 8 2019 
-dat<-dat[dat$DataFile!="Dat_Dec_6_2019.txt"& dat$DataFile!="Dat_Dec_8_2019.txt",]
+#Removing only glucosinolate and flavonoid runs from Dat_Jan_30_2020_PM.txt, Dat_Jan_31_2020_AM.txt, Dat_Jan_31_2020_PM.txt
+dat[which(dat$DataFile=="Dat_Jan_30_2020_PM.txt" | dat$DataFile=="Dat_Jan_31_2020_AM.txt"| dat$DataFile=="Dat_Jan_31_2020_PM.txt"),c("gluc_Conc","flav_Conc")]<-NA
 
-#Removing glucosinolate and flavonoid runs from Dat_Jan_30_2020_PM.txt, Dat_Jan_31_2020_AM.txt, Dat_Jan_31_2020_PM.txt
-dat[dat$DataFile=="Dat_Jan_30_2020_PM.txt" | dat$DataFile=="Dat_Jan_31_2020_AM.txt"| dat$DataFile=="Dat_Jan_31_2020_PM.txt",c("gluc_Conc","flav_Conc")]<-NA
-
-#Visualizing Maybles Run
-Feb3Pool<-dat$flav_Conc[dat$DataFile=="Dat_Feb_3_2020_AM.txt" & dat$Tag=="pool"]
-OtherPool<-dat$flav_Conc[dat$DataFile!="Dat_Feb_3_2020_AM.txt" & dat$Tag=="pool"]
-boxplot(Feb3Pool,OtherPool)
 
 #Removing Flavonoid data from Mabels Run on Feb 3rd 2020 AM.
 dat$flav_Conc[dat$DataFile=="Dat_Feb_3_2020_AM.txt" ]<-NA
@@ -371,12 +385,11 @@ dat$flav_Conc[dat$DataFile=="Dat_Feb_3_2020_AM.txt" ]<-NA
 ####---------------------------
 
 
-#Selecting relevant columns
-dat<-dat %>% select(Sample:Fern)
+#Removing irrelevant collumns, X and moss. This is because we stopped recording moss levels because they all had some moss. 
+
+dat<-dat %>% select(-X,-Moss.tf)
 
 library(ggplot2)
-
-
 
 #####
 #Visualizing data So far
@@ -386,14 +399,18 @@ library(ggplot2)
 dat$Pool[dat$Tag=="pool"]<-"Yes"
 dat$Pool[dat$Tag!="pool"]<-"No"
 
+source("GGPlot_Themes.R")
 
 #Glucosinolate
 ggplot()+
-  geom_boxplot(aes(y=as.numeric(dat$gluc_Conc),x=as.factor(dat$Pool)))
+  geom_boxplot(aes(y=as.numeric(dat$gluc_Conc),x=as.factor(dat$Pool)))+
+  theme_simple()+ylab(bquote(bold("[Total Glucosinolate] " (mg/ml))))+xlab("")
+  
 
 #Flavonoid
 ggplot()+
-  geom_boxplot(aes(y=as.numeric(dat$flav_Conc),x=as.factor(dat$Pool)))
+  geom_boxplot(aes(y=as.numeric(dat$flav_Conc),x=as.factor(dat$Pool)))+
+    theme_simple()+ylab(bquote(bold("[Total Flavonoid] " (mg/ml))))+xlab("")
 
 #ChlorA
 ggplot()+
@@ -403,17 +420,10 @@ ggplot()+
 ggplot()+
   geom_boxplot(aes(y=as.numeric(dat$ChlorB),x=as.factor(dat$Pool)))
 
-#Quick look at the gluc and flav data. 
-hist(as.numeric(dat$gluc_Conc))
-hist(as.numeric(dat$flav_Conc))
-
-
-#[dat$DataFile=="Dat_Feb_6_2020_AM.txt" & dat$Tag=="pool"]
 
 write.csv(dat,"DataSynthesis.csv")
 
 ```
-
 
 
 
@@ -425,30 +435,27 @@ write.csv(dat,"DataSynthesis.csv")
 ```{r}
 #This file contains the length and width of every leaf in the competition treatment that did not have a whole punch. This data has a complementary set of photos of each leaf that was holepunched, along with the length and width of each holepunched leaf. This, together, can be used to determine how leaf size affects secondary compound production, but can also be amalgamated into a final biomass measurement. 
 
+#Clear Environment. 
 rm(list=ls())
 
-#File to be integrated.
+#Read in master file. 
 main<-read.csv("DataSynthesis.csv")
+
 
 if(colnames(main)[1]=="X"){
   main<-select(main,-X)
 }
 
-
-
-
-
-
-#Clear Environment. 
-dat<-read.csv("Data_Moities/Gm_Final_Leaf_data.txt",header = T)
+#Read in pathogen damage and final leaf data files. 
+dat<-read.csv("Data_Moities/Gm_Final_Leaf_data.txt",header = T)#This data contains information on leaves that were not punched. If leaf 1 and 2 are in this file, it means that there is no punches performed on these plants, either deliberately to see the effect of punches, or in the case where there were no good leaves available to punch. 
 datP<-read.csv("Data_Moities/Pathogen_Damage_Manual.csv",header = T)
 
 
 #------------
-#Fixing Genotype barcodes
+#Fixing Genotype barcodes and converting data to numeric. 
 #------------
 
-#DatP (Punched leaves)
+#DatP (pathogen and punched data leaves)
 datP$Genotype<-gsub("§","|",datP$Genotype)
 datP$BlackPathDam<-as.numeric(datP$BlackPathDam)
 datP$ThripsDam<-as.numeric(datP$ThripsDam)
@@ -457,62 +464,156 @@ datP$GM_Leaf_Wid<-as.numeric(gsub("\\D","",datP$GM_Leaf_Wid))
 datP$GM_Leaf_Number<-as.numeric(gsub("\\D","",datP$GM_Leaf_Number))
 
 
-#Dat (non- punched leaves)
+#Dat (non-punched and no pathogen data on leaves)
 dat$Genotype<-gsub("§","|",dat$Genotype)
 dat$GM_Leaf_Len<-as.numeric(gsub("\\D","",dat$GM_Leaf_Len))
 dat$GM_Leaf_Wid<-as.numeric(gsub("\\D","",dat$GM_Leaf_Wid))
 dat$GM_Leaf_Number<-as.numeric(gsub("\\D","",dat$GM_Leaf_Number))
 
 #------------
-# Full body size
+# Calculating total leaf area and number of leaves.
 #------------
 
 #Finding the total leaf length and and width
 tempSize<-rbind(dat,datP[1:4])
 
-#Area Calculation of each leaf. 
+#Calculating area of each leaf. 
 tempSize$GM_Leaf_Area<-tempSize$GM_Leaf_Len*tempSize$GM_Leaf_Wid
 
-#Summarizing total leaf area for each genotype and recording the number of leaves. 
-tempArea<-tempSize %>% group_by(as.factor(Genotype)) %>% summarize_at(vars(GM_Leaf_Area,GM_Leaf_Number), .funs=list(~sum(.),~max(.)))
-colnames(tempArea)[1]<-"Genotype"
+#Calculating total leaf area by summing leaf area for each genotype. Also record number of leaves.
+tempArea<-tempSize %>% group_by(Genotype) %>% summarize("GM_TotalLeaf_Area"=sum(GM_Leaf_Area),"GM_NumberOfLeaves"= n())
 
-#Merging the whole plant data with the leaf punch data. 
-final0.1<-left_join(datP,tempArea,by="Genotype")
+#Merging the whole plant data with the leaf punch data. This has the effect of retaining pathogen damage on each leaf and having the total area corresponding to each genotype (in long form). 
+final0.1<-left_join(datP,tempArea,by="Genotype") 
 
-#Removing irrelevant columns
-final0<-final0.1 %>% select(-GM_Leaf_Number_sum,-GM_Leaf_Area_max)
-colnames(final0)[colnames(final0)=="GM_Leaf_Area_sum"]<-"GM_TotalLeaf_Area"
-colnames(final0)[colnames(final0)=="GM_Leaf_Number_max"]<-"GM_NumberOfLeaves"
+#NoPunch: These genotypes did not get punched, and so were left out of the  previous join.The final body mass and number of leaves of these plants will be integrated into the final data frame. anti_join returns rows in x tempArea (leaves without punches) that do not have leaves with punches (datP) - these are the genotypes that were not punched. 
+NoPunch<-anti_join(tempArea,datP,by="Genotype") 
 
-#Joining the synthesis data with the new data on leaf size and pathogen damage based on the ID number, which consists of the plant ID and the leaf number
-final0$Sample<-paste(gsub(".*\\|","",final0$Genotype),final0$GM_Leaf_Number,sep = "_")
+#Generating "Sample" Collumn, this is used to merge this data with the master. 
+final0.1$Sample<-paste(gsub(".*\\|","",final0.1$Genotype),final0.1$GM_Leaf_Number,sep = "_")
 
 
+#Implementing changes to ID here to match that in the master file. 
+final0.1$Sample[final0.1$Genotype=="d|JBCHY1-1-50|Q|273"]<-c("273dd_1","273dd_2")
+final0.1$Sample[final0.1$Genotype=="a|KVEDG1-1-80|Q|273"]<-c("273da_1","273da_2")
 
-#Mergining clean data with "Synthesis" dataframe.
-final0 <-final0 %>% select(-Genotype)
+#Mergining clean data with spec data with "Synthesis" dataframe.
+final<-left_join(main,final0.1,by="Sample")
 
-final<-left_join(main,final0,by="Sample")
+#Merging total leaf area of genotypes WITHOUT data on leaf pathogen or spec data with the final data frame.  
+for(i in 1:length(NoPunch$Genotype)){
+  focalTag<-NoPunch$Genotype[i]#Isolating focal genotype to be added in
+  final$GM_TotalLeaf_Area[final$Tag==focalTag]<-NoPunch$GM_TotalLeaf_Area[i]#Adding in final body size. 
+    final$GM_NumberOfLeaves[final$Tag==focalTag]<-NoPunch$GM_NumberOfLeaves[i]#Adding in final body size. 
+}
 
+#This dataframe contains genotypes for which we have leaf data on (pathogen abundance as well as leaf size), but for which there is no matching leaf data in the main dataframe. 
+UnJoined<-anti_join(final0.1,main,by="Sample")
+
+
+#I select that which are NA
+Remainder<-final %>% filter(is.na(GM_TotalLeaf_Area),)
+
+#Filtering out fertilizer and pools that went unmatched. 
+Remainder<-Remainder[!grepl("SMITH1-3-80",Remainder$Tag,fixed=T)&
+!grepl("KVEDG1-8-60",Remainder$Tag,fixed=T)&
+  !grepl("MSMID1-2-0",Remainder$Tag,fixed=T)&
+  !grepl("pool",Remainder$Tag,fixed=T),]
+
+
+#These are those that do not have bodymass or pathogen data for
+Remainder
+
+#Did any of the UnPunched genotypes not get properly identified (are any in the remainder?)
+Remainder %>% filter(Tag %in% NoPunch$Genotype)
+#All genotypes from the Unpunched were properly identified. 
+
+#These are the leaves which we we have bodymass and pathogen data for, but do not correspond to leaves in the final dataframe.
+UnJoined
+
+#This will determine if there are genotypes in the Remainder that have final body mass and pathogen data available, that we can add in. 
+
+
+#Unmatched leaves that have genotypes in the remainder.
+UnJoined %>% filter(Genotype %in% Remainder$Tag)
+
+#Are there any genotypes for which we have no initial data on? 
+UnJoined %>% filter(!Genotype %in% final$Tag) %>% select(Genotype)
+#There are no genotypes that we have final measurements on that are not in the final data frame. This is good. 
+
+####Good to Here##### 
+
+#Determine which samples (leaf data) in the remainder do not have genotypes in the final data set.
+
+#Remove remainder from the final data set in a new vector of Genotypes/Tags
+AntiRemainder<-final %>% filter(!is.na(GM_TotalLeaf_Area))
+
+#Which genotypes are we completely missing pathogen data and final body mass data on in the final data set? 
+Remainder2<-Remainder %>% filter(!Tag %in% AntiRemainder$Tag)
+#34/36 genotypes that are missing final measurements do not have any genotypes in the final data frame with final final measurements.
+
+#These genotypes do have a leaf with pathogen data in the final data set. But more information could be obtained from them by taking the average. 
+Remainder3<-Remainder %>% filter(Tag %in% AntiRemainder$Tag)
+
+#Now I will replace those in the Remainder2 data frame with available data from the UnJoined2 data. Then i will merge them. 
+
+#Averaging leaf pathogen data at the level of the genotype
+UnJoined2<-UnJoined %>% group_by(Genotype) %>% summarize_if(~is.numeric(.), ~mean(.))
+
+#Replacing data in remainer2 (i.e. genotypes which we have no pathogen or final information for) and adding in the average for the genotype. 
+for(i in 1:length(UnJoined2$GM_TotalLeaf_Area)){
+  FocalTag<-UnJoined2$Genotype[i]
+  FocalWhiteF<-UnJoined2$WhiteFungDam[i]
+  FocalBlackP<-UnJoined2$BlackPathDam[i]
+  FocalThripsD<-UnJoined2$ThripsDam[i]
+  FocalLA<-UnJoined2$GM_TotalLeaf_Area[i]
+  FocalTLN<-UnJoined2$GM_NumberOfLeaves[i]
+  #add in White Path Dam
+  Remainder2[Remainder2$Tag==FocalTag,"WhiteFungDam"]<-FocalWhiteF
+  #add in Black Path Dam
+  Remainder2[Remainder2$Tag==FocalTag,"BlackPathDam"]<-FocalBlackP
+  #add in Thrips Dam
+  Remainder2[Remainder2$Tag==FocalTag,"ThripsDam"]<-FocalThripsD
+  #add in total leaf area
+  Remainder2[Remainder2$Tag==FocalTag,"GM_TotalLeaf_Area"]<-FocalLA
+  #add in leaf number
+  Remainder2[Remainder2$Tag==FocalTag,"GM_NumberOfLeaves"]<-FocalTLN
+}
+  #Checking to ensure that no genotypes without final measurements in remainder 2 have final measurements available.
+Remainder2 %>% select(Tag,GM_TotalLeaf_Area) %>% filter(is.na(GM_TotalLeaf_Area)) %>% filter(Tag %in% tempSize$Genotype)
+
+#Good, there are no genotypes left unaccountd for in the final analysis. 
+
+
+#Now to add final measurements to remainder3. This data frame consists of leaf data for which there are other leaf data corresponding to this genotype, just not this leaf data available. 
+
+UnJoined2 %>% filter(Genotype %in% Remainder3$Tag)
+
+#There are two genotypes in the remainder which have only final body mass data, but data avalailable at the leaf level. These will be added in to remainder3 here.  
+
+Remainder3[Remainder3$Tag=="b|CWRIC2-X2|Q|85",c("GM_TotalLeaf_Area","GM_NumberOfLeaves")]<-tempArea[tempArea$Genotype=="b|CWRIC2-X2|Q|85",c("GM_TotalLeaf_Area","GM_NumberOfLeaves")]
+
+Remainder3[Remainder3$Tag=="c|SMITH1-20|Q|467",c("GM_TotalLeaf_Area","GM_NumberOfLeaves")]<-tempArea[tempArea$Genotype=="c|SMITH1-20|Q|467",c("GM_TotalLeaf_Area","GM_NumberOfLeaves")]
+
+
+#Merging all three dataframes back together. 
+final<-AntiRemainder %>% bind_rows(Remainder2) %>% bind_rows(Remainder3)
+#There are a few observations lost here. These are those in the fertilizer experiment and pools are no longer in this dataframe. 
 
 #Clarifying the names in the dataframe. 
 colnames(final)[colnames(final)=="leaf_length"]<-"GM_Leaf_Len_Initial"
 colnames(final)[colnames(final)=="true_leaves"]<-"GM_NumberOfLeaves_Initial"
 
-
-
 #Writing csv
 write.csv(final,"DataSynthesis.csv")
-
-
 ```
+
 
 
 
 ###File for *Growth Rate of Alliaria* 
 ```{r}
-#Need to integrate the estimated growth rate parameters. 
+#This is integrated in GrowthRate_Analysis.rmd
 ```
 
 
@@ -520,6 +621,7 @@ write.csv(final,"DataSynthesis.csv")
 ##Insert Final Maple biomass and Data on the Control Maples - both initial and final measurements. 
 ```{r}
 rm(list=ls())
+library(dplyr)
 #------------------------------
 #Integrating initial maple control measurements.... initial values of maples in treatments are already in the data. 
 #read in GH data
@@ -527,6 +629,7 @@ dat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
 
 #Fix column names
 colnames(dat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
+
 
 #Removing first row (Which contains no data).
 dat<-dat[2:length(dat$gh_bench),]
@@ -555,6 +658,13 @@ MapDat$Width<-gsub("\\D","",MapDat$Width)
 MapDat$StemHeight<-gsub("\\D","",MapDat$StemHeight)
 MapDat$Leaf<-gsub("\\D","",MapDat$Leaf)
 
+
+#Fixing genotype labels. 
+#DVGM-20|Q|117 has a genotype lable of "b" in the main synthesis file, but it is "c" here. I will change it in the final maple data file and take the main file as correct.
+MapDat$Tag[MapDat$Tag=="c|DVGM-20|Q|117"]<-"b|DVGM-20|Q|117"
+
+
+
 #Replacing Damage with a 1 for yes and 0 for no, so that i can take the mean. This will represent the percent of damaged leaves on the plant. 
 MapDat$Damage[MapDat$Damage=="damage-n"]<-0
 MapDat$Damage[MapDat$Damage=="damage-y"]<-1
@@ -571,15 +681,9 @@ class(MapDat[,2])<-"Factor"
 #Making a leaf area column. 
 MapDat$Area<-MapDat$Length*MapDat$Width
 
+MapDat$Tag<-as.factor(MapDat$Tag)
 #Summarizing data on the whole plant. 
-MapFinal<-MapDat %>% group_by(Tag) %>% summarize_at(vars("Leaf","Length","Width","Damage","StemHeight","Area"),.funs = list(~max(.),~sum(.),~mean(.)))
-
-#Selecting relevant columns
-MapFinal<-MapFinal %>% select(Tag,Leaf_max,Length_mean,Width_mean,Damage_mean,StemHeight_max,Area_sum,Area_mean)
-
-#Modyfying names to be appropriate. 
-colnames(MapFinal)[-1]<-paste("Maple",colnames(MapFinal)[-1],"End",sep = "_")
-colnames(MapFinal)[2]<-"Maple_LeafNum_End"
+MapFinal<-MapDat %>% group_by(Tag) %>% summarize(Maple_LeafNum_End = max(Leaf), Maple_Damage_End=mean(Damage), Maple_TotalLeafArea_End=sum(Area),Maple_StemHeight_End=mean(StemHeight))
 
 
 #---------------------------
@@ -591,32 +695,21 @@ Synth<-Synth %>% select(-X)
 #--------------------------
 #Integrating
 #Integrating Controls into one dataframe.
-ControlFinal<-left_join(CntrZero,MapFinal[grepl("aple",MapFinal$Tag),],by="Tag")
+ControlFinal<-left_join(CntrZero,MapFinal,by="Tag")
+
 #Integrating final maple data into the original synthesis file, which lack maple controls. 
-SynthFinal<-left_join(Synth,MapFinal[!grepl("aple",MapFinal$Tag),],by="Tag")
+SynthFinal<-left_join(Synth,MapFinal,by="Tag")
 
-#Integrating control data into the final data frame. 
-#Creating a dataframe identical to the synthesis dataframe, but containing the maple data. 
-Blank<-SynthFinal[1:31,]#Assigning column names from synth data frame
-Blank[1:31,]<-NA #Making them all NA.
-Blank$Tag<-ControlFinal$Tag
-Blank$treatment<-ControlFinal$treatment
-Blank$maple_leaf_length_0<-ControlFinal$maple_leaf_length_0
-Blank$maple_height_0<-ControlFinal$maple_height_0
-Blank$maple_leaves_0<-ControlFinal$maple_leaves_0
-Blank$Maple_LeafNum_End<-ControlFinal$Maple_LeafNum_End
-Blank$Maple_Length_mean_End<-ControlFinal$Maple_Length_mean_End
-Blank$Maple_Width_mean_End<-ControlFinal$Maple_Width_mean_End
-Blank$Maple_StemHeight_max_End<-ControlFinal$Maple_StemHeight_max_End
-Blank$Maple_Area_sum_End<-ControlFinal$Maple_Area_sum_End
-Blank$Maple_Area_mean_End<-ControlFinal$Maple_Area_mean_End
 
-#Merging maple control data with the master dataframe. 
-Final<-rbind(SynthFinal,Blank)
+ ControlFinal$maple_leaf_length_0<-as.numeric(ControlFinal$maple_leaf_length_0)
+ ControlFinal$maple_height_0   <-as.numeric(    ControlFinal$maple_height_0)
+ ControlFinal$maple_leaves_0  <-as.numeric( ControlFinal$maple_leaves_0 )
+
+ #Merging maple control data with the master dataframe. 
+Final<-bind_rows(ControlFinal,SynthFinal)
 
 #Writing to file. 
 write.csv(Final,"DataSynthesis.csv")
-
 
 ```
 
@@ -648,6 +741,7 @@ for(i in 1:length(dat$Petri.Dish)){
 }
 
 write.csv(master,"DataSynthesis.csv")
+
 
 ```
 
