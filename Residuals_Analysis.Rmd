@@ -1,0 +1,156 @@
+---
+title: "Residuals Analysis"
+author: "Mia Marcellus"
+date: "4/21/2020"
+output: html_document
+---
+
+Load data
+```{r}
+library(dplyr)
+gmdata <- read.csv("DataSynthesis.csv",stringsAsFactors = F)
+```
+
+```{r}
+#Assign family column
+prefamily<-gsub("*.\\|","",gmdata$Tag)
+gmdata$Family<-gsub("\\-.*","",prefamily)
+
+#make a pool dataframe
+pools <- gmdata %>% group_by(Family) %>% filter(Family=="pool")
+
+#Remove maple controls
+gmdata<-gmdata[!grepl("maple",gmdata$Tag,fixed=T),]
+
+#Remove plants in fertilizer experiment and extra plants not in all treatments
+gmdata <- gmdata[!grepl("i",gmdata$Sample,fixed=T),] 
+
+#filter out intraspecific "gm" treatment
+gm1 <- gmdata  %>% filter(!treatment=="gm")
+
+#What populations are in the experiment
+unique(gmdata$Family)
+```
+
+Multiply gm leaf length and width to get leaf area
+```{r}
+gmdata <- gmdata %>% mutate(GM_LxW = GM_Leaf_Len * GM_Leaf_Wid)
+```
+
+Eliminate pseudoreplication by averaging values for leaves of the same plant
+```{r}
+#Use "Tag" to group. (Tag is the unique identifyier for each plant)
+nopseudo1 <- gmdata %>% group_by(Tag) %>% 
+  summarise(gluc = mean(gluc_Conc),
+            flav = mean(flav_Conc),
+            chla = mean(ChlorA),
+            chlb = mean(ChlorB),
+            leafa = mean(GM_LxW),Family=first(Family))#added in family collumn
+
+#merge adds back in the pseudo replication.. you can see that there are now two values for each mean...use left_join if you want to add back in the other collumns. 
+#gm <- merge(nopseudo1, gmdata, by = "Tag", all = TRUE)
+
+
+#I am unsure what this is for...
+#goodvarbs <- c("PlantID", "Family", "treatment", "GM_NumberOfLeaves")
+#good <- gmdata %>% select(goodvarbs)
+
+#gm1 <- merge(good, nopseudo1, by = "PlantID")
+
+#gm1 <- unique(gm1)
+
+#exclude pools (I am doing this for the  nopseudo dataframe.)
+nopseudo1 <- nopseudo1 %>% group_by(Family) %>% filter(!Family=="pool")
+```
+
+Remove missing values
+```{r}
+#I took this out because the analyses and graphs will take these out automatically, and there are less flav samples than gluc samples and less gluc than chlor, etc., so we will lose power when only analysing glucs or chlor. 
+
+
+
+#filter NAs
+#gm1 <- gm1 %>% filter(!is.na(gluc), !is.na(flav), !is.na(leafa), !is.na(GM_NumberOfLeaves))
+#summary(gm1)
+```
+
+Linear models
+Chlorophyll and allelochemical analysis
+```{r}
+# chla x gluc
+chlagluc <- (lm(gluc ~ chla, data = nopseudo1))
+
+# chlb x gluc
+chlbgluc <- (lm(gluc ~ chlb, data = nopseudo1))
+
+# chla x flav
+chlaflav <- (lm(flav ~ chla, data = nopseudo1))
+
+#chlb x flav
+chlbflav <- (lm(flav ~ chlb, data = nopseudo1))
+```
+
+Glucosinolates and chlorophyll
+```{r}
+library(ggplot2)
+ggplot(nopseudo1[!is.na(nopseudo1$gluc),])+
+  geom_point(aes(x = chla, y = gluc, colour = Family),
+             size = 3)+
+  #geom_hline(yintercept = gm1$gluc), colour = "black")+
+  geom_smooth(aes(x = chla, y = gluc),
+              method = "lm", se = F)+
+  geom_point(aes(x = mean(chla),
+                 y = mean(gluc)))+
+  geom_segment(aes(x = chla, xend = chla, 
+                   y = fitted(chlagluc), yend = gluc), colour = "red") 
+
+#for each x, fitted extracts the value on the blue line
+#the regression line minimizes deviations from it
+
+#Nice graph!
+```
+
+Save residuals in dataframe
+```{r}
+#Creating glucosinolate data frame. This excludes NA values for glucConc
+glucDat<-nopseudo1[!is.na(nopseudo1$gluc),]
+
+chlagluc.res <-   resid(chlagluc)
+
+glucDat$chlagluc.res <- chlagluc.res
+
+
+#Double checking we added the residuals to the correct locations...
+
+#Back calculating raw glucosinolate values
+glucDat$backCalcValues<-chlagluc$fitted.values+chlagluc$residuals
+
+#Do the back calculated values match the real values. 
+any(glucDat$gluc!=glucDat$backCalcValues)
+#There are discrepancies.... 
+
+#Looking at the discrepancies, i can see that they are all just rounding errors.
+glucDat[glucDat$gluc!=glucDat$backCalcValues,c("gluc","backCalcValues","Tag")]
+
+
+```
+
+Anova on resids according to population
+```{r}
+a1 <- lm(chlagluc.res ~ Family, data = glucDat)
+summary(a1)
+anova(a1)
+
+
+#visualize
+ggplot(glucDat, aes(x = Family, y = chlagluc.res))+
+  geom_boxplot(fill = 'darkolivegreen3')+
+  scale_x_discrete(name = "Population")+
+  scale_y_continuous(name = "Residuals")
+```
+
+
+
+
+
+

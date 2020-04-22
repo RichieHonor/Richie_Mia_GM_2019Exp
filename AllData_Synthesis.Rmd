@@ -439,7 +439,7 @@ write.csv(dat,"DataSynthesis.csv")
 rm(list=ls())
 
 #Read in master file. 
-main<-read.csv("DataSynthesis.csv")
+main<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
 
 
 if(colnames(main)[1]=="X"){
@@ -447,8 +447,8 @@ if(colnames(main)[1]=="X"){
 }
 
 #Read in pathogen damage and final leaf data files. 
-dat<-read.csv("Data_Moities/Gm_Final_Leaf_data.txt",header = T)#This data contains information on leaves that were not punched. If leaf 1 and 2 are in this file, it means that there is no punches performed on these plants, either deliberately to see the effect of punches, or in the case where there were no good leaves available to punch. 
-datP<-read.csv("Data_Moities/Pathogen_Damage_Manual.csv",header = T)
+dat<-read.csv("Data_Moities/Gm_Final_Leaf_data.txt",header = T,stringsAsFactors = F)#This data contains information on leaves that were not punched. If leaf 1 and 2 are in this file, it means that there is no punches performed on these plants, either deliberately to see the effect of punches, or in the case where there were no good leaves available to punch. 
+datP<-read.csv("Data_Moities/Pathogen_Damage_Manual.csv",header = T,stringsAsFactors = F)
 
 
 #------------
@@ -480,11 +480,14 @@ tempSize<-rbind(dat,datP[1:4])
 #Calculating area of each leaf. 
 tempSize$GM_Leaf_Area<-tempSize$GM_Leaf_Len*tempSize$GM_Leaf_Wid
 
+
 #Calculating total leaf area by summing leaf area for each genotype. Also record number of leaves.
 tempArea<-tempSize %>% group_by(Genotype) %>% summarize("GM_TotalLeaf_Area"=sum(GM_Leaf_Area),"GM_NumberOfLeaves"= n())
 
 #Merging the whole plant data with the leaf punch data. This has the effect of retaining pathogen damage on each leaf and having the total area corresponding to each genotype (in long form). 
 final0.1<-left_join(datP,tempArea,by="Genotype") 
+
+final0.1
 
 #NoPunch: These genotypes did not get punched, and so were left out of the  previous join.The final body mass and number of leaves of these plants will be integrated into the final data frame. anti_join returns rows in x tempArea (leaves without punches) that do not have leaves with punches (datP) - these are the genotypes that were not punched. 
 NoPunch<-anti_join(tempArea,datP,by="Genotype") 
@@ -688,7 +691,7 @@ MapFinal<-MapDat %>% group_by(Tag) %>% summarize(Maple_LeafNum_End = max(Leaf), 
 
 #---------------------------
 #Reading in the synthesis file to integrate these data. 
-Synth<-read.csv("DataSynthesis.csv")
+Synth<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
 Synth<-Synth %>% select(-X)
 
 
@@ -721,7 +724,7 @@ dat<-read.csv("Data_Moities/clean_germination_data_2.csv",stringsAsFactors = F)
 dat<-dat %>% select(-X.1,-X)
 
 #Read in master data frame. 
-master<-read.csv("DataSynthesis.csv")
+master<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
 master <- master %>% select(-X)
 
 #I was planning on using the date moved in the analysis, but i decided not to because it may not represent the date that the plant germinated, and because the same plate continued to germinate and was moved up to three times, making it not possible to identify the exact date that any given plant was moved into the growing chamber. For certain genotypes, i actually recorded the length of each hypocotyle that was moved. It is unfortunate to not use this data. 
