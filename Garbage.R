@@ -733,6 +733,178 @@ plot(resid(fit_full))
 
 
 
+MAPLE STUFF 
+
+
+
+#Redoing model selection with different variable. 
+```{r}
+#What affects maple growth? secondary compounds, initial leaf size (to control for starting leaf area size), Fern, and maple Stem height (signifies the year of the plant).  
+
+
+fitFull<-lmer(Maple_TotalLeafArea_End~gluc_Conc*MapleDamage+MapleDamage*flav_Conc+maple_height_0+Fern+maple_leaf_length_0+(1|Family)+(1|gh_bench),data=Maple)
+
+summary(fitFull)
+
+Maple$Family
+
+
+#Removing interaction
+fit.1<-update(fitFull,~.-MapleDamage:flav_Conc)
+anova(fitFull,fit.1) #This interaction is NOT significant... removing it. 
+
+
+fit.2<-update(fit.1,~.-MapleDamage:gluc_Conc)
+anova(fit.2,fit.1) #The interaction is also not significant -- Removing this. 
+
+fit.2<-update(fit.2,data=Maple[!is.na(Maple$flav_Conc),])#Using flav_conc subset (accounting for missing values. )
+fit.3<-update(fit.2,~.-flav_Conc)
+anova(fit.3,fit.2) #Flavonoids are not significant... removing from data set.  
+
+fit.3<-update(fit.3,data=Maple[!is.na(Maple$gluc_Conc),])#Using gluc_conc subset (accounting for missing values. )
+fit.4<-update(fit.3,~.-gluc_Conc)
+anova(fit.4,fit.3) #The AIC is the same and the BIC is even lower, it is not a significant predictor, but it would belong in the candidate model set. 
+
+
+fit.5<-update(fit.4,~.-Fern)
+anova(fit.5,fit.4) #Fern is not significant. 
+
+
+
+
+
+fit.6<-update(fit.5,~.-maple_height_0)
+anova(fit.6,fit.5)  # Maple stem height is NOT a significant predictor.
+
+fit.7<-update(fit.6,~.-maple_leaf_length_0)
+anova(fit.7,fit.6)  # Initial Maple leaf length  is also not a significant predictor
+
+fit.8<-update(fit.7,~.-MapleDamage)
+anova(fit.8,fit.7)  # Damage is also a  NOT a significant predictor
+
+
+#Best model is fit 8. ... Is family a significant predictor? 
+fit.9<-update(fit.8,~.-(1|Family))
+anova(fit.9,fit.8)  # Family is not a significant predictor. Is bench?
+
+
+fit.10<-update(fit.8,~.-(1|gh_bench))
+anova(fit.10,fit.8)  #Bench isnt either really. 
+
+
+fit.11<-update(fit.10,~.+(1|gh_bench/gh_col),)
+anova(fit.11,fit.8)  #neither is gh column....
+
+
+summary(fit.8)
+
+```
+
+
+#If non of the random effects are significant, can i just do a regular linear regression?
+```{r}
+#Testing over flavonoid data set.... are flavonoids significant?
+
+#Interaction with damage
+fit.f1<-lm(Maple_TotalLeafArea_End~MapleDamage*flav_Conc+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+
+#no interaction with damage
+fit.f2<-lm(Maple_TotalLeafArea_End~MapleDamage+flav_Conc+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+
+#no flavonoid at all. 
+fit.f3<-lm(Maple_TotalLeafArea_End~flav_Conc+MapleDamage+maple_height_0+Fern+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+
+AIC(fit.f1,fit.f2,fit.f3)
+
+#The best model is one with flavonoid, this model is just as good as the interaction, meaning the interaction probably isnt a significant predictor. 
+
+#Testing over gluc data set. 
+fit.g1<-lm(Maple_TotalLeafArea_End~gluc_Conc*MapleDamage+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$gluc_Conc),])
+
+fit.g2<-lm(Maple_TotalLeafArea_End~gluc_Conc+MapleDamage+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$gluc_Conc),])
+
+fit.g3<-lm(Maple_TotalLeafArea_End~MapleDamage+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$gluc_Conc),])
+
+AIC(fit.g1,fit.g2,fit.g3)
+
+#The model with and without glucosinolates are just as good, meaning the model with glucosinolate is likely not good. 
+
+#Effects of other things... 
+fit.o1<-lm(Maple_TotalLeafArea_End~MapleDamage+maple_height_0+maple_leaf_length_0,data=Maple)
+
+fit.o2<-lm(Maple_TotalLeafArea_End~maple_height_0+maple_leaf_length_0,data=Maple)
+
+fit.o3<-lm(Maple_TotalLeafArea_End~MapleDamage+maple_leaf_length_0,data=Maple)
+
+fit.o4<-lm(Maple_TotalLeafArea_End~MapleDamage+maple_height_0,data=Maple)
+
+AIC(fit.o1,fit.o2,fit.o3,fit.o4)
+
+#Model without damage is better and maple stem height and leaf length initial are important. Thereofore the best model is. 
+
+
+fit.final<-lm(Maple_TotalLeafArea_End~flav_Conc+maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+#Testing the significance of flav concentration again... 
+fit.final.2<-lm(Maple_TotalLeafArea_End~maple_height_0+maple_leaf_length_0,data=Maple[!is.na(Maple$flav_Conc),])
+
+
+AIC(fit.final)
+AIC(fit.final.2)
+
+anova(fit.final,fit.final.2)
+
+#Flav conc is not a good predictor. 
+summary(fit.final.2)
+
+```
+```
+
+
+
+
+
+
+
+
+
+
+
+#visualization 
+```{r}
+ggplot(Maple)+
+  geom_point(aes(y=Maple_TotalLeafArea_End,x=gluc_Conc,colour=MapleDamage))
+
+ggplot(Maple)+
+  geom_point(aes(y=Maple_TotalLeafArea_End,x=flav_Conc,colour=MapleDamage))
+
+
+#this should not be analyzed as linear because there is a limit at zero. 
+ggplot(Maple)+
+  geom_point(aes(y=Maple_TotalLeafArea_End,x=Maple_StemHeight_0))
+
+
+Maple
+
+
+ggplot(Maple)+
+  geom_point(aes(y=Maple_TotalLeafArea_End,x=maple_leaf_length_0))
+
+summary(lm(maple_leaf_length_0~gluc_Conc,data=Maple)) #Adjusted r squared is only 0.1. 
+
+
+fit.1<-lmer(Maple_TotalLeafArea_End~maple_leaf_length_0+maple_height_0+gluc_Conc*MapleDamage+MapleDamage*flav_Conc+(1|Family)+(1|gh_bench/gh_col),data=Maple)
+
+summary(fit.1)
+
+
+```
+
+
+
+
+
+
+
 
 
 

@@ -33,7 +33,7 @@ gh_bench,gh_col,gh_row,Tag,treatment,leaf_length,true_leaves,new _code_needed? ,
 1,5,7,a|MAVBEL2-1-20|N|306,a,13,3,,,,,,Mia and Rich (with Caliper) 
 1,6,8,c|MHBUR1-4-20|Q|349,a,9,2,y,,,,,Mia and Rich (with Caliper) 
 1,5,8,c|CWRIC2-X2|Q|92,m,10,2,y,,46,95,2,Mia and Rich (with Caliper) 
-1,4,8,b|VRCAN-1-40|Q|483,m,13,2,,,39,75,,Mia and Rich (with Caliper) 
+1,4,8,b|VRCAN-1-40|Q|483,m,13,2,,,39,75,2,Mia and Rich (with Caliper) 
 1,5,9,a|JWBOY-2-80|Q|251,gm,11,3,,29,,,,Mia and Rich (with Caliper) 
 1,5,9,d|JARI1-1-80|Q|182,gm,14,2,,29,,,,Mia and Rich (with Caliper) 
 1,4,9,d|VSGARO1-1-0|Q|542,a,15,2,,,,,,Mia and Rich (with Caliper) 
@@ -350,7 +350,7 @@ gh_bench,gh_col,gh_row,Tag,treatment,leaf_length,true_leaves,new _code_needed? ,
 3,4,21,b|JARI1-1-80|Q|166,a,12,2,,,,,,May 17 1807
 3,5,21,d|MHBUR1-4-20|Q|355,a,15,2,,,,,,May 17 1808
 3,6,21,b|CRSOSO-3-40|Q|74,m,12,4,,,31,57,2,May 17 1809
-3,4,22,c|BWPEM1-9-0|Q|9,m,14,2,,,31,100,,May 17 1810
+3,4,22,c|BWPEM1-9-0|Q|9,m,14,2,,,31,100,2,May 17 1810
 3,5,22,a|WSSWM3-1-0|Q|550,gm,6,2,,50,,,,May 17 1811
 3,5,22,a|MSMID1-1-20|Q|369,gm,11,2,,50,,,,May 17 1812
 3,6,22,b|EFCC2-4-80|Q|145,a,11,3,,,,,,May 17 1813

@@ -153,7 +153,6 @@ ChlorNoCont<-ChlorAB[ChlorAB$ID!="|cont|",]
 
 ChlorNoCont[grepl("Feb_13",ChlorNoCont$DataFile),]
 
-
 ```
 
 #Removing Duplicates and checking for errors. 
@@ -654,6 +653,9 @@ colnames(MapDat)<-c("Nothing","Tag","Leaf","Length","Width","Damage","SampleTime
 
 #Replacing Characters in Tag Column. 
 MapDat$Tag<-gsub("§","|",MapDat$Tag,perl = F)
+MapDat$Tag<-gsub("_","?",MapDat$Tag,perl = F)
+
+
 
 #Removing strings from numeric columns. 
 MapDat$Length<-gsub("\\D","",MapDat$Length)
@@ -665,6 +667,7 @@ MapDat$Leaf<-gsub("\\D","",MapDat$Leaf)
 #Fixing genotype labels. 
 #DVGM-20|Q|117 has a genotype lable of "b" in the main synthesis file, but it is "c" here. I will change it in the final maple data file and take the main file as correct.
 MapDat$Tag[MapDat$Tag=="c|DVGM-20|Q|117"]<-"b|DVGM-20|Q|117"
+MapDat$Tag[MapDat$Tag=="b|WSSWM3-1-0|?"]<-"b|WSSWM3-1-0|?|?"
 
 
 
@@ -710,6 +713,8 @@ SynthFinal<-left_join(Synth,MapFinal,by="Tag")
 
  #Merging maple control data with the master dataframe. 
 Final<-bind_rows(ControlFinal,SynthFinal)
+
+Final[!which(is.na(Final$Maple_StemHeight_End)),]
 
 #Writing to file. 
 write.csv(Final,"DataSynthesis.csv")
