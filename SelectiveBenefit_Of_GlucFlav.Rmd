@@ -758,6 +758,8 @@ summary(fit_1)$coef
 plot(resid(fit_1))
 plot(resid(fit_1)^2)
 
+summary(fit_1)
+
 
 #Permutation test
 datPerTest<-datFern

@@ -343,7 +343,7 @@ summary(fit5)
 
 
 
-#Modelling with WhitPathDam Weighed, not logistic.
+#Modelling with WhitPathDam Weighed, not logistic. -- Do not use this. not good science. 
 ```{r}
 #Weighted pathogen damage data are no on too small of a scale. These will be standardized. 
 
@@ -396,6 +396,81 @@ plot(fit3)
 
 
 
+
+#Modelling: Negative Binomial- Fern abundance
+```{r}
+#Because there are two garlic mustard individuals per pot, and the unit we are looking at is only replicable at the pot level (fern abundance in a pot) duplicates within the same pot in the garlic mustard treatment need to be removed and averaged to remove pseudoreplication. 
+
+#What i will do is make the competition number the tag for those in the GM treatment. This will have the effect of maintaining the leaf variation, but averaging it over each pot. 
+
+# I will need to use dat2, summarized at the individual level, because we have a single observation at the pot level, not at the leaf level. 
+datFern<-dat2
+datFern$Tag<-as.character(datFern$Tag)
+for(i in 1:length(datFern$Tag)){
+  if(!is.na(datFern$comp_number[i])){
+    datFern$Tag[i]<-datFern$comp_number[i]
+  }
+}
+datFern
+#I am excluding flavonoid concentration because there were no detectable flavonoids in the root samples. 
+
+#Modelling random effects 
+fit_full<-glmmTMB(Fern~treatment+gluc_Conc+ChlorA+(1|Family)+(1|gh_bench),family=nbinom2,data=datFern)
+
+fit_full_0.1<-glmmTMB(Fern~treatment+gluc_Conc+ChlorA+(1|Family),family=nbinom2,data=datFern)
+
+fit_full_0.2<-glmmTMB(Fern~treatment+gluc_Conc+ChlorA+(1|gh_bench),family=nbinom2,data=datFern)
+
+anova(fit_full,fit_full_0.1)#Bench is an extremenly important predictor. 
+anova(fit_full,fit_full_0.2)#Family is not. 
+
+
+fit_full<-glmmTMB(Fern~treatment+gluc_Conc+ChlorA+(1|gh_bench),family=nbinom2,data=datFern[!is.na(datFern$gluc_Conc),])
+fit_1<-glmmTMB(Fern~treatment+ChlorA+(1|gh_bench),family=nbinom2,data=datFern[!is.na(datFern$gluc_Conc),])
+anova(fit_full,fit_1)#Glucosinolates are not a significant predictor of fern abundance (although the AIC is about the same)
+
+summary(fit_full) #those with more ChlorA dont have less ferns. If anything, they have more ferns. 
+
+fit_1<-glmmTMB(Fern~treatment+(1|gh_bench),family=nbinom2,data=datFern)
+fit_2<-glmmTMB(Fern~1+(1|gh_bench),family=nbinom2,data=datFern)
+anova(fit_2,fit_1)
+#Fern abundance is predicted by treatment. 
+
+summary(fit_1)$coef
+plot(resid(fit_1))
+plot(resid(fit_1)^2)
+
+summary(fit_1)
+
+
+#Permutation test
+datPerTest<-datFern
+zStoretreatGM<-c()
+zStoretreatM<-c()
+
+for(i in 1:500){
+  #Randomize flavonoid concentration.
+  datPerTest$treatment<-sample(datPerTest$treatment,length(datPerTest$treatment),replace = F)
+
+  #New Model with randomized treatment and flavonoids
+  newMod<-update(fit_1,data=datPerTest)
+  
+  # Extract test statistics for maple (M) and garlic mustard (gm) treatments
+  MtreatZval<-summary(newMod)$coef[[1]][3,3]
+  GMtreatZval<-summary(newMod)$coef[[1]][3,2]
+  
+  #Store z value.
+  zStoretreatGM[i]<-GMtreatZval
+  zStoretreatM[i]<-MtreatZval
+}
+
+sum(zStoretreatM>=2.316180)/length(zStoretreatM)
+#Estimated p value for the maple treatment is 0.01. This is very close to the actual p value of 0.02
+sum(zStoretreatGM>=2.231574)/length(zStoretreatGM)
+#Estimated p value for the garlic mustard treatment is 0. This is close to the actual p value of 0.02
+
+summary(fit_1)
+```
 
 
 
