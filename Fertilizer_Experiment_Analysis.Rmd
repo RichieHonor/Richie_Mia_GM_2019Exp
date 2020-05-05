@@ -67,6 +67,8 @@ ggplot(Final[Final$treatment=="a",])+
 ggplot(Final[Final$treatment=="gm",])+
   geom_boxplot(aes(x=Family,y=ChlorA,colour=Fert))
 
+Final
+
 ```
 
 

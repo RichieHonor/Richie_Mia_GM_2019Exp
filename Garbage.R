@@ -897,13 +897,82 @@ fit.1<-lmer(Maple_TotalLeafArea_End~maple_leaf_length_0+maple_height_0+gluc_Conc
 summary(fit.1)
 
 
+
+
+
+#Maple effect on fitness. 
+
+
+```{r}
+#There is an odd distribution of leaf size, but it is fairly normal. 
+hist(MapleModel$GM_TotalLeaf_Area,breaks=25)
+
+#What effect does maple have on garlic mustard performance? 
+MapleModel
+#Standardizing maple size, as it is now a predictor variable is has too large of a SD and was messing up the model. 
+MapleModel$Maple_TotalLeafArea_End<-Standardize(MapleModel$Maple_TotalLeafArea_End)
+
+
+
+#MaxModel (I predict possible interactions between pathogens, because the infection of one pathogen could make others worst and decrease fitness more when infected with more than one pathogen, however i expect competitive effects of fern and maple total leaf area to only be additive because elimiting nutrients would not have any forseeable compounding effects. It should be noted that glucoisnolate concentration is not in the model, as explained above)
+
+#Modelling random effects 
+fit<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+(1|Family)+(1|gh_bench/gh_col),data=MapleModel)
+
+fit2<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+(1|Family)+(1|gh_bench),data=MapleModel)
+
+fit3<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+(1|gh_bench/gh_col),data=MapleModel)
+
+#Is collumn important?
+anova(fit,fit2) #Yes it is. 
+
+#Is family important? 
+anova(fit,fit3) #No, it is just on the verge of significance (p=0.058)
+
+
+#Modeling fixed effects: 
+
+fit<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+(1|gh_bench/gh_col),data=MapleModel)
+
+fit2<-update(fit,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
+anova(fit,fit2) #Not a significant three way interaction although it is close (p=0.06)
+
+fit3<-update(fit2,~.-BlackPathDam:WhiteFungLogis)
+anova(fit3,fit2) #There is not a significant two way interaction 
+
+fit4<-update(fit3,~.-BlackPathDam:ThripsDam)
+anova(fit4,fit3)
+#There is a significant interaction between black path dam and thrips dam. 
+
+fit5<-update(fit3,~.-WhiteFungLogis:ThripsDam)
+anova(fit5,fit3) #There is no interaction between these two. 
+
+summary(fit5)
+
+#is White path Damage significant alone? 
+fit6<-update(fit5,~.-WhiteFungLogis)
+anova(fit6,fit5) #White Fung logis is not important, although it has an identical AIC.   
+
+summary(fit6)
+
+fit7<-update(fit6,~.-BlackPathDam)
+anova(fit7,fit6)
+
+summary(fit7)
+
+#The best model is one with thrips damage and and interaction between thrips and black pathogen damage. Oddly, the coefficent for thrips damage is positive, which seems like thrips damage increases performance, however this is likely just a reflection of there being more thrips damage and black pathogen damage on larger leaves, and of course plants with larger total leaf area will have larger leaves. Therefore, what i need to do is correct for leaf size when using pathogen data and have something like % infection on leaf. spots per leaf area? Otherwise, i am afraid that this model and all pathogen models are not informative. 
+
+plot(ChlorA~GM_TotalLeaf_Area,data=dat2)
+summary(lm(ChlorA~GM_TotalLeaf_Area,data=dat2))
+#Interestinly, chlrophyllA is not associated with garlic mustard total leaf area -- our measure of performance. bizarre. Could this be because smaller leaves have much more chlorophyll? 
+
+plot(ChlorA~GM_Leaf_Len,data=dat)
+dat
+#Not really no
+
+
+
 ```
-
-
-
-
-
-
 
 
 

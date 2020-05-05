@@ -45,7 +45,7 @@ nopseudo1 <- gmdata %>% group_by(Tag) %>%
             flav = mean(flav_Conc),
             chla = mean(ChlorA),
             chlb = mean(ChlorB),
-            leafa = mean(GM_LxW),Family=first(Family))#added in family collumn
+            leafa = mean(GM_LxW),Family=first(Family),treatment=first(treatment),ThripsDam=mean(ThripsDam))#added in family collumn
 
 #merge adds back in the pseudo replication.. you can see that there are now two values for each mean...use left_join if you want to add back in the other collumns. 
 #gm <- merge(nopseudo1, gmdata, by = "Tag", all = TRUE)
@@ -150,7 +150,92 @@ ggplot(glucDat, aes(x = Family, y = chlagluc.res))+
 ```
 
 
+#Finding maximum genotypes with chlorophyll and leaf size controlled for. 
+this can be used to determine genotypes with highest glucosinolates if mabel is planning on using new genotypes. 
+```{r}
+#Fitting model (This is the best model as obtained from mixed model analysis in the file "Plasticity analysis")
+contrlFit<-lm(gluc~Family+chla+treatment+treatment:chla+ThripsDam,data=glucDat)
+
+contrlFittest<-lm(gluc~chla+treatment+treatment:chla+ThripsDam,data=glucDat)
+
+anova(contrlFit,contrlFittest) #Like the mixed model analysis, family is very significant predictor of glucosinolate concentration. 
+
+#Checking model 
+summary(contrlFit)
+
+#Building data frame with zero thrips damage, treatment in the alone treatment only and a chlorophyll level of the mean chlorophyll level.
+newframe<-glucDat %>% select(chla,Family,ThripsDam,treatment)
+newframe$chla<-mean(newframe$chla)
+newframe$ThripsDam<-0
+newframe$treatment<-"a"
+
+#Predicting the glucosinolate values with no thrips damage, and in no treatment. (Also extracting the standard error associated with each)
+newframe$predicted<-predict.lm(contrlFit,newdata=newframe,type="response",se.fit=T)[[1]]
+newframe$SE<-predict.lm(contrlFit,newdata=newframe,type="response",se.fit=T)[[2]]
+#Visualizing the families with the highest glucosinolate values. 
+ggplot(newframe)+
+  geom_boxplot(aes(y=predicted,x=Family,colour=SE))+ylab("Glucosinolate Estimate")
+
+newframe
+#Extracting number of samples that went into relating to family estimates. 
+contrlFit$coefficients
+
+
+#Gluc conc is highest in alone treatment. 
+```
+
+```{r}
+ggplot(glucDat[glucDat$treatment=="a",])+
+  geom_jitter(aes(x=Family,y=gluc,colour=Family))
+
+ggplot(glucDat[glucDat$treatment=="m",])+
+  geom_jitter(aes(x=Family,y=gluc,colour=Family))
+
+```
+
+#If Mabel wants to use genotypes from my project, these are the ones with the highest gluc conc in the alone treatment. 
+```{r}
+gmdata <- read.csv("DataSynthesis.csv",stringsAsFactors = F)
+
+#Assign family column
+prefamily<-gsub("*.\\|","",gmdata$Tag)
+gmdata$Family<-gsub("\\-.*","",prefamily)
+
+#make a pool dataframe
+pools <- gmdata %>% group_by(Family) %>% filter(Family=="pool")
+
+#Remove maple controls
+gmdata<-gmdata[!grepl("maple",gmdata$Tag,fixed=T),]
+
+#Remove plants in fertilizer experiment and extra plants not in all treatments
+gmdata <- gmdata[!grepl("i",gmdata$Sample,fixed=T),] 
+
+#filter out intraspecific "gm" treatment
+gm1 <- gmdata  %>% filter(!treatment=="gm")
+
+#What populations are in the experiment
+unique(gmdata$Family)
+```
+
+Multiply gm leaf length and width to get leaf area
+```{r}
+gmdata <- gmdata %>% mutate(GM_LxW = GM_Leaf_Len * GM_Leaf_Wid)
+```
+
+Eliminate pseudoreplication by averaging values for leaves of the same plant
+```{r}
+#Use "Tag" to group. (Tag is the unique identifyier for each plant)
+nopseudo1 <- gmdata %>% group_by(Tag) %>% 
+  summarise(gluc = mean(gluc_Conc),
+            flav = mean(flav_Conc),
+            chla = mean(ChlorA),
+            chlb = mean(ChlorB),
+            leafa = mean(GM_LxW),Family=first(Family),treatment=first(treatment),ThripsDam=mean(ThripsDam))#added in family collumn
+
+```
 
 
 
+
+#Flavnoids did not have family as a significant predictor, so i would not look at those to determine which one to use. 
 

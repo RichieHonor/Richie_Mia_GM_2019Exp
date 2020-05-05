@@ -48,6 +48,7 @@ dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-"Yes"
 dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-"No"
 
 dat$GM_Leaf_Area<-dat$GM_Leaf_Wid*dat$GM_Leaf_Len
+
 ```
 
 
@@ -57,8 +58,11 @@ dat$GM_Leaf_Area<-dat$GM_Leaf_Wid*dat$GM_Leaf_Len
 #Because there is no such model that is negative binomial and continuous, i will have to controll for leave size and leaf health in the model. Leaf size must be contorlled for because more pathogens can appear on leaves with larger surface area. 
 
 #Modelling Random Effects
+#standardizing Leaf area. 
+dat$GM_Leaf_Area<-Standardize(dat$GM_Leaf_Area)
 
 fit_full<-glmmTMB(ThripsDam~treatment+gluc_Conc+flav_Conc+GM_Leaf_Area+ChlorA+(1|Family/Tag)+(1|gh_bench),family=nbinom2,data=dat)
+summary(fit_full)
 
 fit_full2<-glmmTMB(ThripsDam~treatment+gluc_Conc+flav_Conc+GM_Leaf_Area+ChlorA+(1|Family)+(1|gh_bench),family=nbinom2,data=dat)
 
@@ -75,6 +79,7 @@ anova(fit_full,fit_full2) #Yes,
 #Is Family important? 
 anova(fit_full,fit_full5) #No, Family is not significant, but Tag is.  
 #Is GH_Bench important?
+
 anova(fit_full,fit_full3) #No greenhouse bench is not important. 
 #Therefore, Tag is the only random effect i need to include. 
 
@@ -92,6 +97,7 @@ anova(fit_full,fit_1) #treatment is important. This is radicaly different than t
 fit_1<-update(fit_full,~.+ gluc_Conc:flav_Conc)
 anova(fit_full,fit_1) #No there isnt. 
 
+summary(fit_full)
 plot(resid(fit_full))
 plot(resid(fit_full)^2)
 #The model appears to be a good fit. 

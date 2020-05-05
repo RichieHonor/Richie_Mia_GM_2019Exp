@@ -1,0 +1,166 @@
+---
+title: "Intraspecific Fitness affect"
+author: "Richard Honor"
+date: "05/05/2020"
+output: html_document
+---
+
+#Read in and prep data
+```{r}
+library(ggplot2)
+library(dplyr)
+library(lmerTest)
+library(car)
+library("glmmTMB")
+
+
+#read in data
+rm(list=ls())
+dat<-read.csv("DataSynthesis.csv")
+
+#Assign family column
+prefamily<-gsub("*.\\|","",dat$Tag)
+dat$Family<-gsub("\\-.*","",prefamily)
+
+#remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
+dat<-dat[!grepl("i",dat$Sample,fixed=T),]
+
+
+#Function to weigh pathogen damage by leaf area. 
+Weigh<-function(x){
+  x/(dat$GM_Leaf_Len*dat$GM_Leaf_Wid)
+}
+#Function to standardize variables. 
+Standardize<-function(x){
+  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
+}
+
+#Weighing pathogen damage
+dat$BlackPathDamW<-Weigh(dat$BlackPathDam)
+dat$ThripsDamW<-Weigh(dat$ThripsDam)
+
+#Standardizing pathogen damage (not white pathogen damage, that is logistic)
+dat$ThripsDamW<-Standardize(dat$ThripsDamW)
+dat$BlackPathDamW<-Standardize(dat$BlackPathDamW)
+
+#Average Duplicates. 
+dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDamW=mean(BlackPathDamW),ThripsDamW=mean(ThripsDamW),comp_number=first(comp_number))
+
+
+#Converting white fungal damage to logistic. 
+dat2$WhiteFungLogis<-NA
+dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-"Yes"
+dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-"No"
+
+
+dat2<-dat2[!grepl("maple",dat2$Tag,fixed = T),]
+
+dat2<-dat2[dat2$treatment=="gm",]
+
+
+#All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
+dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
+
+#Removing those with dead competitors from the garlic mustard treatment. ("e|JBCHY1-1-50|Q|240") did not die, we are simply missing the final measurement for it.
+
+dead_competitors<-dead %>% filter(treatment=="gm",Tag!="e|JBCHY1-1-50|Q|240") %>% select(comp_number)
+
+#Removing those with dead competitors from the analysis. 
+dat2<-dat2 %>% filter(!comp_number %in% dead_competitors$comp_number)
+dat<-dat %>% filter(!comp_number %in% dead_competitors$comp_number)
+dat2<-dat2[dat2$comp_number!=79,]
+dat2<-dat2[dat2$comp_number!=37,]
+dat2<-dat2[dat2$comp_number!=59,]
+
+table(dat2$comp_number)
+#Generating collumn for the competitor family. 
+for(i in 1:length(dat2$comp_number)){
+  temp<-dat2[dat2$comp_number==dat2$comp_number[i]&dat2$Tag!=dat2$Tag[i],"Family"]
+  
+ if(length(temp$Family[!is.na(temp$Family)])==0){
+  dat2$competitor[i]<-NA
+ }
+  else dat2$competitor[i]<-temp$Family[!is.na(temp$Family)]
+  
+}
+dat2
+
+```
+
+
+#To 
+```{r}
+
+#Modelling random effects 
+fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench/gh_col)+(1|competitor),data=dat2)
+
+fit2<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench)+(1|competitor),data=dat2)
+
+fit3<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|gh_bench/gh_col)+(1|competitor),data=dat2)
+
+fit4<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|competitor),data=dat2)
+
+fit5<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family),data=dat2)
+
+
+#Is collumn important?
+anova(fit,fit2) #no it is not.
+
+#Is family important? 
+anova(fit,fit3) #Yes it is. 
+
+#Is gh_bench important? 
+anova(fit2,fit4) #No it is not. 
+
+#Is competitor important? 
+anova(fit4,fit5) #No it is not. So family is imporant, but the competitor is not important. Intersting. 
+
+#Modelling fixed effects 
+fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family),data=dat2)
+
+fit2<-update(fit,~.-ThripsDamW:BlackPathDamW:WhiteFungLogis)
+anova(fit,fit2) #There is a significant three way interaction.
+summary(fit)
+
+#Removing fern as it is not ignificant. 
+fit2<-lmer(GM_TotalLeaf_Area~ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family),data=dat2)
+
+#Rechecking that the three way interaction is significant. 
+fit2.5<-update(fit2,~.-ThripsDamW:BlackPathDamW:WhiteFungLogis)
+anova(fit2,fit2.5) #it is on the edge of significance, (0.055), but not quite there so i will leave it out. 
+
+fit3<-update(fit2.5,~.-BlackPathDamW:WhiteFungLogis)
+anova(fit3,fit2.5) #There is not a significant two way interaction, 
+
+fit4<-update(fit3,~.-BlackPathDamW:ThripsDamW)
+anova(fit4,fit3)
+#There is not a significant interaction between black path dam and thrips dam. 
+
+fit5<-update(fit4,~.-WhiteFungLogis:ThripsDamW)
+anova(fit5,fit4) #There is not a significant whitefung dam and thrips dam interaction. 
+
+summary(fit5) #Black fung dam is significant, but nothing else is even close. 
+
+fit6<-lmer(GM_TotalLeaf_Area~BlackPathDamW+(1|Family),data=dat2)
+summary(fit6) #White fungi not significant. 
+
+#only black pathogen and Family predicts fitness in this treatment. 
+```
+#Is there evidence that there is a cost of glucosinolates or flavonoid production in this treatment? 
+
+```{r}
+fit7<-lmer(GM_TotalLeaf_Area~BlackPathDamW+gluc_Conc+(1|Family),data=dat2)
+summary(fit7) #Not for glucosinolates
+
+fit8<-lmer(GM_TotalLeaf_Area~BlackPathDamW+flav_Conc+(1|Family),data=dat2)
+summary(fit8) #Nor for flavonoids... if i account for performance as well. 
+
+fit9<-lmer(GM_TotalLeaf_Area~BlackPathDamW+gluc_Conc+ChlorA+(1|Family),data=dat2)
+summary(fit9) #Not for glucosinolates
+
+fit10<-lmer(GM_TotalLeaf_Area~BlackPathDamW+flav_Conc+ChlorA+(1|Family),data=dat2)
+summary(fit10) 
+
+#No there is not. 
+```
+
