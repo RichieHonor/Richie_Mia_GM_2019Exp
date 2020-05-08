@@ -23,51 +23,25 @@ Final<-read.csv("Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
 ggplot(Final)+
   geom_boxplot(aes(x=treatment,y=gluc_Conc,colour=Fert))
 
-
 #---
 #Flavonoid
 ggplot(Final)+
   geom_boxplot(aes(x=treatment,y=flav_Conc,colour=Fert))
-
 
 #---
 #ChlorA
 ggplot(Final)+
   geom_boxplot(aes(x=treatment,y=ChlorA,colour=Fert))
 
+#Fert effects only 
+ggplot(Final)+
+  geom_boxplot(aes(x=Fert,y=gluc_Conc))
+ggplot(Final)+
+  geom_boxplot(aes(x=Fert,y=flav_Conc))
+ggplot(Final)+
+  geom_boxplot(aes(x=Fert,y=ChlorA))
 
 
-#---
-#genotype effects
-
-ggplot(Final[Final$treatment=="a",])+
-  geom_boxplot(aes(x=Family,y=gluc_Conc,colour=Fert))
-
-ggplot(Final[Final$treatment=="a",])+
-  geom_boxplot(aes(x=Family,y=flav_Conc,colour=Fert))
-
-ggplot(Final[Final$treatment=="gm",])+
-  geom_boxplot(aes(x=Family,y=gluc_Conc,colour=Fert))
-
-ggplot(Final[Final$treatment=="gm",])+
-  geom_boxplot(aes(x=Family,y=flav_Conc,colour=Fert))
-
-ggplot(Final[Final$treatment=="m",])+
-  geom_boxplot(aes(x=Family,y=gluc_Conc,colour=Fert))
-
-ggplot(Final[Final$treatment=="m",])+
-  geom_boxplot(aes(x=Family,y=flav_Conc,colour=Fert))
-
-#---
-
-ggplot(Final[Final$treatment=="m",])+
-  geom_boxplot(aes(x=Family,y=ChlorA,colour=Fert))
-ggplot(Final[Final$treatment=="a",])+
-  geom_boxplot(aes(x=Family,y=ChlorA,colour=Fert))
-ggplot(Final[Final$treatment=="gm",])+
-  geom_boxplot(aes(x=Family,y=ChlorA,colour=Fert))
-
-Final
 
 ```
 
@@ -90,6 +64,102 @@ ggplot(Final[Final$treatment=="m",])+
   geom_point(aes(x=as.factor(Fert),y=Maple_Area_sum_End))
 
 
+
+```
+
+
+```{r}
+Final
+lm(GM_Shoot_Mass~treatment*fert)
+
+fit<-lm(gluc_Conc~treatment*Fert+ChlorA+Family,data=Final)
+fit2<-lm(gluc_Conc~treatment+Fert+ChlorA+Family,data=Final)
+fit3<-lm(gluc_Conc~treatment+Fert+Family,data=Final)
+fit4<-lm(gluc_Conc~Fert+ChlorA+Family,data=Final)
+fit5<-lm(gluc_Conc~Fert+ChlorA,data=Final)
+fit6<-lm(gluc_Conc~ChlorA,data=Final)
+fit7<-lm(gluc_Conc~Fert,data=Final)
+
+#Is there an effect of treatment without excess nutrients? 
+fit7<-lm(gluc_Conc~treatment,data=Final[Final$Fert=="n",])
+fit7.0<-lm(gluc_Conc~1,data=Final[Final$Fert=="n",])
+anova(fit7,fit7.0)
+
+fit8<-lm(flav_Conc~treatment,data=Final[Final$Fert=="n",])
+fit8.0<-lm(flav_Conc~1,data=Final[Final$Fert=="n",])
+anova(fit8,fit8.0)
+#no.... sheet. 
+
+
+#Is the treatment effect eliminated in excess nutrients? 
+fit7<-lm(gluc_Conc~treatment,data=Final[Final$Fert=="y",])
+fit7.0<-lm(gluc_Conc~1,data=Final[Final$Fert=="y",])
+anova(fit7,fit7.0)
+
+fit8<-lm(flav_Conc~treatment,data=Final[Final$Fert=="y",])
+fit8.0<-lm(flav_Conc~1,data=Final[Final$Fert=="y",])
+anova(fit8,fit8.0)
+
+summary(fit7)
+summary(fit8)
+
+
+anova(fit,fit2)#no interaction
+anova(fit3,fit2) #ChlorA imporatnt
+anova(fit4,fit2) #treatment is not important.
+anova(fit5,fit4) #family not important
+
+summary(fit5)
+summary(fit6)
+summary(fit7)
+#ChlorA and fertilizer are correlated and are essentially sharing the effect on glucosinolates completely
+
+
+```
+```{r}
+Final
+lm(GM_Shoot_Mass~treatment*fert)
+
+fit<-lm(flav_Conc~treatment*Fert+ChlorA+Family,data=Final)
+fit2<-lm(flav_Conc~treatment+Fert+ChlorA+Family,data=Final)
+fit3<-lm(flav_Conc~treatment+Fert+Family,data=Final)
+fit4<-lm(flav_Conc~Fert+ChlorA+Family,data=Final)
+fit5<-lm(flav_Conc~Fert+ChlorA,data=Final)
+fit6<-lm(flav_Conc~ChlorA,data=Final)
+fit7<-lm(flav_Conc~Fert,data=Final)
+
+anova(fit,fit2)#no interaction
+anova(fit3,fit2) #ChlorA imporatnt
+anova(fit4,fit2) #treatment is not important.
+anova(fit5,fit4) #family not important (although it is close)
+
+summary(fit5)
+summary(fit6)
+summary(fit7)
+#ChlorA and fertilizer are correlated and are essentially sharing the effect on glucosinolates completely
+
+```
+#Estimating coefficients. 
+```{r}
+fit1<-lm(gluc_Conc~Fert,data=Final)
+fit2<-lm(flav_Conc~Fert,data=Final)
+fit3<-lm(ChlorA~Fert,data=Final)
+summary(fit1)
+summary(fit2)
+summary(fit3)
+
+1-(1.005-0.081)/1.005
+
+1-(1.005-0.085)/1.005
+
+1-(0.869-0.046)/0.869
+1-(0.869-0.110)/0.869
+
+
+
+1-(0.388-0.095 )/0.388
+1-(0.388-0.092 )/0.388
+1-(0.388+0.846 )/0.388
 
 ```
 

@@ -42,6 +42,22 @@ dat$WhiteFungLogis[dat$WhiteFungDam==0]<-"No"
 
 ```
 
+```{r}
+
+ggplot(dat)+
+  geom_point(aes(y=flav_Conc,x=ChlorA))
+
+ggplot(dat)+
+  geom_point(aes(y=gluc_Conc,x=ChlorA))
+
+
+plot(flav_Conc~ChlorA,data=dat)
+```
+
+
+
+
+
 #Standardizing pathogen damage
 Previous analysis have indicated that leaf size is a significant predictor of pathogen abudnance. This is because the larger the leaf, the more pathogens can be on the leaf. For this reason, I am weighing the Thrips damage and black pathogen damage by the leaf area, and then standardizing the variable. 
 ```{r}
@@ -134,6 +150,7 @@ plot(fit7)#There still appears to be a pattern in the residuals, probably due to
 qqnorm(residuals(fit7))
 plot(residuals(fit7))
 
+confint(fit7,method="Wald")
 
 ```
 
@@ -185,26 +202,21 @@ fit5<-lmer(gluc_Conc~treatment+WhiteFungLogis+BlackPathDamW+ThripsDamW+Fern+GM_L
 summary(fit5) #Fern not significant. (Although it is close p=0.08)
 
 fit6<-lmer(gluc_Conc~treatment+WhiteFungLogis+BlackPathDamW+ThripsDamW+GM_Leaf_Area+ChlorA+treatment:ChlorA+WhiteFungLogis:BlackPathDamW+(1|Family/Tag),data=dat)
-summary(fit6) #BlackPathDamW not significant
+summary(fit6) #Everything else is significant
 
-fit7<-lmer(gluc_Conc~treatment+WhiteFungLogis+ThripsDamW+GM_Leaf_Area+ChlorA+treatment:ChlorA+WhiteFungLogis:BlackPathDamW+(1|Family/Tag),data=dat)
-summary(fit7) #White Fung Dam not significant
-
-fit8<-lmer(gluc_Conc~treatment+ThripsDamW+GM_Leaf_Area+ChlorA+treatment:ChlorA+WhiteFungLogis:BlackPathDamW+(1|Family/Tag),data=dat)
-summary(fit8) #Everything else is significant. 
 
 #Is the interaction between ChlorA and treatment significant? 
-fit9<-lmer(gluc_Conc~treatment+ThripsDamW+GM_Leaf_Area+ChlorA+WhiteFungLogis:BlackPathDamW+(1|Family/Tag),data=dat)
-anova(fit9,fit8) #Yes
-summary(fit8)
+fit9<-lmer(gluc_Conc~treatment+ThripsDamW+WhiteFungLogis+BlackPathDamW+GM_Leaf_Area+ChlorA+WhiteFungLogis:BlackPathDamW+(1|Family/Tag),data=dat)
+anova(fit9,fit6) #Yes
+summary(fit6)
 
 #Interstingly there is significant interaction between chlorophyll a and treatment with glucosinolate concentration. What this means exacly is unclear, but the relationship between chlorophyll a and glucosinolate concentration is higher in the maple and garlic mustard treatment. 
 
 #In terms of the fixed effects, the amount of glucosinolates still decreases in the maple and garlic mustard treatment, suggesting that the plasticity we see is actually true plasticity, and is not just occuring because the plants perform worse and so make less glucosinolates, but are actively producing less glucosinolates. This could also just represent a steeper decrease in glucosinolates than in chlorophyll. It would make sense for individuals to reduce the amount of glucosinolate they are producing before they reduce the amount of chlorophyll. This is in line with what is found for thrips damage, for some reason, glucosinolate concentration is reduced with increasing thrips damage after controlling for performance. This does not change, whether thrips damage is weighed by leaf size or not -- the effect is still negative. 
 
-plot(fit8)
-qqnorm(residuals(fit8))
-plot(residuals(fit8))
+plot(fit6)
+qqnorm(residuals(fit6))
+plot(residuals(fit6))
 
 ```
 Thrips damage, and treatment predict glucosinolate concentration after controlling for chlorophyll A, however, the lack of resources likely resulted in reduced production of glucosinolates before the reduced production of chlorophyll A - in other words, i think we are still observing apparent plasticity. Even the interaction between black pathogen damage and white fungal abundance is negative. 
@@ -287,6 +299,9 @@ plot(residuals(fit7))
 #Treatment (Maple and garlic mustard) and an interaction between whitefungal abundance and thripsdamage reduced flavonoid concentration (apparent plasticity)
 
 
+#Generating plasticity estimate for Chlorophyll A 
+fitCh<-lmer(ChlorA~treatment+GM_Leaf_Area+WhiteFungLogis:ThripsDamW+I(GM_Leaf_Area^2)+(1|gh_bench),data=dat)
+summary(fitCh)
 ```
 
 

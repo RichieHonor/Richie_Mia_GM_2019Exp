@@ -116,6 +116,8 @@ fit8<-lmer(GM_TotalLeaf_Area~BlackPathDamW+(1|gh_bench),data=dat2)
 summary(fit8)
 #only black pathogen damage predicts performance in the alone treatment. 
 
+
+
 #These coeficients make much more sense, all in the negatives. Weighing was the appropriate thing to do. This should be done in models that predict pathogen response to glucosinolates and flavonoids. - Chlorophyll concentration should be used in those models as well. 
 summary(fit3)
 hist(residuals(fit3))
@@ -123,9 +125,15 @@ plot(residuals(fit3))
 plot(fit3)
 ```
 
+#Is there a cost to glucosinolate production?
+```{r}
+fit8<-lmer(GM_TotalLeaf_Area~BlackPathDamW+gluc_Conc+(1|gh_bench),data=dat2)
+summary(fit8)
+#only black pathogen damage predicts performance in the alone treatment. 
+```
 
 
-#What predicts garlic mustard performance in the alone treatment - gluc and flav Conc added.  (is there a cost to producing these compounds) 
+#Checking if doing model selectionw with glucosinolate and flavonoids affects the outcome. What predicts garlic mustard performance in the alone treatment - gluc and flav Conc added.  (is there a cost to producing these compounds) 
 ```{r}
 dat2<-dat2[dat2$treatment=="a",]
 #Weighted pathogen damage data are no on too small of a scale. These will be standardized. 
@@ -196,7 +204,6 @@ plot(fit10)
 
 #Using all individuals from the experiment, even those not replicated across treatment. 
 ```{r}
-
 #read in data
 rm(list=ls())
 dat<-read.csv("DataSynthesis.csv")
@@ -227,8 +234,10 @@ dat$ThripsDamW<-Weigh(dat$ThripsDam)
 dat$ThripsDamW<-Standardize(dat$ThripsDamW)
 dat$BlackPathDamW<-Standardize(dat$BlackPathDamW)
 
+dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
+
 #Average Duplicates. 
-dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDamW=mean(BlackPathDamW),ThripsDamW=mean(ThripsDamW))
+dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDamW=mean(BlackPathDamW),ThripsDamW=mean(ThripsDamW),GM_Leaf_Area=mean(GM_Leaf_Area))
 
 
 #Converting white fungal damage to logistic. 
@@ -306,6 +315,16 @@ summary(fit10) #Interstingly without glucosinolate concentration in the model, t
 
 fit11<-lmer(GM_TotalLeaf_Area~BlackPathDamW+gluc_Conc+(1|gh_bench),data=dat2)
 summary(fit11)  #no, although it is closer to significance and there is a strong negative slope. 
+
+#Checking what occurs when i add in chlorophyll A. interestingly, the slope for chlor A is negative, which does not make sense. Can only be explained by leaf area, as larger leaves will have less chlorophyll A and glucosinolates. I must control for this. 
+fit12<-lmer(GM_TotalLeaf_Area~BlackPathDam+gluc_Conc+Standardize(GM_Leaf_Area)+(1|gh_bench),data=dat2)
+summary(fit12) 
+#After controlling for leaf area, there is no cost to glucosinoaltes as expected, on the contrary, they are positively correlated with performance. Unsurprising. 
+
+#Cost to flavonoids?
+fit12<-lmer(GM_TotalLeaf_Area~BlackPathDam+flav_Conc+Standardize(GM_Leaf_Area)+(1|gh_bench),data=dat2)
+summary(fit12) 
+#After controlling for leaf area, there is no cost to glucosinoaltes as expected, on the contrary, they are positively correlated with performance. Unsurprising. 
 ```
 
-In summary only black pathogen damage predicts performance in the maple treatment, although there is almost a significant negative effect of glucosniolate concentration, suggesting a negative effect of glucosinolates, this goes away after accounting for chlorophyll, suggesting any effect of glucoisnolates was simply correlative, and there is no cost to producing glucosinolates, likely because this trait is itself plastic with performance. If plants do not have enough nutrients, they will not invest in glucosinolates. Take home message. 
+In summary only black pathogen damage predicts performance in the maple treatment, although there is almost a significant negative effect of glucosniolate concentration, suggesting a cost  of glucosinolates, this goes away after accounting for chlorophyll, suggesting any effect of glucoisnolates was simply correlative, and there is no cost to producing glucosinolates, likely because this trait is itself plastic with performance. If plants do not have enough nutrients, they will not invest in glucosinolates. Take home message. 

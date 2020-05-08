@@ -34,9 +34,13 @@ dat$BlackPathDamW<-Weigh(dat$BlackPathDam)
 dat$ThripsDamW<-Weigh(dat$ThripsDam)
 dat$WhiteFungDamW<-Weigh(dat$WhiteFungDam)
 
+#Calculating leaf area 
+dat$GM_Leaf_Area<-dat$GM_Leaf_Wid*dat$GM_Leaf_Len
+
+
 
 #Average Duplicates. 
-dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDamW=mean(BlackPathDamW),ThripsDamW=mean(ThripsDamW),WhiteFungDamW=mean(WhiteFungDamW),comp_number=first(comp_number))
+dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDamW=mean(BlackPathDamW),ThripsDamW=mean(ThripsDamW),WhiteFungDamW=mean(WhiteFungDamW),comp_number=first(comp_number),GM_Leaf_Area=mean(GM_Leaf_Area))
 
 dat
 #Converting white fungal damage to logistic. 
@@ -99,7 +103,6 @@ plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_leaves_0)
 
 #Examinging differences in maple performance, while controlling for the initial maple size. 
 ```{r}
-
 
 #Adding in PC1 vales from the pca. This will be used to control for initial maple size in my experiment. 
 Maple$PC1Tot<-predict(pcaModelTotal)[,1]
@@ -168,28 +171,30 @@ plot(resid(fitTw2))
 hist(resid(fitTw2),breaks=20)#Looks reasonably normal to me.
 
 fitV<-lm(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+gluc_Conc+ChlorA,data=MapleModel)
+summary(fitV)
 
 vif(fitV) #Vif for ChlorA and gluc concentration are both below 2. This suggest that gluc_Conc and Chlor concentration are not high enough that the effect of the two are indistinguishable. This suggests that the entire effect of glucosinolates is due to chlorophyll concentration. 
 
 
 #Permutation test to check the reliability of the p values in the best model.
 fitTw3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
+summary(fitTw3)
+# 
+# summary(fitTw3)$coef
+# datPerTest<-MapleModel
+# zStore<-c()
+# # #for(i in 1:500){
+#   #Randomize flavonoid concentration.
+#   datPerTest$gluc_Conc<-sample(datPerTest$gluc_Conc,length(datPerTest$gluc_Conc),replace = F)
+#   
+#   #Run Model with randomized flavonoid concentration and extract test statistic
+#   glucZval<-summary(update(fitTw3,data=datPerTest))$coef[[1]][3,3]
+#   
+#   #Store z value.
+#   zStore[i]<-glucZval
+#}
 
-summary(fitTw3)$coef
-datPerTest<-MapleModel
-zStore<-c()
-for(i in 1:500){
-  #Randomize flavonoid concentration.
-  datPerTest$gluc_Conc<-sample(datPerTest$gluc_Conc,length(datPerTest$gluc_Conc),replace = F)
-  
-  #Run Model with randomized flavonoid concentration and extract test statistic
-  glucZval<-summary(update(fitTw3,data=datPerTest))$coef[[1]][3,3]
-  
-  #Store z value.
-  zStore[i]<-glucZval
-}
-
-sum(zStore<=-2.883)/length(zStore)
+#sum(zStore<=-2.883)/length(zStore)
 
 #The simulated p value was 0.002, which is close to the observed value of 0.004. This is a reliable model. 
 
@@ -281,20 +286,21 @@ summary(fit7)
 
 #Using the best model of what determines fitness in the presense of competitor and pathogens, is there a cost to glucosinolates after holding these values constant? 
 ```{r}
-
 #Cost of glucosinolates ?
 
-fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End  + ThripsDamW +  
-    BlackPathDamW  + (1 | Family) + (1 | gh_bench/gh_col) +  
-    ThripsDamW:BlackPathDamW+gluc_Conc,data=MapleModel)
+fit7<-lmer(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)  + ThripsDam +  
+    Standardize(BlackPathDam)  + (1 | Family) + (1 | gh_bench/gh_col) +  
+    Standardize(ThripsDam):Standardize(BlackPathDam)+gluc_Conc+Standardize(GM_Leaf_Area),data=MapleModel)
 summary(fit7) #no there is not. 
 
 
-fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End  + ThripsDamW +  
-    BlackPathDamW  + (1 | Family) + (1 | gh_bench/gh_col) +  
-    ThripsDamW:BlackPathDamW+flav_Conc,data=MapleModel)
+#Cost of Flavonoids ?
 
-summary(fit7) #no there is not. All positive coefficients. 
+fit7<-lmer(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)  + ThripsDam +  
+    Standardize(BlackPathDam)  + (1 | Family) + (1 | gh_bench/gh_col) +  
+    Standardize(ThripsDam):Standardize(BlackPathDam)+flav_Conc+Standardize(GM_Leaf_Area),data=MapleModel)
+summary(fit7) #no there is not. 
+
 ```
 
 
@@ -346,38 +352,38 @@ plot(resid(fit_1)^2)
 summary(fit_1)
 
 
-#Permutation test
-datPerTest<-datFern
-zStoretreatGM<-c()
-zStoretreatM<-c()
-
-for(i in 1:500){
-  #Randomize flavonoid concentration.
-  datPerTest$treatment<-sample(datPerTest$treatment,length(datPerTest$treatment),replace = F)
-
-  #New Model with randomized treatment and flavonoids
-  newMod<-update(fit_1,data=datPerTest)
-  
-  # Extract test statistics for maple (M) and garlic mustard (gm) treatments
-  MtreatZval<-summary(newMod)$coef[[1]][3,3]
-  GMtreatZval<-summary(newMod)$coef[[1]][3,2]
-  
-  #Store z value.
-  zStoretreatGM[i]<-GMtreatZval
-  zStoretreatM[i]<-MtreatZval
-}
-
-sum(zStoretreatM>=2.316180)/length(zStoretreatM)
-#Estimated p value for the maple treatment is 0.01. This is very close to the actual p value of 0.02
-sum(zStoretreatGM>=2.231574)/length(zStoretreatGM)
-#Estimated p value for the garlic mustard treatment is 0. This is close to the actual p value of 0.02
+# #Permutation test
+# datPerTest<-datFern
+# zStoretreatGM<-c()
+# zStoretreatM<-c()
+# 
+# for(i in 1:500){
+#   #Randomize flavonoid concentration.
+#   datPerTest$treatment<-sample(datPerTest$treatment,length(datPerTest$treatment),replace = F)
+# 
+#   #New Model with randomized treatment and flavonoids
+#   newMod<-update(fit_1,data=datPerTest)
+#   
+#   # Extract test statistics for maple (M) and garlic mustard (gm) treatments
+#   MtreatZval<-summary(newMod)$coef[[1]][3,3]
+#   GMtreatZval<-summary(newMod)$coef[[1]][3,2]
+#   
+#   #Store z value.
+#   zStoretreatGM[i]<-GMtreatZval
+#   zStoretreatM[i]<-MtreatZval
+# }
+# 
+# sum(zStoretreatM>=2.316180)/length(zStoretreatM)
+# #Estimated p value for the maple treatment is 0.01. This is very close to the actual p value of 0.02
+# sum(zStoretreatGM>=2.231574)/length(zStoretreatGM)
+# #Estimated p value for the garlic mustard treatment is 0. This is close to the actual p value of 0.02
 
 summary(fit_1)
 ```
 
 
 
-
+If maples took hold at the end, it would explain why there is less glucosnilates in the treatment than expected, but total leaf area is just as high. This is consistent with the growth rate data and the fact that these were transplant maples 
 
 
 

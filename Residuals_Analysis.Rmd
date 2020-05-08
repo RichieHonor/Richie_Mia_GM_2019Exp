@@ -174,7 +174,9 @@ newframe$predicted<-predict.lm(contrlFit,newdata=newframe,type="response",se.fit
 newframe$SE<-predict.lm(contrlFit,newdata=newframe,type="response",se.fit=T)[[2]]
 #Visualizing the families with the highest glucosinolate values. 
 ggplot(newframe)+
-  geom_boxplot(aes(y=predicted,x=Family,colour=SE))+ylab("Glucosinolate Estimate")
+  geom_point(aes(y=predicted,x=Family))+
+  geom_linerange(aes(ymin=predicted-SE,ymax=predicted+SE,x=Family))+
+  ylab("Glucosinolate Estimate")
 
 newframe
 #Extracting number of samples that went into relating to family estimates. 

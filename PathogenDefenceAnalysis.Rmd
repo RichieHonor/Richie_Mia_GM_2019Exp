@@ -203,9 +203,144 @@ summary(fit1)
 
 
 
+#Visualization -- black pathogen abundance by flavonoids.
+```{r}
+#Mininum adequate model for black pathogen abundance
+fit<-glmmTMB(BlackPathDam~treatment+flav_Conc+GM_Leaf_Area+ChlorA+(1|Family/Tag),family=nbinom2,data=dat)
+summary(fit)
+
+source("GGPlot_Themes.R")
+#Reversing link function, to estimate the data on the response scale. 
+flavSlope=function(x,int){
+  y=exp(-0.5*x+int)
+  return(y)
+}
 
 
 
+#Determining predicted values for each treatment along the rang of flavonoid concentration, given chlorophyll and  leaf size are held constant and using the mean of the random effects. 
+flavplot=seq(min(dat$flav_Conc,na.rm = T),max(dat$flav_Conc,na.rm=T),length.out = 688)
+
+#Calculating slope values
+flavyA<-flavSlope(flavplot, 0.4957)
+flavyGM<-flavSlope(flavplot, 0.4957+0.2537)
+flavyM<-flavSlope(flavplot, 0.4957-0.4026)
+
+
+tiff("Defence_Figures/FlavonoidBlackPathogen.tiff", units="in", width=8, height=6, res=300)
+ggplot(dat[!is.na(dat$flav_Conc),])+
+  geom_point(aes(y=BlackPathDam,x=flav_Conc,colour=treatment))+
+theme_simple()+
+  geom_path(x=flavplot,y=flavyA,size=1.5,colour="#009E73")+
+    geom_path(x=flavplot,y=flavyGM,size=1.5,colour="#56B4E9")+
+  geom_path(x=flavplot,y=flavyM,size=1.5,colour="#E69F00")+
+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+
+  scale_y_continuous(breaks=seq(0,70,5))+
+  ylab("Black Pathogen Damage")+
+xlab(bquote(bold("[Total Flavonoid] " (mg/ml))))
+dev.off()
+```
+
+
+
+```{r}
+
+
+
+fit_full<-glmmTMB(ThripsDam~treatment+flav_Conc+GM_Leaf_Area+ChlorA+(1|Tag),family=nbinom2,data=dat)
+summary(fit_full)
+
+fit_full2<-glmmTMB(ThripsDam~treatment+gluc_Conc+GM_Leaf_Area+ChlorA+(1|Tag),family=nbinom2,data=dat)
+summary(fit_full2)
+
+
+source("GGPlot_Themes.R")
+#Reversing link function, to estimate the data on the response scale. 
+flavSlope=function(x,int){
+  y=exp(-2.1879 *x+int+0.7994*mean(dat$GM_Leaf_Area,na.rm=T)+1.8896*mean(dat$ChlorA,na.rm=T))
+
+  return(y)
+}
+
+glucSlope=function(x,int){
+  y=exp(-2.63639*x+int+0.82475*mean(dat$GM_Leaf_Area,na.rm=T)+1.82279 *mean(dat$ChlorA,na.rm=T))
+  
+  return(y)
+}
+
+#Determining x range to fit the line to 
+flavplot=seq(min(dat$flav_Conc,na.rm = T),max(dat$flav_Conc,na.rm=T),length.out = 688)
+glucplot=seq(min(dat$gluc_Conc,na.rm = T),max(dat$gluc_Conc,na.rm=T),length.out = 708)
+
+#Calculating predicted values
+flavyA<-flavSlope(flavplot, 1.4237)
+flavyGM<-flavSlope(flavplot, 1.4237+0.9279)
+flavyM<-flavSlope(flavplot, 1.4237+0.1662)
+
+#Calculating predicted values
+glucyA<-glucSlope(glucplot, 2.12958)
+glucyGM<-glucSlope(glucplot, 2.12958+0.99860)
+glucyM<-glucSlope(glucplot, 2.12958+0.08780)
+
+
+tiff("Defence_Figures/FlavonoidThrips.tiff", units="in", width=8, height=6, res=300)
+a<-ggplot(dat[!is.na(dat$flav_Conc),])+
+  geom_point(aes(y=ThripsDam,x=flav_Conc,colour=treatment))+theme_simple_multiCol()+
+    geom_path(x=flavplot,y=flavyA,size=1.5,colour="#009E73")+
+    geom_path(x=flavplot,y=flavyGM,size=1.5,colour="#56B4E9")+
+  geom_path(x=flavplot,y=flavyM,size=1.5,colour="#E69F00")+
+  scale_y_continuous(breaks=seq(0,70,5))+
+  ylab("Thrips Damage")+
+    scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+xlab(bquote(bold("[Total Flavonoid] " (mg/ml))))
+dev.off()
+
+
+tiff("Defence_Figures/GlucosinolateThrips.tiff", units="in", width=8, height=6, res=300)
+b<-ggplot(dat[!is.na(dat$gluc_Conc),])+
+  geom_point(aes(y=ThripsDam,x=gluc_Conc,colour=treatment))+theme_simple_multiCol()+
+  geom_path(x=glucplot,y=glucyA,size=1.5,colour="#009E73")+
+    geom_path(x=glucplot,y=glucyGM,size=1.5,colour="#56B4E9")+
+  geom_path(x=glucplot,y=glucyM,size=1.5,colour="#E69F00")+
+    scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  scale_y_continuous(breaks=seq(0,70,5))+
+  ylab("Thrips Damage")+
+xlab(bquote(bold("[Total Glucosinolate] " (mg/ml))))
+dev.off()
+
+
+c<-ggplot(dat[!is.na(dat$gluc_Conc),])+
+  geom_point(aes(y=ThripsDam,x=gluc_Conc,colour=treatment))+theme_simple()+
+  geom_path(x=glucplot,y=glucyA,size=1.5,colour="#009E73")+
+    geom_path(x=glucplot,y=glucyGM,size=1.5,colour="#56B4E9")+
+  geom_path(x=glucplot,y=glucyM,size=1.5,colour="#E69F00")+
+    scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  scale_y_continuous(breaks=seq(0,70,5))+
+  ylab("Thrips Damage")+
+xlab(bquote(bold("[Total Glucosinolate] " (mg/ml))))
+dev.off()
+
+
+library(cowplot)
+
+leg<-get_legend(c)
+
+plot<-plot_grid(a, b,ncol=2,rel_widths = c(1,1),labels = c("a","b"))
+
+y.grob<-textGrob("Thrips Damage",gp=gpar(fontface="bold",fontsize=20),rot=90)
+
+
+#Mixed plot
+library(grid)
+library(gridExtra)
+
+tiff("Defence_Figures/Glucosinolate&FlavonoidThrips.tiff", units="in", width=16, height=6, res=300)
+grid.arrange(plot,left=y.grob,top=leg)
+dev.off()
+
+```
 
 
 
