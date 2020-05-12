@@ -357,9 +357,47 @@ Final<-left_join(dat,mass,by=c("Tag"="ID"))
 print("Done")
 ```
 
+#Adding in individual leaf size data. 
+```{r}
+
+#Clear Environment. 
+rm(list=ls())
+#Read in master file. 
+
+main<-read.csv("Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv",stringsAsFactors = F)
+
+#Read in final leaf data files. 
+dat<-read.csv("Data_Moities/FertilizerExperiment/GM_LeafPunchData_Fert.txt",stringsAsFactors = F)
 
 
+if(colnames(main)[1]=="X"){
+  main<-select(main,-X)
+}
 
 
+#------------
+#Fixing Genotype barcodes and converting data to numeric. 
+#------------
+
+#Dat (non-punched and no pathogen data on leaves)
+dat$Tag<-gsub("§","|",dat$Tag)
+dat$Tag<-gsub("_","?",dat$Tag)
+dat$GM_Leaf_Len<-as.numeric(gsub("\\D","",dat$GM_Leaf_Len))
+dat$GM_Leaf_Wid<-as.numeric(gsub("\\D","",dat$GM_Leaf_Wid))
+dat$GM_Leaf_Number<-as.numeric(gsub("\\D","",dat$GM_Leaf_Number))
+dat$GM_Damage<-gsub("damage-","",dat$Damage)
+#Creating Sample column which will be used to join collumns. 
+dat$Sample<-paste(gsub(".*\\|","",dat$Tag), dat$GM_Leaf_Number,sep = "_")
+dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
+
+#Removing unneccesairy columns
+dat<-dat %>% select(-Sampletime,-Damage,-Tag,)
+main<-main %>% select(-Maple_Area_mean_End)
 
 
+Final<-left_join(main,dat,by="Sample")
+
+#writting to file. 
+write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
+
+```

@@ -974,6 +974,17 @@ dat
 
 ```
 
+Fertilizer figures 
+#Effect of treatment
+ggplot(Final2)+
+  geom_boxplot(aes(x=treatment,y=GM_Shoot_Mass,fill=Fert))+theme_simple()+ylab("Shoot Mass (g)")+
+  scale_y_continuous(breaks = seq(0,5,0.25))+
+  scale_x_discrete(name="",labels=c("Alone","Garlic Mustard","Maple"))+
+  scale_fill_manual(values=c("#0072B2","#F0E442"),labels=c("No amendment","Fertilizer"))+
+  theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0)))
+#dev.off()
+
+
 
 
 

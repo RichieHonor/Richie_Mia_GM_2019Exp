@@ -8,101 +8,72 @@ output: html_document
 
 ```{r}
 library(ggplot2)
+#library(plyr)
+library(dplyr)
+
 Final<-read.csv("Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
-```
 
 
+#Checking to see if all those that died were removed from experiment
 
-#Visualize treatment and genotype effect on Gluc Flav and Chlorophyll
-```{r}
-#Treatment effects
+table(Final$comp_number)
 
-#-----
-#Glucosinolate. 
-
-ggplot(Final)+
-  geom_boxplot(aes(x=treatment,y=gluc_Conc,colour=Fert))
-
-#---
-#Flavonoid
-ggplot(Final)+
-  geom_boxplot(aes(x=treatment,y=flav_Conc,colour=Fert))
-
-#---
-#ChlorA
-ggplot(Final)+
-  geom_boxplot(aes(x=treatment,y=ChlorA,colour=Fert))
-
-#Fert effects only 
-ggplot(Final)+
-  geom_boxplot(aes(x=Fert,y=gluc_Conc))
-ggplot(Final)+
-  geom_boxplot(aes(x=Fert,y=flav_Conc))
-ggplot(Final)+
-  geom_boxplot(aes(x=Fert,y=ChlorA))
+Check<-Final %>% group_by(Tag) %>% summarize(comp_number=first(comp_number))
 
 
+#No, I did not remove the competitors with individuals that died. I also gave the wrong number in the report!!! shit. it isnt 152, it is 76. Correct this.
 
-```
+#Individuals with only one competitiors in the GM treatment. These are to be removed. 
+deadNeighbour<-names(table(Check$comp_number)[table(Check$comp_number)<2])
 
 
+#removing those with dead competitors from the analysis. 
+Final %>% filter(comp_number %in% deadNeighbour)
+Final<-Final %>% filter(!comp_number %in% deadNeighbour)
 
-#Visualizing the effect of Treatment on maples
-```{r}
-#Column for the change in stem height. 
-Final$Maple_StemChange<-Final$Maple_StemHeight_max_End-as.numeric(Final$maple_height_0)
+#Check to ensure I did this correctly
+table(Final$comp_number)#looks good. 
 
-#Fertilized maples initially started at higher stem heights
-ggplot(Final[Final$treatment=="m",])+
-  geom_boxplot(aes(x=as.factor(Fert),y=as.numeric(maple_height_0)))
+#Removing those with maples that died.... 
 
-#But after they recieved fertilizer, they did not grow any more than did those without fertilizer. 
-ggplot(Final[Final$treatment=="m",])+
-  geom_boxplot(aes(x=as.factor(Fert),y=as.numeric(Maple_StemChange)))
+#Final[treatment=="m" & is.na()
 
-ggplot(Final[Final$treatment=="m",])+
-  geom_point(aes(x=as.factor(Fert),y=Maple_Area_sum_End))
+#some maples were not properly identified
+Final[Final$treatment=="m" & is.na(Final$Maple_Area_sum_End),]
+#Two individuals were not properly identified. ... let us see
+#I cannot find these maples in either files, perhaps i missed. them. In any case, they will be excluded from the anlaysis as well. 
 
+MapleTreat<-Final[Final$treatment=="m",]
+OtherTreat<-Final[Final$treatment!="m",]
+
+#Removing those with maples that have no 
+MapleTreatRM<-MapleTreat[!is.na(MapleTreat$Maple_Area_sum_End)&MapleTreat$Maple_Area_sum_End!=0,] #That removed about half of the observations :(
+
+
+#Now creating data frame with those with competitors that died in the experiment removed. 
+Final<-bind_rows(MapleTreatRM,OtherTreat)
 
 
 ```
 
 
+
+#Modelling glucosinolate concentration. 
 ```{r}
-Final
-lm(GM_Shoot_Mass~treatment*fert)
+library(glmmTMB)
+#Modelling random effect of Tag (accounting for leaf psuedoreplication)
 
-fit<-lm(gluc_Conc~treatment*Fert+ChlorA+Family,data=Final)
-fit2<-lm(gluc_Conc~treatment+Fert+ChlorA+Family,data=Final)
-fit3<-lm(gluc_Conc~treatment+Fert+Family,data=Final)
-fit4<-lm(gluc_Conc~Fert+ChlorA+Family,data=Final)
-fit5<-lm(gluc_Conc~Fert+ChlorA,data=Final)
-fit6<-lm(gluc_Conc~ChlorA,data=Final)
-fit7<-lm(gluc_Conc~Fert,data=Final)
+fit<-glmmTMB(gluc_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family+(1|Tag),data=Final)
+fit2<-glmmTMB(gluc_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family,data=Final)
+anova(fit,fit2)#Tag is not a significant predictor of glucosinolate concentration.I will therefore not account for it. 
 
-#Is there an effect of treatment without excess nutrients? 
-fit7<-lm(gluc_Conc~treatment,data=Final[Final$Fert=="n",])
-fit7.0<-lm(gluc_Conc~1,data=Final[Final$Fert=="n",])
-anova(fit7,fit7.0)
+#Modelling fixed effects
 
-fit8<-lm(flav_Conc~treatment,data=Final[Final$Fert=="n",])
-fit8.0<-lm(flav_Conc~1,data=Final[Final$Fert=="n",])
-anova(fit8,fit8.0)
-#no.... sheet. 
-
-
-#Is the treatment effect eliminated in excess nutrients? 
-fit7<-lm(gluc_Conc~treatment,data=Final[Final$Fert=="y",])
-fit7.0<-lm(gluc_Conc~1,data=Final[Final$Fert=="y",])
-anova(fit7,fit7.0)
-
-fit8<-lm(flav_Conc~treatment,data=Final[Final$Fert=="y",])
-fit8.0<-lm(flav_Conc~1,data=Final[Final$Fert=="y",])
-anova(fit8,fit8.0)
-
-summary(fit7)
-summary(fit8)
-
+fit<-lm(gluc_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family,data=Final)
+fit2<-lm(gluc_Conc~treatment+Fert+ChlorA+Family+GM_Leaf_Area,data=Final)
+fit3<-lm(gluc_Conc~treatment+Fert+Family+GM_Leaf_Area,data=Final)
+fit4<-lm(gluc_Conc~Fert+ChlorA+Family+GM_Leaf_Area,data=Final)
+fit5<-lm(gluc_Conc~Fert+ChlorA+GM_Leaf_Area,data=Final)
 
 anova(fit,fit2)#no interaction
 anova(fit3,fit2) #ChlorA imporatnt
@@ -110,35 +81,165 @@ anova(fit4,fit2) #treatment is not important.
 anova(fit5,fit4) #family not important
 
 summary(fit5)
+library(car)
+vif(fit5) #The correlation between of fertilizer and chlorophyll A are exceptionally high such that there is little difference between the two. Leaf size is very close to having a significant negative effect, however there is not one. 
+
+#Could there be a higher order thing going on?
+fit5.5<-lm(gluc_Conc~Fert+ChlorA+GM_Leaf_Area+I(GM_Leaf_Area^2),data=Final)
+summary(fit5.5)#no there isnt.
+
+fit6<-lm(gluc_Conc~Fert+ChlorA,data=Final)
+anova(fit5,fit6) #Leaf size is significant.
+
+fit6<-lm(gluc_Conc~ChlorA+GM_Leaf_Area,data=Final)
+fit7<-lm(gluc_Conc~Fert+GM_Leaf_Area,data=Final)
 summary(fit6)
 summary(fit7)
 #ChlorA and fertilizer are correlated and are essentially sharing the effect on glucosinolates completely
 
 
 ```
-```{r}
-Final
-lm(GM_Shoot_Mass~treatment*fert)
 
-fit<-lm(flav_Conc~treatment*Fert+ChlorA+Family,data=Final)
-fit2<-lm(flav_Conc~treatment+Fert+ChlorA+Family,data=Final)
-fit3<-lm(flav_Conc~treatment+Fert+Family,data=Final)
-fit4<-lm(flav_Conc~Fert+ChlorA+Family,data=Final)
-fit5<-lm(flav_Conc~Fert+ChlorA,data=Final)
-fit6<-lm(flav_Conc~ChlorA,data=Final)
-fit7<-lm(flav_Conc~Fert,data=Final)
+#Modelling Flavonoid concentration. 
+```{r}
+library(glmmTMB)
+#Modelling random effect of Tag (accounting for leaf psuedoreplication)
+
+fit<-glmmTMB(flav_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family+(1|Tag),data=Final)
+fit2<-glmmTMB(flav_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family,data=Final)
+anova(fit,fit2)
+#Tag is not a significant predictor of glucosinolate concentration.I will therefore not account for it. 
+
+#Continuing model to determine what determines leaf glucosinoalte concentration... 
+
+#Modelling fixed effects
+
+fit<-lm(flav_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family,data=Final)
+fit2<-lm(flav_Conc~treatment+Fert+ChlorA+Family+GM_Leaf_Area,data=Final)
+fit3<-lm(flav_Conc~treatment+Fert+Family+GM_Leaf_Area,data=Final)
+fit4<-lm(flav_Conc~Fert+ChlorA+Family+GM_Leaf_Area,data=Final)
+fit5<-lm(flav_Conc~Fert+ChlorA+GM_Leaf_Area,data=Final)
 
 anova(fit,fit2)#no interaction
 anova(fit3,fit2) #ChlorA imporatnt
 anova(fit4,fit2) #treatment is not important.
-anova(fit5,fit4) #family not important (although it is close)
+anova(fit5,fit4) #family not important
 
 summary(fit5)
+vif(fit5) #The correlation between of fertilizer and chlorophyll A are exceptionally high such that there is little difference between the two. Leaf size is very close to having a significant negative effect, however there is not one. 
+
+#Could htere be a higher order thing going on?
+fit5.5<-lm(flav_Conc~Fert+ChlorA+GM_Leaf_Area+I(GM_Leaf_Area^2),data=Final)
+summary(fit5.5)#no there isnt.
+
+fit6<-lm(flav_Conc~Fert+ChlorA,data=Final)
+anova(fit5,fit6) #Leaf size is not significant, although it is very close (p=0.056, because it is significant above, i will keep it in the model because i am confident this effect is not random. )
+summary(fit6)
+
+
+fit6<-lm(flav_Conc~ChlorA+GM_Leaf_Area,data=Final)
+fit7<-lm(flav_Conc~Fert+GM_Leaf_Area,data=Final)
 summary(fit6)
 summary(fit7)
-#ChlorA and fertilizer are correlated and are essentially sharing the effect on glucosinolates completely
+#ChlorA and fertilizer are correlated and are essentially sharing the effect on flavonoid concentration completely
+
 
 ```
+
+
+#Modelling Fitness  
+```{r}
+library(glmmTMB)
+#Need to remove psuedoreplication, as there is no replication in shootmass here. 
+
+Final2<-Final %>% group_by(Tag) %>% summarize(treatment=first(treatment),Family=first(Family),Fert=first(Fert),GM_Shoot_Mass=first(GM_Shoot_Mass),ChlorA=mean(ChlorA))
+
+fit<-lm(GM_Shoot_Mass~treatment*Fert+Family,data=Final2)
+fit2<-lm(GM_Shoot_Mass~treatment+Fert+Family,data=Final2)
+fit3<-lm(GM_Shoot_Mass~treatment*Fert,data=Final2)
+
+anova(fit,fit2)#There is an interaction
+anova(fit3,fit) #Family is not imporatnt
+
+
+summary(fit3)
+
+#Where do the differences lie? 
+
+TukeyHSD(aov(fit3))
+#GM is significantly different than the maple and alone treatment when fertilizer is present. 
+# GM is not significant different than maple or alone when there is not fertilizer present.
+
+#Is there significance, however, if we look at only those without fertilizer?
+summary(lm(GM_Shoot_Mass~treatment,data=Final2[Final2$Fert=="n",]))
+
+#Infact, there is a reduction of about 50% bodymass in the garlic mustard treatment, therefore, an effect wasnt found above simply because of the scale of the variables in the no fertilizer treatment compared to the fertilizer treatment. 
+```
+
+There is an effect on body size of GM  when fertilizer is added, but not when it isnt. This suggests that competition between GM is mediated mainly by water and sunlight, not by nutrients. This is because there is no treatment effect when fertilizer is not present, suggesting that when there is limiting nutrients, comeptition between garlic mustard does not have a significant effect on fitness. However, when nutrients are limiting, competition between garlic mustard is very intense, despite the available nutrients. This could be because the nutrient surplus has allowed garlic mustard to grow very large and compete for water and sunlight. Further evidence that the deficit is not nutrient related is that there were no treatment effects for chlorophyll A , glucosinolates or flavonoids, which are all correlated strongly with fertilizer application. There is actually an effect of treatment in the no fertilizer treament as well. This suggests that when nutrients are not limiting, competition is for water and light.
+
+
+#Visualizing 
+```{r}
+#Effect of treatment
+ggplot(Final)+
+  geom_point(aes(x=treatment,y=GM_Shoot_Mass,colour=Fert,shape=Family))
+ggplot(Final)+
+  geom_point(aes(x=treatment,y=gluc_Conc,colour=Fert,shape=Family))
+ggplot(Final)+
+  geom_point(aes(x=treatment,y=flav_Conc,colour=Fert,shape=Family))
+
+
+#interestingly, garlic mustard plants had the highest glucosinolate expression in the gm treatment with fertilizer, but this did not translate to a change in final biomass for the genotype. 
+
+Final[Final$GM_Shoot_Mass==max(Final$GM_Shoot_Mass,na.rm = T),]
+
+
+table(Final$comp_number)
+```
+
+#Visualizing for publication - Body mass and Chlorphyll by treatment and fertilizer. 
+```{r}
+source("GGPlot_Themes.R")
+
+#Body Mass figure. 
+ggplot(Final2)+
+  geom_boxplot(aes(x=Fert,y=GM_Shoot_Mass,fill=treatment))+theme_simple()+
+  ylab("Shoot Mass (g)")+
+  #scale_y_continuous(breaks = seq(0,5,0.25))+
+scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0)))
+
+#Chlorophyll A figure. 
+
+ggplot(Final)+
+  geom_boxplot(aes(x=Fert,y=ChlorA,fill=treatment))+theme_simple()+
+  ylab(bquote(bold("[Chlorophyll A]"~(ug/ml))))+
+  scale_y_continuous(breaks = seq(0,5,0.25))+
+scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle=90))
+
+#Glucosinolate Figure
+ggplot(Final)+
+  geom_boxplot(aes(x=Fert,y=gluc_Conc,fill=treatment))+theme_simple()+
+  ylab(bquote(bold("[Total Glucosinolate]"~(mg/ml))))+
+  scale_y_continuous(breaks = seq(0,5,0.25),)+
+scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90))
+
+#There is a weird genotype there. 
+min(Final$GM_Shoot_Mass[Final$Fert=="y"])
+Final[Final$GM_Shoot_Mass==min(Final$GM_Shoot_Mass[Final$Fert=="y"]),]
+```
+
+
+
+Had much higher maple mortality. Competition is much higher in the GM treatment whent there are available nutrients. This could be because competition then comes for water or sunlight (like lonnie's paper would suggest). 
+Most interesting here is that there is an effect of treatment on size when fertilizer is added, but not when it isnt. This suggests that competition between GM is mediated (is for) mainly by water and sunlight, not by nutrients. 
+
 #Estimating coefficients. 
 ```{r}
 fit1<-lm(gluc_Conc~Fert,data=Final)
@@ -160,42 +261,6 @@ summary(fit3)
 1-(0.388-0.095 )/0.388
 1-(0.388-0.092 )/0.388
 1-(0.388+0.846 )/0.388
-
-```
-
-
-Visualizing the final biomass of the genotypes in the different treatments. 
-```{r}
-#Effect of treatment
-ggplot(Final)+
-  geom_point(aes(x=treatment,y=GM_Shoot_Mass,colour=Fert,shape=Family))
-
-#interestingly, garlic mustard plants had the highest glucosinolate expression in the gm treatment with fertilizer, but this did not translate to a change in final biomass for the genotype. 
-
-
-
-```
-
-#Visualizing the relationship between glucosinolate concentration and body mass.
-Is there a trade off?
-```{r}
-#There will be auto correlation unless the fertilizer treatment is accounted for because those with fertilizer will have higher biomass and higher glucosinolate independent of the effect of gluc on bodymass. 
-ggplot(Final[Final$Fert=="y",])+
-  geom_point(aes(y=GM_Shoot_Mass,x=gluc_Conc,colour=treatment))
-
-#No Fertilizer.
-ggplot(Final[Final$Fert=="n",])+
-  geom_point(aes(y=GM_Shoot_Mass,x=gluc_Conc,colour=treatment))
-
-#Flavonol. 
-ggplot(Final[Final$Fert=="y",])+
-  geom_point(aes(y=GM_Shoot_Mass,x=flav_Conc,colour=treatment))
-
-#No Fertilizer.
-ggplot(Final[Final$Fert=="n",])+
-  geom_point(aes(y=GM_Shoot_Mass,x=flav_Conc,colour=treatment))
-
-#All slopes appear to be zero and there is no  effect of glucosinolate or flavonoid on the final biomass of the genotypes, however, one would have to control for the initial maple size and competitor in the gm treatment to assess this because these things could also heavily influence success and therefore final body mass. 
 
 ```
 
