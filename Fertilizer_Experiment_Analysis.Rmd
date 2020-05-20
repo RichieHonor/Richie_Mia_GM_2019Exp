@@ -15,7 +15,6 @@ Final<-read.csv("Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
 
 
 #Checking to see if all those that died were removed from experiment
-
 table(Final$comp_number)
 
 Check<-Final %>% group_by(Tag) %>% summarize(comp_number=first(comp_number))
@@ -203,6 +202,7 @@ table(Final$comp_number)
 source("GGPlot_Themes.R")
 
 #Body Mass figure. 
+tiff("Fertilizer_Figures/BodyMass.tiff", units="in", width=10, height=6, res=300)
 ggplot(Final2)+
   geom_boxplot(aes(x=Fert,y=GM_Shoot_Mass,fill=treatment))+theme_simple()+
   ylab("Shoot Mass (g)")+
@@ -210,9 +210,10 @@ ggplot(Final2)+
 scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
   scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
   theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0)))
-
+dev.off()
 #Chlorophyll A figure. 
 
+tiff("Fertilizer_Figures/Chlorophyll.tiff", units="in", width=10, height=6, res=300)
 ggplot(Final)+
   geom_boxplot(aes(x=Fert,y=ChlorA,fill=treatment))+theme_simple()+
   ylab(bquote(bold("[Chlorophyll A]"~(ug/ml))))+
@@ -220,8 +221,10 @@ ggplot(Final)+
 scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
   scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
   theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle=90))
+dev.off()
 
 #Glucosinolate Figure
+tiff("Fertilizer_Figures/Glucosinolate.tiff", units="in", width=10, height=6, res=300)
 ggplot(Final)+
   geom_boxplot(aes(x=Fert,y=gluc_Conc,fill=treatment))+theme_simple()+
   ylab(bquote(bold("[Total Glucosinolate]"~(mg/ml))))+
@@ -229,6 +232,20 @@ ggplot(Final)+
 scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
   scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
   theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90))
+dev.off()
+
+
+#Flavonoid Figure
+tiff("Fertilizer_Figures/Flavonoid.tiff", units="in", width=10, height=6, res=300)
+ggplot(Final)+
+  geom_boxplot(aes(x=Fert,y=flav_Conc,fill=treatment))+theme_simple()+
+  ylab(bquote(bold("[Total Flavonoid]"~(mg/ml))))+
+  scale_y_continuous(breaks = seq(0,5,0.25),)+
+scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90))
+dev.off()
+
 
 #There is a weird genotype there. 
 min(Final$GM_Shoot_Mass[Final$Fert=="y"])

@@ -985,6 +985,253 @@ ggplot(Final2)+
 #dev.off()
 
 
+#Plasticity notes 
+#Interstingly there is significant interaction between chlorophyll a and treatment with glucosinolate concentration. What this means exacly is unclear, but the relationship between chlorophyll a and glucosinolate concentration is higher in the maple and garlic mustard treatment. 
+
+
+#In terms of the fixed effects, the amount of glucosinolates still decreases in the maple and garlic mustard treatment, suggesting that the plasticity we see is actually true plasticity, and is not just occuring because the plants perform worse and so make less glucosinolates, but are actively producing less glucosinolates. This could also just represent a steeper decrease in glucosinolates than in chlorophyll. It would make sense for individuals to reduce the amount of glucosinolate they are producing before they reduce the amount of chlorophyll. This is in line with what is found for thrips damage, for some reason, glucosinolate concentration is reduced with increasing thrips damage after controlling for performance. This does not change, whether thrips damage is weighed by leaf size or not -- the effect is still negative. 
+
+
+#What predicts flavonoid concentration? (Apparent Plasticity)
+```{r}
+hist(dat$flav_Conc) 
+#The distribution looks faily normal, so i am going to use a linear mixed model. # My maximum model is one with possible interactions between pathogens, but no other interactions
+
+#------------------
+#Modelling Random Effects 
+
+#Maximum model
+fit<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+(1|Family/Tag)+(1|gh_bench),data=dat)
+
+#Is Tag important?
+fit2<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+(1|Family)+(1|gh_bench),data=dat)
+anova(fit,fit2)#The model with Tag is not significant,although p=0.06, thereofer i will leave it in the model to avoid psuedoreplication
+
+#Is greenhouse bench important?
+fit3<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+(1|Family/Tag),data=dat)
+anova(fit,fit3) #gh_Bench is very significant. Keeping this in the analysis 
+
+#Is family important? (Genotype effects)
+fit4<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+(1|Tag)+(1|gh_bench),data=dat)
+anova(fit,fit4) #Family is not important. 
+
+#Is there a GXE interaction? 
+fit5<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+(1|Family:treatment)+(1|gh_bench),data=dat)
+anova(fit2,fit5) #There is no GXE interaction
+
+#Double check family is not important because there was no significant effect of Tag. 
+fit6<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+(1|gh_bench),data=dat)
+anova(fit2,fit6) #Family is not important. 
+
+#There is no significant family within family genetic variation for flavonoid concentration. 
+
+#------------------
+#Modelling fixed effects. 
+
+#Maximum model:
+fit<-lmer(flav_Conc~treatment+WhiteFungLogis*ThripsDamW*BlackPathDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+(1|Tag)+(1|gh_bench),data=dat)
+
+fit2<-update(fit,~.-WhiteFungLogis:ThripsDamW:BlackPathDamW)
+anova(fit,fit2)
+
+fit3<-update(fit2,~.-WhiteFungLogis:ThripsDamW)
+anova(fit2,fit3) # There is a significant interaction between white fungi presense and thripsdamage. 
+
+fit4<-update(fit2,~.-ThripsDamW:BlackPathDamW)
+anova(fit2,fit4) #no relationship here. 
+
+fit5<-update(fit4,~.-WhiteFungLogis:BlackPathDamW)
+anova(fit5,fit4)#There are no significant interactions. 
+
+
+fit4<-lmer(flav_Conc~treatment+BlackPathDamW+WhiteFungLogis+ThripsDamW+Fern+GM_Leaf_Area+WhiteFungLogis:ThripsDamW+I(GM_Leaf_Area^2)+(1|gh_bench),data=dat)
+summary(fit4)
+#Removing black Path Dam
+
+fit4<-lmer(flav_Conc~treatment+WhiteFungLogis+ThripsDamW+Fern+GM_Leaf_Area+WhiteFungLogis:ThripsDamW+I(GM_Leaf_Area^2)+(1|gh_bench),data=dat)
+summary(fit4)#Revoving Fern (although it is close to significance (p=0.054))
+
+fit5<-lmer(flav_Conc~treatment+WhiteFungLogis+ThripsDamW+GM_Leaf_Area+WhiteFungLogis:ThripsDamW+I(GM_Leaf_Area^2)+(1|gh_bench),data=dat)
+summary(fit5) #Best Model
+
+
+summary(fit5)#This is the best model. 
+plot(fit5)
+qqnorm(residuals(fit5))
+plot(residuals(fit5))
+
+#Treatment (Maple and garlic mustard) and an interaction between whitefungal abundance and thripsdamage reduced flavonoid concentration (apparent plasticity)
+```
+
+
+Modelling Random Effects 
+
+#Maximum model
+fit<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Family/Tag)+(1|gh_bench),data=dat)
+
+#Is Tag important?
+fit2<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Family)+(1|gh_bench),data=dat)
+anova(fit,fit2)#Tag is unimportant (i.e. there is no significant genetic variation within an individual.. leaves are very different) 
+
+#Is greenhouse bench important?
+fit3<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Family/Tag),data=dat)
+anova(fit,fit3) #greenhouse bench is very significant. I will keep this.
+
+#Is family important? (Genotype effects)
+fit4<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Tag)+(1|gh_bench),data=dat)
+anova(fit,fit4) #Family is not important.
+
+#Is there a GXE interaction? 
+fit5<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Family:treatment)+(1|gh_bench),data=dat)
+anova(fit2,fit5) #There is no GXE interaction
+
+#Double check that family isnt important because Tag was not significant.
+fit6<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|gh_bench),data=dat)
+anova(fit6,fit2) #Family is not important, although it was close to significant (p=0.068)
+
+#Modelling Fixed Effects. 
+
+#Maximum model
+fit<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|gh_bench),data=dat)
+
+fit1<-update(fit,~.- WhiteFungLogis:BlackPathDamW:ThripsDamW)
+anova(fit,fit1) #No three way interaction
+
+fit2<-update(fit1,~.- WhiteFungLogis:BlackPathDamW)
+anova(fit2,fit1)#No interaction
+
+fit3<-update(fit2,~.- WhiteFungLogis:ThripsDamW)
+anova(fit3,fit2) #No interaction
+
+fit4<-update(fit3,~.- BlackPathDamW:ThripsDamW)
+anova(fit4,fit3) #No interaction
+
+summary(fit4) #Polynomial of leaf size isn't significant. 
+
+fit4<-lmer(flav_Conc~treatment+WhiteFungLogis+BlackPathDamW+ThripsDamW+Fern+GM_Leaf_Area+ChlorA+treatment:ChlorA+(1|gh_bench),data=dat)
+
+fit5<-update(fit4,~.- ChlorA:treatment)
+anova(fit5,fit4) #the chlorophyll A interaction is not important. 
+
+fit5<-lmer(flav_Conc~treatment+WhiteFungLogis+BlackPathDamW+ThripsDamW+Fern+GM_Leaf_Area+ChlorA+(1|gh_bench),data=dat)
+summary(fit5) #Fern not significant... but just barely (p=0.055)
+
+fit6<-lmer(flav_Conc~treatment+WhiteFungLogis+BlackPathDamW+ThripsDamW+GM_Leaf_Area+ChlorA+(1|gh_bench),data=dat)
+summary(fit6) #WhiteFung Dam is not significant
+
+
+fit7<-lmer(flav_Conc~treatment+BlackPathDamW+ThripsDamW+GM_Leaf_Area+ChlorA+(1|gh_bench),data=dat)
+summary(fit7)#Black Path Dam sint significant. 
+
+fit7<-lmer(flav_Conc~treatment+ThripsDamW+GM_Leaf_Area+ChlorA+(1|gh_bench),data=dat)
+
+#is treatment significant? 
+fit8<-update(fit7,~.-treatment)
+anova(fit7,fit8) #Treatment is highly significant. 
+
+#Therefore, the best model is fit7, with predictors of thrips damage, black pathogen damage, treatment and leaf area all affecting the true plasticity of flavonoid compounds in this experiement. 
+
+#However, the surprising result is that the amount of flavonoids actually decreases with increasing thrips and blackpathogen damage, even after chlorophyll is accounted for. This suggests that when the plant is suffering some sort of fitness consequence, it reduces the amount of glucosinolates and flavonoids before it reduces the amount of chlorophyll, which makes sense. 
+
+plot(fit7)
+qqnorm(residuals(fit7))
+plot(residuals(fit7))
+
+
+```
+Even aft
+
+
+
+#What predicts flavonoid concentration after controlling for performance? (True Plasticity). 
+```{r}
+#Modelling Random Effects 
+
+#Maximum model
+fit<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Family/Tag)+(1|gh_bench),data=dat)
+
+#Is Tag important?
+fit2<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Family)+(1|gh_bench),data=dat)
+anova(fit,fit2)#Tag is unimportant (i.e. there is no significant genetic variation within an individual.. leaves are very different) 
+
+#Is greenhouse bench important?
+fit3<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Family/Tag),data=dat)
+anova(fit,fit3) #greenhouse bench is very significant. I will keep this.
+
+#Is family important? (Genotype effects)
+fit4<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Tag)+(1|gh_bench),data=dat)
+anova(fit,fit4) #Family is not important.
+
+#Is there a GXE interaction? 
+fit5<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|Family:treatment)+(1|gh_bench),data=dat)
+anova(fit2,fit5) #There is no GXE interaction
+
+#Double check that family isnt important because Tag was not significant.
+fit6<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|gh_bench),data=dat)
+anova(fit6,fit2) #Family is not important, although it was close to significant (p=0.068)
+
+#Modelling Fixed Effects. 
+
+#Maximum model
+fit<-lmer(flav_Conc~treatment+WhiteFungLogis*BlackPathDamW*ThripsDamW+Fern+GM_Leaf_Area+I(GM_Leaf_Area^2)+ChlorA+treatment:ChlorA+(1|gh_bench),data=dat)
+
+fit1<-update(fit,~.- WhiteFungLogis:BlackPathDamW:ThripsDamW)
+anova(fit,fit1) #No three way interaction
+
+fit2<-update(fit1,~.- WhiteFungLogis:BlackPathDamW)
+anova(fit2,fit1)#No interaction
+
+fit3<-update(fit2,~.- WhiteFungLogis:ThripsDamW)
+anova(fit3,fit2) #No interaction
+
+fit4<-update(fit3,~.- BlackPathDamW:ThripsDamW)
+anova(fit4,fit3) #No interaction
+
+summary(fit4) #Polynomial of leaf size isn't significant. 
+
+fit4<-lmer(flav_Conc~treatment+WhiteFungLogis+BlackPathDamW+ThripsDamW+Fern+GM_Leaf_Area+ChlorA+treatment:ChlorA+(1|gh_bench),data=dat)
+
+fit5<-update(fit4,~.- ChlorA:treatment)
+anova(fit5,fit4) #the chlorophyll A interaction is not important. 
+
+fit5<-lmer(flav_Conc~treatment+WhiteFungLogis+BlackPathDamW+ThripsDamW+Fern+GM_Leaf_Area+ChlorA+(1|gh_bench),data=dat)
+summary(fit5) #Fern not significant... but just barely (p=0.055)
+
+fit6<-lmer(flav_Conc~treatment+WhiteFungLogis+BlackPathDamW+ThripsDamW+GM_Leaf_Area+ChlorA+(1|gh_bench),data=dat)
+summary(fit6) #WhiteFung Dam is not significant
+
+
+fit7<-lmer(flav_Conc~treatment+BlackPathDamW+ThripsDamW+GM_Leaf_Area+ChlorA+(1|gh_bench),data=dat)
+summary(fit7)#Black Path Dam sint significant. 
+
+fit7<-lmer(flav_Conc~treatment+ThripsDamW+GM_Leaf_Area+ChlorA+(1|gh_bench),data=dat)
+
+#is treatment significant? 
+fit8<-update(fit7,~.-treatment)
+anova(fit7,fit8) #Treatment is highly significant. 
+
+#Therefore, the best model is fit7, with predictors of thrips damage, black pathogen damage, treatment and leaf area all affecting the true plasticity of flavonoid compounds in this experiement. 
+
+#However, the surprising result is that the amount of flavonoids actually decreases with increasing thrips and blackpathogen damage, even after chlorophyll is accounted for. This suggests that when the plant is suffering some sort of fitness consequence, it reduces the amount of glucosinolates and flavonoids before it reduces the amount of chlorophyll, which makes sense. 
+
+plot(fit7)
+qqnorm(residuals(fit7))
+plot(residuals(fit7))
+
+
+```
+
+
+
+#Is there plasticity to pathogens? 
+```{r}
+
+fit<-lm(gluc_Conc~treatment+GM_Leaf_Area+I(GM_Leaf_Area^2)+ThripsDamW*Family,data=dat)
+fit2<-lm(gluc_Conc~treatment+GM_Leaf_Area+I(GM_Leaf_Area^2)+ThripsDamW+Family,data=dat)
+summary(fit)
+
+anova(fit,fit2)#there is not genetic variation for plasticity...but this isnt a very good framework. 
+```
 
 
 

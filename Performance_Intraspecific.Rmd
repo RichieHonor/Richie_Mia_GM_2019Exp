@@ -43,6 +43,16 @@ dat$ThripsDamW<-Weigh(dat$ThripsDam)
 dat$ThripsDamW<-Standardize(dat$ThripsDamW)
 dat$BlackPathDamW<-Standardize(dat$BlackPathDamW)
 
+#Logging pathogen damage data and fern data variables as they are very skewed. 
+dat$BlackPathDamW<-log(dat$BlackPathDamW+abs(min(dat$BlackPathDamW,na.rm=T)+1))
+dat$ThripsDamW<-log(dat$ThripsDamW+abs(min(dat$ThripsDamW,na.rm=T)+1))
+
+dat$Fern<-log(dat$Fern+1)
+dat$gluc_Conc<-log(dat$gluc_Conc)
+dat$flav_Conc<-log(dat$flav_Conc)
+dat$ChlorA<-log(dat$ChlorA)
+
+
 #Calculating leaf area 
 dat$GM_Leaf_Area<-dat$GM_Leaf_Wid*dat$GM_Leaf_Len
 
@@ -130,40 +140,26 @@ fit2<-lmer(GM_TotalLeaf_Area~ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family),
 
 #Rechecking that the three way interaction is significant. 
 fit2.5<-update(fit2,~.-ThripsDamW:BlackPathDamW:WhiteFungLogis)
-anova(fit2,fit2.5) #it is on the edge of significance, (0.055), but not quite there so i will leave it out. 
+anova(fit2,fit2.5) #it is still significant.
 
-fit3<-update(fit2.5,~.-BlackPathDamW:WhiteFungLogis)
-anova(fit3,fit2.5) #There is not a significant two way interaction, 
 
-fit4<-update(fit3,~.-BlackPathDamW:ThripsDamW)
-anova(fit4,fit3)
-#There is not a significant interaction between black path dam and thrips dam. 
-
-fit5<-update(fit4,~.-WhiteFungLogis:ThripsDamW)
-anova(fit5,fit4) #There is not a significant whitefung dam and thrips dam interaction. 
-
-summary(fit5) #Black fung dam is significant, but nothing else is even close. 
-
-fit6<-lmer(GM_TotalLeaf_Area~BlackPathDamW+(1|Family),data=dat2)
-summary(fit6) #White fungi not significant. 
-
-#only black pathogen and Family predicts fitness in this treatment. 
+summary(fit2) 
 ```
 
 
 #Is there evidence that there is a cost of glucosinolates or flavonoid production in this treatment? 
 ```{r}
 #I must control for leaf size, because there are less glucosinolates with larger leaf sizes. 
-fit7<-lmer(GM_TotalLeaf_Area~BlackPathDam+gluc_Conc+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
+fit7<-lmer(GM_TotalLeaf_Area~log(ThripsDam+1) * log(BlackPathDam+1) * WhiteFungLogis+gluc_Conc+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
 summary(fit7) #Not for glucosinolates
 
-fit7<-lmer(GM_TotalLeaf_Area~BlackPathDam+flav_Conc+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
+fit7<-lmer(GM_TotalLeaf_Area~log(ThripsDam+1) * log(BlackPathDam+1) * WhiteFungLogis+flav_Conc+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
 summary(fit7) #Not for flavonoids
 
-fit9<-lmer(GM_TotalLeaf_Area~BlackPathDamW+gluc_Conc+ChlorA+(1|Family),data=dat2)
+fit9<-lmer(GM_TotalLeaf_Area~log(ThripsDam+1) * log(BlackPathDam+1) * WhiteFungLogis+gluc_Conc+ChlorA+(1|Family),data=dat2)
 summary(fit9) #Not for glucosinolates
 
-fit10<-lmer(GM_TotalLeaf_Area~BlackPathDamW+flav_Conc+ChlorA+(1|Family),data=dat2)
+fit10<-lmer(GM_TotalLeaf_Area~log(ThripsDam+1) * log(BlackPathDam+1) * WhiteFungLogis+flav_Conc+ChlorA+(1|Family),data=dat2)
 summary(fit10) 
 
 #No there is not. 
