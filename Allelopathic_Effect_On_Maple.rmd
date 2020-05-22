@@ -5,6 +5,7 @@ date: "31/03/2020"
 output: html_document
 ---
 
+
 #Read in and prep data
 ```{r}
 library(ggplot2)
@@ -40,20 +41,17 @@ dat$BlackPathDamW<-Weigh(dat$BlackPathDam)
 dat$ThripsDamW<-Weigh(dat$ThripsDam)
 dat$WhiteFungDamW<-Weigh(dat$WhiteFungDam)
 
-#Weighted pathogen damage data are no on too small of a scale. These will be standardized. 
-
-dat$BlackPathDamW<-Standardize(dat$BlackPathDamW)
-dat$ThripsDamW<-Standardize(dat$ThripsDamW)
-dat$Maple_TotalLeafArea_End<-Standardize(dat$Maple_TotalLeafArea_End)
-hist(dat$ThripsDamW)
-hist(dat$BlackPathDamW)
 
 #Logging pathogen damage data variables as they are very skewed. 
 dat$BlackPathDamW<-log(dat$BlackPathDamW+abs(min(dat$BlackPathDamW,na.rm=T)+1))
 dat$ThripsDamW<-log(dat$ThripsDamW+abs(min(dat$ThripsDamW,na.rm=T)+1))
+dat$Fern<-log(dat$Fern+1)
+dat$gluc_Conc<-log(dat$gluc_Conc)
+dat$flav_Conc<-log(dat$flav_Conc)
+dat$ChlorA<-log(dat$ChlorA)
+dat$ThripsDam<-log(dat$ThripsDam+1)
+dat$BlackPathDam<-log(dat$BlackPathDam+1)
 
-hist(dat$ThripsDamW)
-hist(dat$BlackPathDamW)
 
 #Calculating leaf area 
 dat$GM_Leaf_Area<-dat$GM_Leaf_Wid*dat$GM_Leaf_Len
@@ -287,42 +285,61 @@ dev.off()
 I chose to seperate this model from the last due to the causality inherent in this data. Glucosinolate concentration should affect garlic mustard fitness only through effects on maple and pathogen abundance. Including glucosinolate concentration in a model with both of these variables to determien the effect of glucosinolates on fitness is actually determining how much glucosinolates affect fitness when these terms are controlled for, which should be not at all. Therefore multiple models are needed to test if glucosinolates influence abundance of pathogens and maple performance, after controlling for garlic mustard performance (Using chlorophyll A, because those with high performance might simply be making more glucosinolates). Then i can see how much maple and pathogens influence garlic mustard performance. 
 ```{r}
 #ThripsDam and BlackPathDam represent standardized, logged data which are weighed by leaf size. 
-
+MapleModel$GM_Leaf_Area<-Standardize(MapleModel$GM_Leaf_Area)
+MapleModel$Maple_TotalLeafArea_End<-Standardize(MapleModel$Maple_TotalLeafArea_End)
 
 #Modelling random effects 
-fit<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+log(Fern+1)+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench/gh_col),data=MapleModel)
+fit<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench/gh_col),data=MapleModel)
 
-fit2<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+log(Fern+1)+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench),data=MapleModel)
+fit2<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=MapleModel)
 
-fit3<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+log(Fern+1)+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|gh_bench/gh_col),data=MapleModel)
+fit3<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family),data=MapleModel)
+
+fit4<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|gh_bench),data=MapleModel)
 
 
 #Is collumn important?
-anova(fit,fit2) #Yes it is. 
+anova(fit,fit2) #No it is not
+
+#Is Bench important? 
+anova(fit2,fit3) #Yes bench is very important
 
 #Is family important? 
-anova(fit,fit3) #Yes family is very important, this is a different result from the one I received prior to weighing the pathogen data. 
-
+anova(fit2,fit4) #Yes family is very important
 
 #Modeling fixed effects: 
 
-fit<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+log(Fern+1)+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench/gh_col),data=MapleModel)
+fit<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=MapleModel)
 
-fit2<-update(fit,~.-ThripsDamW:BlackPathDamW:WhiteFungLogis)
+fit2<-update(fit,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
 anova(fit,fit2) #Not a significant three way interaction.
 
-fit3<-update(fit2,~.-BlackPathDamW:WhiteFungLogis)
-anova(fit3,fit2) #There is a significant two way interaction.
+fit3<-update(fit2,~.-BlackPathDam:WhiteFungLogis)
+anova(fit3,fit2) #There is not a significant two way interaction.
 
-fit4<-update(fit2,~.-BlackPathDamW:ThripsDamW)
-anova(fit4,fit2)
-#There is a significant interaction between black path dam and thrips dam interaction p=0.08
+fit4<-update(fit3,~.-BlackPathDam:ThripsDam)
+anova(fit4,fit3)
+#There is no significant interaction between black path dam and thrips dam interaction p=0.06 (very close). 
 
-fit5<-update(fit2,~.-WhiteFungLogis:ThripsDamW)
-anova(fit5,fit2) #There is a significant white path and thripsdamage interaction.
+fit5<-update(fit4,~.-WhiteFungLogis:ThripsDam)
+anova(fit5,fit4) #There is not significant white path and thripsdamage interaction.
 
-summary(fit2)
-#Fern and all pathogen damages influence fitness. Logging this data added alot of power to the analysis. This is because it removed the influence of very high values in influencing the model. 
+summary(fit5) #White fungal damage not significant. 
+
+
+fit6<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End + Fern +  
+    ThripsDam + BlackPathDam  +GM_Leaf_Area+(1 | Family)+(1|gh_bench)  ,data= MapleModel)
+
+summary(fit6)
+
+#Fern is not significant
+fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End  +  
+    ThripsDam + BlackPathDam  +GM_Leaf_Area+(1 | Family)+(1|gh_bench)  ,data= MapleModel)
+
+summary(fit7)
+
+
+
 
 plot(fit2)
 plot(residuals(fit2))
@@ -333,20 +350,17 @@ qqnorm(residuals(fit2)) #looks good.
 ```{r}
 
 #Cost of glucosinolates ?
-fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End + log(Fern + 1) +  
-    log(ThripsDam+1) + log(BlackPathDam+1) + WhiteFungLogis + (1 | Family) +  
-    (1 | gh_bench/gh_col) + log(ThripsDam+1):log(BlackPathDam+1) + log(ThripsDam+1):WhiteFungLogis +  
-    log(BlackPathDam+1):WhiteFungLogis+log(gluc_Conc)+Standardize(GM_Leaf_Area),data=MapleModel)
-summary(fit7)
+fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End   +  
+    ThripsDam + BlackPathDam + (1 | Family) +  
+    (1 | gh_bench) + GM_Leaf_Area+gluc_Conc,data=MapleModel)
+summary(fit7) #Gluc conc is significantly positive. 
 
 #Cost of Flavonoids ?
-fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End + log(Fern + 1) +  
-    log(ThripsDam+1) + log(BlackPathDam+1) + WhiteFungLogis + (1 | Family) +  
-    (1 | gh_bench/gh_col) + log(ThripsDam+1):log(BlackPathDam+1) + log(ThripsDam+1):WhiteFungLogis +  
-    log(BlackPathDam+1):WhiteFungLogis+log(flav_Conc)+Standardize(GM_Leaf_Area),data=MapleModel)
-summary(fit7)
-
-#no there is not.
+#Cost of glucosinolates ?
+fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End   +  
+    ThripsDam + BlackPathDam + (1 | Family) +  
+    (1 | gh_bench) + GM_Leaf_Area+flav_Conc,data=MapleModel)
+summary(fit7) #no there is not.
 ```
 I use the log(black path dam) but i do not have it weighted by leaf size. This is because i need to control for the influence that leaf size has on glucoisnolate concentration to avoid the autocorrelation between leaf size and performace (total leaf area)
 

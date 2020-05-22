@@ -39,9 +39,6 @@ Standardize<-function(x){
 dat$BlackPathDamW<-Weigh(dat$BlackPathDam)
 dat$ThripsDamW<-Weigh(dat$ThripsDam)
 
-#Standardizing pathogen damage (not white pathogen damage, that is logistic)
-dat$ThripsDamW<-Standardize(dat$ThripsDamW)
-dat$BlackPathDamW<-Standardize(dat$BlackPathDamW)
 
 #Logging pathogen damage data, fern data, and secondary compound and chlorophyll data as they are all skewed. 
 dat$BlackPathDamW<-log(dat$BlackPathDamW+abs(min(dat$BlackPathDamW,na.rm=T)+1))
@@ -51,6 +48,8 @@ dat$Fern<-log(dat$Fern+1)
 dat$gluc_Conc<-log(dat$gluc_Conc)
 dat$flav_Conc<-log(dat$flav_Conc)
 dat$ChlorA<-log(dat$ChlorA)
+dat$ThripsDam<-log(dat$ThripsDam+1)
+dat$BlackPathDam<-log(dat$BlackPathDam+1)
 
 #Creating leaf area vector 
 dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
@@ -71,32 +70,65 @@ dat2<-dat2[!grepl("maple",dat2$Tag,fixed = T),]
 
 length(unique(dat2$Family))
 
+
+dat2<-dat2[dat2$treatment=="a",]
+
+```
+
+
+#Gmatrix model 
+```{r}
+library(tidyr)
+library(rms)
+
+
+datG
+datG<-dat2 %>% select(Tag,Family,gluc_Conc,ChlorA,flav_Conc,gh_bench) %>%  pivot_longer(c(gluc_Conc,ChlorA,flav_Conc))
+
+Gls(value ~ name,correlation = (1|Family),data=datG)
+
+glmmTMB(value~name-1+(1|Family),data=datG)
+
+lmer(value ~ 1 + name +(1 + name|Family),data=datG)
+
 ```
 
 
 
-#What predicts garlic mustard performance in the alone treatment? 
+
+
+
+
+#What predicts garlic mustard performance in the alone treatment? (Non- weighted) (not enough samples to estimate family values. )
 ```{r}
-dat2<-dat2[dat2$treatment=="a",]
 #Weighted pathogen damage data are no on too small of a scale. These will be standardized. 
-
-
 #Modelling random effects 
-fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench/gh_col),data=dat2)
+library(glmmTMB)
+dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 
-fit2<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench),data=dat2)
 
-fit3<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|gh_bench/gh_col),data=dat2)
 
-fit4<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family),data=dat2)
+fit<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench/gh_col),data=dat2)
 
-fit5<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|gh_bench),data=dat2)
+fit2<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=dat2)
 
+fit3<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|gh_bench/gh_col),data=dat2)
+
+fit4<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family),data=dat2)
+
+fit5<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|gh_bench),data=dat2)
+
+
+fit5<-glmmTMB(GM_TotalLeaf_Area~1+(1|Family),data=dat2)
+fit6<-glmmTMB(GM_TotalLeaf_Area~1,data=dat2)
+
+summary(fit5)
+dat2
 #Is collumn important?
 anova(fit,fit2) #no it is not.
 
 #Is family important? 
-anova(fit,fit5) #nNot at all. 
+anova(fit2,fit5) #nNot at all. 
 
 #Is gh_bench important? 
 anova(fit2,fit4) #yes it is
@@ -105,26 +137,26 @@ anova(fit2,fit4) #yes it is
 
 #Modeling fixed effects: 
 
-fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|gh_bench),data=dat2)
+fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|gh_bench),data=dat2)
 
-fit2<-update(fit,~.-ThripsDamW:BlackPathDamW:WhiteFungLogis)
+fit2<-update(fit,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
 anova(fit,fit2) #Not a significant three way interaction.
 
-fit3<-update(fit2,~.-BlackPathDamW:WhiteFungLogis)
+fit3<-update(fit2,~.-BlackPathDam:WhiteFungLogis)
 anova(fit3,fit2) #There is not a significant two way interaction, 
 
-fit4<-update(fit3,~.-BlackPathDamW:ThripsDamW)
+fit4<-update(fit3,~.-BlackPathDam:ThripsDam)
 anova(fit4,fit3)
 #There is not a significant interaction between black path dam and thrips dam. 
 
-fit5<-update(fit4,~.-WhiteFungLogis:ThripsDamW)
+fit5<-update(fit4,~.-WhiteFungLogis:ThripsDam)
 anova(fit5,fit4) #There is not a significant whitefung dam and thrips dam interaction. 
 
 summary(fit5)#Fern is not significant
-fit6<-lmer(GM_TotalLeaf_Area~ThripsDamW+BlackPathDamW+WhiteFungLogis+(1|gh_bench),data=dat2)
+fit6<-lmer(GM_TotalLeaf_Area~ThripsDam+BlackPathDam+WhiteFungLogis+GM_Leaf_Area+(1|gh_bench),data=dat2)
 summary(fit6)#thrips damage is not significant. 
 
-fit7<-lmer(GM_TotalLeaf_Area~BlackPathDamW+WhiteFungLogis+(1|gh_bench),data=dat2)
+fit7<-lmer(GM_TotalLeaf_Area~BlackPathDam+WhiteFungLogis+GM_Leaf_Area+(1|gh_bench),data=dat2)
 summary(fit7)#White fungal damage and black pathogen damage are significant. 
 
 
@@ -136,11 +168,20 @@ plot(residuals(fit7))
 plot(fit7)
 ```
 
+
+
+
+
+
+
+
+
+
 #Is there a cost to glucosinolate production?
 ```{r}
 #Must control for leaf size here. ...
 dat2
-fit8<-lmer(GM_TotalLeaf_Area~log(BlackPathDam+1)+Standardize(GM_Leaf_Area)+WhiteFungLogis+gluc_Conc+(1|gh_bench),data=dat2)
+fit8<-lmer(GM_TotalLeaf_Area~BlackPathDam++Standardize(GM_Leaf_Area)+WhiteFungLogis+gluc_Conc+(1|gh_bench),data=dat2)
 summary(fit8)
 #only black pathogen damage predicts performance in the alone treatment. #No it is not, although... there is a negative slope....
 
@@ -180,9 +221,6 @@ Standardize<-function(x){
 dat$BlackPathDamW<-Weigh(dat$BlackPathDam)
 dat$ThripsDamW<-Weigh(dat$ThripsDam)
 
-#Standardizing pathogen damage (not white pathogen damage, that is logistic)
-dat$ThripsDamW<-Standardize(dat$ThripsDamW)
-dat$BlackPathDamW<-Standardize(dat$BlackPathDamW)
 
 #Logging Data
 dat$BlackPathDamW<-log(dat$BlackPathDamW+abs(min(dat$BlackPathDamW,na.rm=T)+1))
@@ -192,6 +230,8 @@ dat$Fern<-log(dat$Fern+1)
 dat$gluc_Conc<-log(dat$gluc_Conc)
 dat$flav_Conc<-log(dat$flav_Conc)
 dat$ChlorA<-log(dat$ChlorA)
+dat$ThripsDam<-log(dat$ThripsDam+1)
+dat$BlackPathDam<-log(dat$BlackPathDam+1)
 
 #Generating leaf area
 dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
@@ -206,27 +246,31 @@ dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-"Yes"
 dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-"No"
 ```
 
-
-#Modelling with full data set. 
+#What predicts garlic mustard performance in the alone treatment? (Non- weighted)
 ```{r}
-dat2<-dat2[dat2$treatment=="a",]
-
-
+#Weighted pathogen damage data are no on too small of a scale. These will be standardized. 
 #Modelling random effects 
-fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench/gh_col),data=dat2)
+library(glmmTMB)
+dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 
-fit2<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench),data=dat2)
 
-fit3<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|gh_bench/gh_col),data=dat2)
 
-fit4<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family),data=dat2)
+fit<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench/gh_col),data=dat2)
+
+fit2<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=dat2)
+
+fit3<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|gh_bench/gh_col),data=dat2)
+
+fit4<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family),data=dat2)
+
+fit5<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|gh_bench),data=dat2)
 
 
 #Is collumn important?
 anova(fit,fit2) #no it is not.
 
 #Is family important? 
-anova(fit,fit3) #almost, but no it is not
+anova(fit2,fit5) #Yes.... Very. 
 
 #Is gh_bench important? 
 anova(fit2,fit4) #yes it is
@@ -235,24 +279,47 @@ anova(fit2,fit4) #yes it is
 
 #Modeling fixed effects: 
 
-fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungDam+(1|gh_bench),data=dat2)
+fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|gh_bench)+(1|Family),data=dat2)
 
-fit2<-update(fit,~.-ThripsDamW:BlackPathDamW:WhiteFungDam)
+fit2<-update(fit,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
 anova(fit,fit2) #Not a significant three way interaction.
 
-fit3<-update(fit2,~.-BlackPathDamW:WhiteFungDam)
+fit3<-update(fit2,~.-BlackPathDam:WhiteFungLogis)
 anova(fit3,fit2) #There is not a significant two way interaction, 
 
-fit4<-update(fit3,~.-BlackPathDamW:ThripsDamW)
+fit4<-update(fit3,~.-BlackPathDam:ThripsDam)
 anova(fit4,fit3)
 #There is not a significant interaction between black path dam and thrips dam. 
 
-fit5<-update(fit4,~.-WhiteFungDam:ThripsDamW)
+fit5<-update(fit4,~.-WhiteFungLogis:ThripsDam)
 anova(fit5,fit4) #There is not a significant whitefung dam and thrips dam interaction. 
 
-summary(fit5)#White Fung Dam is not significant.
+summary(fit5)#Fern is not significant
+fit6<-lmer(GM_TotalLeaf_Area~ThripsDam+BlackPathDam+WhiteFungLogis+GM_Leaf_Area+(1|gh_bench)+(1|Family),data=dat2)
+summary(fit6)#All else is significant. 
 
-fit6<-lmer(GM_TotalLeaf_Area~ThripsDamW+BlackPathDamW+Fern+(1|gh_bench),data=dat2)
-summary(fit6)
+
+summary(fit7)
+hist(residuals(fit7))
+plot(residuals(fit7))
+plot(fit7)
 ```
 
+
+
+
+
+#Is there a cost to glucosinolate production?
+```{r}
+#Must control for leaf size here. ...
+dat2
+fit8<-lmer(GM_TotalLeaf_Area~BlackPathDam+ThripsDam+GM_Leaf_Area+WhiteFungLogis+gluc_Conc+(1|gh_bench)+(1|Family),data=dat2)
+summary(fit8)
+#only black pathogen damage predicts performance in the alone treatment. #No it is not, although... there is a negative slope....
+
+fit8<-lmer(GM_TotalLeaf_Area~BlackPathDam+ThripsDam+WhiteFungLogis+GM_Leaf_Area+flav_Conc+(1|gh_bench)+(1|Family),data=dat2)
+summary(fit8) #no although this is now negative as well. This is interesting as it is the opposite of what was observed in the maple treatment. 
+
+
+```
+#Significantly positive. 

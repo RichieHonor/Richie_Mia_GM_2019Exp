@@ -39,18 +39,19 @@ Standardize<-function(x){
 dat$BlackPathDamW<-Weigh(dat$BlackPathDam)
 dat$ThripsDamW<-Weigh(dat$ThripsDam)
 
-#Standardizing pathogen damage (not white pathogen damage, that is logistic)
-dat$ThripsDamW<-Standardize(dat$ThripsDamW)
-dat$BlackPathDamW<-Standardize(dat$BlackPathDamW)
 
 #Logging pathogen damage data and fern data variables as they are very skewed. 
 dat$BlackPathDamW<-log(dat$BlackPathDamW+abs(min(dat$BlackPathDamW,na.rm=T)+1))
 dat$ThripsDamW<-log(dat$ThripsDamW+abs(min(dat$ThripsDamW,na.rm=T)+1))
 
+
 dat$Fern<-log(dat$Fern+1)
 dat$gluc_Conc<-log(dat$gluc_Conc)
 dat$flav_Conc<-log(dat$flav_Conc)
 dat$ChlorA<-log(dat$ChlorA)
+dat$ThripsDam<-log(dat$ThripsDam+1)
+dat$BlackPathDam<-log(dat$BlackPathDam+1)
+
 
 
 #Calculating leaf area 
@@ -101,19 +102,22 @@ dat2
 ```
 
 
-#What predicts performance in the intraspecific treatment?
+
+#What predicts performance in the intraspecific treatment? - no weighed pathogen data
 ```{r}
-
+dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 #Modelling random effects 
-fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench/gh_col)+(1|competitor),data=dat2)
+fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench/gh_col)+(1|competitor),data=dat2)
 
-fit2<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|gh_bench)+(1|competitor),data=dat2)
+fit2<-lmer(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench)+(1|competitor),data=dat2)
 
-fit3<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|gh_bench/gh_col)+(1|competitor),data=dat2)
+fit3<-lmer(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|gh_bench/gh_col)+(1|competitor),data=dat2)
 
-fit4<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family)+(1|competitor),data=dat2)
+fit4<-lmer(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|competitor),data=dat2)
 
-fit5<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family),data=dat2)
+fit5<-lmer(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family),data=dat2)
+
+fit6<-lmer(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|competitor),data=dat2)
 
 
 #Is collumn important?
@@ -126,42 +130,51 @@ anova(fit,fit3) #Yes it is.
 anova(fit2,fit4) #No it is not. 
 
 #Is competitor important? 
-anova(fit4,fit5) #No it is not. So family is imporant, but the competitor is not important. Intersting. 
+anova(fit4,fit5) #The model isnt improved when the competitor is added
+
+#Is competitor important? 
+anova(fit5,fit6) #NoThe models are essentually the same with family as the predictor or with competitor, however, the model with family alone is better 
 
 #Modelling fixed effects 
-fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family),data=dat2)
+fit<-lmer(GM_TotalLeaf_Area~Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family),data=dat2)
 
-fit2<-update(fit,~.-ThripsDamW:BlackPathDamW:WhiteFungLogis)
-anova(fit,fit2) #There is a significant three way interaction.
-summary(fit)
+fit2<-update(fit,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
+anova(fit,fit2) #There is not significant three way interaction.
 
-#Removing fern as it is not ignificant. 
-fit2<-lmer(GM_TotalLeaf_Area~ThripsDamW*BlackPathDamW*WhiteFungLogis+(1|Family),data=dat2)
+fit3<-update(fit2,~.-BlackPathDam:WhiteFungLogis)
+anova(fit3,fit2) #There is not a significant two way interaction, 
 
-#Rechecking that the three way interaction is significant. 
-fit2.5<-update(fit2,~.-ThripsDamW:BlackPathDamW:WhiteFungLogis)
-anova(fit2,fit2.5) #it is still significant.
+fit4<-update(fit3,~.-BlackPathDam:ThripsDam)
+anova(fit4,fit3)
+#There is not a significant interaction between black path dam and thrips dam. 
+
+fit5<-update(fit4,~.-WhiteFungLogis:ThripsDam)
+anova(fit5,fit4) #There is not a significant whitefung dam and thrips dam interaction. 
+
+summary(fit5) #There are no two way interactions.
+
+#Removing fern as it is not significant. 
+fit6<-lmer(GM_TotalLeaf_Area~ThripsDam+BlackPathDam+WhiteFungLogis+GM_Leaf_Area+(1|Family),data=dat2)
+summary(fit6)
 
 
-summary(fit2) 
+#Removing thrips as it is not significant. 
+fit7<-lmer(GM_TotalLeaf_Area~BlackPathDam+WhiteFungLogis+GM_Leaf_Area+(1|Family),data=dat2)
+summary(fit7) #All other predictors (white fungal and black pathogen damage) are significant. 
+
+
 ```
+
 
 
 #Is there evidence that there is a cost of glucosinolates or flavonoid production in this treatment? 
 ```{r}
 #I must control for leaf size, because there are less glucosinolates with larger leaf sizes. 
-fit7<-lmer(GM_TotalLeaf_Area~log(ThripsDam+1) * log(BlackPathDam+1) * WhiteFungLogis+gluc_Conc+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
-summary(fit7) #Not for glucosinolates
+fit7<-lmer(GM_TotalLeaf_Area~ BlackPathDam+ WhiteFungLogis+gluc_Conc+GM_Leaf_Area+(1|Family),data=dat2)
+summary(fit7) #Not for glucosinolates... significantly positive correlation.
 
-fit7<-lmer(GM_TotalLeaf_Area~log(ThripsDam+1) * log(BlackPathDam+1) * WhiteFungLogis+flav_Conc+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
-summary(fit7) #Not for flavonoids
+fit7<-lmer(GM_TotalLeaf_Area~BlackPathDam + WhiteFungLogis+flav_Conc+GM_Leaf_Area+(1|Family),data=dat2)
+summary(fit7) #Not for flavonoids (Significant postive correlation. )
 
-fit9<-lmer(GM_TotalLeaf_Area~log(ThripsDam+1) * log(BlackPathDam+1) * WhiteFungLogis+gluc_Conc+ChlorA+(1|Family),data=dat2)
-summary(fit9) #Not for glucosinolates
-
-fit10<-lmer(GM_TotalLeaf_Area~log(ThripsDam+1) * log(BlackPathDam+1) * WhiteFungLogis+flav_Conc+ChlorA+(1|Family),data=dat2)
-summary(fit10) 
-
-#No there is not. 
 ```
 
