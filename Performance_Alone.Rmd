@@ -82,15 +82,18 @@ library(tidyr)
 library(rms)
 
 
-datG
 datG<-dat2 %>% select(Tag,Family,gluc_Conc,ChlorA,flav_Conc,gh_bench) %>%  pivot_longer(c(gluc_Conc,ChlorA,flav_Conc))
 
-Gls(value ~ name,correlation = (1|Family),data=datG)
+fit0<-Gls(value ~ name,correlation = (1|Family),data=datG)
 
-glmmTMB(value~name-1+(1|Family),data=datG)
 
-lmer(value ~ 1 + name +(1 + name|Family),data=datG)
+fit<-glmmTMB(value~name+(1|Family),data=datG)
+summary(fit)
 
+
+
+fit1<-lmer(value ~ 1 + name +(1 + name|Family),data=datG)
+summary(fit1)
 ```
 
 
