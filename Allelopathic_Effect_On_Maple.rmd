@@ -19,10 +19,6 @@ library("glmmTMB")
 rm(list=ls())
 dat<-read.csv("DataSynthesis.csv")
 
-#Assign family column
-prefamily<-gsub("*.\\|","",dat$Tag)
-dat$Family<-gsub("\\-.*","",prefamily)
-
 #remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
 dat<-dat[!grepl("i",dat$Sample,fixed=T),]
 
@@ -84,6 +80,15 @@ Maple<-Maple[!is.na(Maple$Maple_StemHeight_End),]
 Maple$treatment<-factor(Maple$treatment,levels = c("m","mcnt"))
 
 
+#Correcting an error of initial maple height. A height of 8 is not possible. changing to 80 as this is a likely typo. 
+Maple$maple_height_0[Maple$maple_height_0==8]<-80
+
+
+min(Maple$maple_height_0)
+
+max(Maple$maple_height_0)
+hist(Maple$maple_height_0,breaks = 20)
+
 
 
 ```
@@ -117,6 +122,7 @@ plot(predict(pcaModelTotal)[,1]~PCAMaple$Maple_TotalLeafArea_End)
 plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_height_0)
 plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_leaf_length_0)
 plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_leaves_0)
+
 ```
 
 #Examinging differences in maple performance, while controlling for the initial maple size. 
@@ -135,20 +141,20 @@ fitTreat<-lm(Maple_TotalLeafArea_End~PC1Tot+treatment,data=Maple)
 summary(fitTreat) #This is highly significant effect of treatment.... 
 
 fitTreatInt<-lm(Maple_TotalLeafArea_End~PC1Tot*treatment,data=Maple)
-anova(fitTreat,fitTreatInt)#The interaction term is significant. 
+anova(fitTreat,fitTreatInt)#The interaction term is on the edge of significance.  
 summary(fitTreatInt)
 
 
 
 slopeComp<-function(x){
-  y=1346.3*x+4854.5
+  y=1317.2*x+4844.0
   return(y)
 }
 Comp<-Maple$PC1Tot[Maple$treatment=="m"]
 xComp<-seq(min(Comp),max(Comp),length.out = 194)
 
 slopeCnt<-function(x){
-  y=(1346.3+509.6)*x+4854.5+1210.0
+  y=(1317.2+486.8)*x+4844.0+1309.9
   return(y)
 }
 Cnt<-Maple$PC1Tot[Maple$treatment=="mcnt"]
@@ -180,13 +186,13 @@ hist(Maple$Maple_TotalLeafArea_End,breaks=50)
 
 #Modelling Random effects 
 
-fitTwFull<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+log(gluc_Conc)+MapleDamage+(1|Family)+(1|gh_bench),family = tweedie, data=MapleModel)
+fitTwFull<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+(1|Family)+(1|gh_bench),family = tweedie, data=MapleModel)
 
-fitTwFull0.1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+log(gluc_Conc)+MapleDamage+(1|gh_bench),family = tweedie, data=MapleModel)
+fitTwFull0.1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+(1|gh_bench),family = tweedie, data=MapleModel)
 
-fitTwFull0.2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+log(gluc_Conc)+MapleDamage+(1|Family),family = tweedie, data=MapleModel)
+fitTwFull0.2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+(1|Family),family = tweedie, data=MapleModel)
 
-fitTwFull0.3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+log(gluc_Conc)+MapleDamage,family = tweedie, data=MapleModel)
+fitTwFull0.3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
 
 #Is there an effect of family? 
 anova(fitTwFull,fitTwFull0.1) #No
@@ -199,10 +205,10 @@ anova(fitTwFull,fitTwFull0.2) #No
 
 #Modelling: Fixed effects?
 
-fitTw1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot*log(gluc_Conc)+MapleDamage,family = tweedie, data=MapleModel)
+fitTw1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot*gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
 summary(fitTw1) #The interaction is not important, but glucosinolate concentration and maple damage are. 
 
-fitTw2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+log(gluc_Conc)+MapleDamage,family = tweedie, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+fitTw2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
 summary(fitTw2)
  #Glucosinolate concentration and MapleDamage are both highly significant.
 
@@ -210,7 +216,7 @@ summary(fitTw2)
 #The question is, however, do glucosinolates significant reduce maple performance because they are inhibiting maple (allelopathy) OR because those with high glucosinolate expression are better competitors and aquire more resources to then allocate more resources to defenes? (Chicken or the egg)
 
 #Is the negative effect of glucosinolates on maple performance removed once Chlorophyll A expression is added to the model? This would control for garlic mustard performance because those that produce more chlorophyll can also produce more glucosinolates. 
-fitTw3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+log(gluc_Conc)+log(ChlorA),family = tweedie, data=MapleModel)
+fitTw3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+gluc_Conc+ChlorA,family = tweedie, data=MapleModel)
 summary(fitTw3)
 # Including Chlorophyll A completely removed the effect of glucosinolates. This suggests that glucosinolates may be correlated with maple performance due to plants that reduce maple performance having higher fitness and more resources for glucosinolates without glucosinolates actually being responsible. On the other hand, those with more glucosinolates may have higher fitness and be able to produce more Chlorophyll A because they are inhibiting maple.
 
@@ -220,14 +226,14 @@ summary(fitTw2)
 plot(resid(fitTw2))
 hist(resid(fitTw2),breaks=20)#Looks reasonably normal to me.
 
-fitV<-lm(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+log(gluc_Conc)+log(ChlorA),data=MapleModel)
+fitV<-lm(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+gluc_Conc+ChlorA,data=MapleModel)
 summary(fitV)
 
 vif(fitV) #Vif for ChlorA and gluc concentration are both below 2. This suggest that gluc_Conc and Chlor concentration are not high enough that the effect of the two are indistinguishable. This suggests that the entire effect of glucosinolates is due to chlorophyll concentration. 
 
 
 #Permutation test to check the reliability of the p values in the best model.
-fitTw3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+log(gluc_Conc)+MapleDamage,family = tweedie, data=MapleModel)
+fitTw3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
 summary(fitTw3)
 # 
 # summary(fitTw3)$coef
@@ -253,8 +259,8 @@ summary(fitTw3)
 
 #Is there evidence that those in the maple and garlic mustard treatment have the same relationship between glucosinolate and chlorA? If glucosinolates are truly beneficial in one treatment but not in another, we might expect for the relationship between glucosinolates and ChlorA to be stronger in the treatment in which glucosinolates are beneficial. This is because if those that create more chlorophyll a passively allocate more resources to glucosinolates, this relationship may be a weaker relationship than if glucosinolates are increasing fitness and allowing an increased allocation to chlrophyll A. 
 ```{r}
-fit<-lm(log(gluc_Conc)~log(ChlorA)*treatment,data=dat)
-fit2<-lm(log(gluc_Conc)~log(ChlorA)+treatment,data=dat)
+fit<-lm(gluc_Conc~ChlorA*treatment,data=dat)
+fit2<-lm(gluc_Conc~ChlorA+treatment,data=dat)
 anova(fit,fit2)
 #There is not a significant interaction when logged data are used...... This figure is now obsolete. 
 summary(fit)
@@ -350,9 +356,9 @@ qqnorm(residuals(fit2)) #looks good.
 ```{r}
 
 #Cost of glucosinolates ?
-fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End   +  
+fit7<-lmer(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)   +  
     ThripsDam + BlackPathDam + (1 | Family) +  
-    (1 | gh_bench) + GM_Leaf_Area+gluc_Conc,data=MapleModel)
+    (1 | gh_bench) + Standardize(GM_Leaf_Area)+gluc_Conc,data=MapleModel)
 summary(fit7) #Gluc conc is significantly positive. 
 
 #Cost of Flavonoids ?
@@ -385,24 +391,24 @@ datFern
 
 #Modelling random effects 
 
-fit_full<-glmmTMB(Fern~treatment+log(gluc_Conc)+log(ChlorA)+(1|Family)+(1|gh_bench),family=nbinom2,data=datFern)
+fit_full<-glmmTMB(Fern~treatment+gluc_Conc+ChlorA+(1|Family)+(1|gh_bench),family=nbinom2,data=datFern)
 
-fit_full_0.1<-glmmTMB(Fern~treatment+log(gluc_Conc)+log(ChlorA)+(1|Family),family=nbinom2,data=datFern)
+fit_full_0.1<-glmmTMB(Fern~treatment+gluc_Conc+ChlorA+(1|Family),family=nbinom2,data=datFern)
 
-fit_full_0.2<-glmmTMB(Fern~treatment+log(gluc_Conc)+log(ChlorA)+(1|gh_bench),family=nbinom2,data=datFern)
+fit_full_0.2<-glmmTMB(Fern~treatment+gluc_Conc+ChlorA+(1|gh_bench),family=nbinom2,data=datFern)
 
 anova(fit_full,fit_full_0.1)#Bench is an extremenly important predictor. 
 anova(fit_full,fit_full_0.2)#Family is not. 
 
 
-fit_full<-glmmTMB(Fern~treatment+log(gluc_Conc)+log(ChlorA)+(1|gh_bench),family=nbinom2,data=datFern[!is.na(datFern$gluc_Conc),])
+fit_full<-glmmTMB(Fern~treatment+gluc_Conc+ChlorA+(1|gh_bench),family=nbinom2,data=datFern[!is.na(datFern$gluc_Conc),])
 
 anova(fit_full,fit_1)#Glucosinolates are not a significant predictor of fern abundance (although the AIC is about the same)
 
 summary(fit_full)
 summary(fit_1)
 #Using the whole data set...
-fit_1<-glmmTMB(Fern~treatment+log(ChlorA)+(1|gh_bench),family=nbinom2,data=datFern)
+fit_1<-glmmTMB(Fern~treatment+ChlorA+(1|gh_bench),family=nbinom2,data=datFern)
 summary(fit_1)
 #those with more ChlorA dont have less ferns. If anything, they have more ferns. It seems ferns are just along for the ride, if the pot is good enough, then ferns will grow.... Interestingly there are more ferns in the competition experiemnet. ...
 

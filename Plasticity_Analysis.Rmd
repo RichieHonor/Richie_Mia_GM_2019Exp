@@ -15,9 +15,6 @@ library(lmerTest)
 rm(list=ls())
 dat<-read.csv("DataSynthesis.csv")
 
-#Assign family column
-prefamily<-gsub("*.\\|","",dat$Tag)
-dat$Family<-gsub("\\-.*","",prefamily)
 
 #remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
 dat<-dat[!grepl("i",dat$Sample,fixed=T),]

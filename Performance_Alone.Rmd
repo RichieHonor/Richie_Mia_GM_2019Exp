@@ -18,9 +18,6 @@ library("glmmTMB")
 rm(list=ls())
 dat<-read.csv("DataSynthesis.csv")
 
-#Assign family column
-prefamily<-gsub("*.\\|","",dat$Tag)
-dat$Family<-gsub("\\-.*","",prefamily)
 
 #remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
 dat<-dat[!grepl("i",dat$Sample,fixed=T),]
@@ -202,10 +199,6 @@ summary(fit8) #no although this is now negative as well. This is interesting as 
 rm(list=ls())
 dat<-read.csv("DataSynthesis.csv")
 
-
-#Assign family column
-prefamily<-gsub("*.\\|","",dat$Tag)
-dat$Family<-gsub("\\-.*","",prefamily)
 
 #remove those with fertilizer treatment only
 dat<-dat[!grepl("SMITH1-3-80|MSMID1-2-0|KVEDG1-8-60",dat$Tag),]

@@ -754,4 +754,44 @@ write.csv(master,"DataSynthesis.csv")
 ```
 
 
+#Insert Genotype location (longitude and lattitude).
+```{r}
+#Reading in data
+popinfo<-read.csv("Data_Moities/S0_population_info.csv")
+dat<-read.csv("DataSynthesis.csv")
+
+#Assign family column
+prefamily<-gsub("*.\\|","",dat$Tag)
+dat$Family<-gsub("\\-.*","",prefamily)
+
+#Correcting labels to match the population information data sheet
+dat$Family[dat$Family=="JWBOY"]<-"JWBOY1"
+dat$Family[dat$Family=="MAVELK"]<-"MAVELK1"
+dat$Family[dat$Family=="VSGARO1"]<-"VSGAR01"
+dat$Family[dat$Family=="CRSOSO"]<-"CRSORO"
+dat$Family[dat$Family=="PDVRT1"]<-"PDRVT1"
+
+#All but DSGAR were found and all were grown in yihans experiment. 
+
+#PDVRT1 is the only one that is not in the file at all. 
+
+#Which families are not identified? 
+dat %>% filter(!Family %in% popinfo$Pop_Code) #%>% select("Family")
+
+
+#Finding populations in my experiment
+DatJoin<-popinfo %>% filter(Pop_Code %in% dat$Family) %>% select(Pop_Code,Region,Latitude,Longitude,Altitude,Pop_Size,RosDens,AdultDens)
+
+#Joining information with the final data set
+Final<-dat %>% left_join(DatJoin,by=c("Family"="Pop_Code"))
+
+#Writting to file. 
+write.csv(Final,"DataSynthesis.csv")
+
+
+```
+
+
+
+
 
