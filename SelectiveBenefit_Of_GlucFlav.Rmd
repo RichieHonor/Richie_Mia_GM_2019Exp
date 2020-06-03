@@ -40,6 +40,12 @@ dat$BlackFungLogis<-NA
 
 #Generating data frames with summarized leaf data (dat2) and summarized genotype data (dat3)
 ```{r}
+hist(dat$gluc_Conc)
+hist(dat$flav_Conc)
+#Both concentrations are above zero. 
+min(dat$gluc_Conc,na.rm=T)
+min(dat$flav_Conc,na.rm=T)
+
 
 #Logging data
 dat$Fern<-log(dat$Fern+1)
@@ -50,12 +56,14 @@ dat$ThripsDam<-log(dat$ThripsDam+1)
 dat$BlackPathDam<-log(dat$BlackPathDam+1)
 
 
+
 #Creating leaf area vector 
 dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
 
 
 #Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
-dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area))
+dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude))
+dat
 
 #All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
 dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
@@ -70,7 +78,7 @@ dat<-dat %>% filter(!comp_number %in% dead_competitors$comp_number)
 
 
 ##Summarizing: Taking the mean value of plants. This tibble contains data at the level of the family means within each treatment. 
-dat3<-dat2 %>% drop_na(GM_TotalLeaf_Area) %>% group_by(Family,treatment)  %>% summarize_if(is.numeric,mean)
+#dat3<-dat2 %>% drop_na(GM_TotalLeaf_Area) %>% group_by(Family,treatment)  %>% summarize_if(is.numeric,mean)
 
 
 
@@ -89,6 +97,43 @@ Standardize<-function(x){
 dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 
 ```
+
+
+#Generating table of genotype location and sample size. 
+```{r}
+table(dat$Family,dat$Longitude,dat$Latitude,dat$Altitude)
+
+GenotypeLocation<-dat %>% group_by(Family) %>% summarize(Longitude=first(Longitude),Latitude=first(Latitude),Altitude=first(Altitude))
+
+# Before Sample Loss. 
+repTable<-dat2 %>% group_by(Family,treatment) %>% summarize(SampleSize=n())
+
+#Making the table into a wide format
+repTableWide<-repTable %>% pivot_wider(names_from = treatment,values_from = SampleSize)
+
+##Adding a column for total sample size per genotype
+repTableWide$Total<-repTableWide$a+repTableWide$gm+repTableWide$m
+
+##Ordering the data set.  
+repTableWide<-repTableWide[order(repTableWide$Total,decreasing = T),]
+
+apply(repTableWide[,2:5],2,sum)
+##Printing table. 
+#write.csv(repTableWide,"SampleSize.csv")
+#write.csv(GenotypeLocation,"GenotypeLocation.csv")
+
+```
+
+
+
+
+
+
+
+
+
+
+
 
 
 #Searching for a fitness trade-off between the alone and interspecific competition treatment. 
@@ -195,7 +240,7 @@ summary(fit5)
 #Fern is not significant. 
 fit6<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+(1|Family)+(1|gh_bench), data=dat2)
 
-fit6<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+(1|gh_bench)+(1|Family), data=dat2)
+fit6<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_Leaf_Area)+(1|gh_bench)+(1|Family), data=dat2)
 
 summary(fit6) #This is a much cleaner result than using three different models for each treatment. I think instead i will use this model to assess pathogen damage. and i will determine the effect that the size of the maple has in the maple analysis. 
 #Percent variance explained: 
@@ -212,6 +257,20 @@ fitfull2<-lmer(GM_TotalLeaf_Area~treatment+Fern+(1|gh_bench), data=dat2)
 
 anova(fitfull,fitfull2) #Family only predicts performance when pathogens are accounted for. 
 ```
+
+#Modelling using lat long and alt
+These took away the effect of family
+```{r}
+
+fitfull<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+Fern+Latitude+Longitude+(1|gh_bench)+(1|Family), data=dat2)
+fitfull2<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+Fern+Latitude+Longitude+(1|gh_bench), data=dat2)
+anova(fitfull,fitfull2)#Family is not significant when lattitude and longitude are included. I.... dont know what this means or how to report these results... yet. 
+summary(fitfull)
+Latitude+Longitude+Altitude+
+```
+
+
+
 
 #Model Diagnostics. 
 ```{r}

@@ -361,6 +361,7 @@ fit7<-lmer(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)   +
     (1 | gh_bench) + Standardize(GM_Leaf_Area)+gluc_Conc,data=MapleModel)
 summary(fit7) #Gluc conc is significantly positive. 
 
+
 #Cost of Flavonoids ?
 #Cost of glucosinolates ?
 fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End   +  

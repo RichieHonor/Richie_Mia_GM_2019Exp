@@ -231,6 +231,13 @@ datLong$RGR2<-(log(area3)-log(area2))/(Seconds3-Seconds2)
 datLong$RGR3<-(log(area4)-log(area3))/(Seconds4-Seconds3)
 datLong$RGR4<-(log(area5)-log(area4))/(Seconds5-Seconds4)
 detach(datLong)
+
+datLong
+
+#Writing growth rate data to file. 
+
+write<-datLong %>% select(Genotype,RGR1,RGR2,RGR3,RGR4)
+#write.csv(write,"Data_Moities/RGR_Dat.csv")
 ```
 
 #Visualizing

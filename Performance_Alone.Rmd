@@ -76,21 +76,80 @@ dat2<-dat2[dat2$treatment=="a",]
 #Gmatrix model 
 ```{r}
 library(tidyr)
-library(rms)
+#library(rms)
+library(nlme)
 
 
-datG<-dat2 %>% select(Tag,Family,gluc_Conc,ChlorA,flav_Conc,gh_bench) %>%  pivot_longer(c(gluc_Conc,ChlorA,flav_Conc))
+mydata <- read.table(url("https://surfdrive.surf.nl/files/index.php/s/XfE3mtbFCTUejIz/download"),
+ header=TRUE)
+mydata
 
-fit0<-Gls(value ~ name,correlation = (1|Family),data=datG)
+test1 <- mydata[mydata$occasion==1,"test"]
+ test2 <- mydata[mydata$occasion==2,"test"]
+ test3 <- mydata[mydata$occasion==3,"test"]
+ cor(cbind(test1, test2, test3))
+var(cbind(test1, test2, test3))
 
+unstruc.gls1 <- gls(test ~ 1+ occ2 + occ3,
+ method="REML", data=mydata,
+ correlation=corSymm(form = ~ 1 |person),
+  weights = varIdent(form = ~1|occasion))
+
+summary(unstruc.gls1)
+
+dat2$GM_TotalLeaf_Area<-Standardize(dat2$GM_TotalLeaf_Area)
+dat2$flav_Conc<-Standardize(dat2$flav_Conc)
+dat2$gluc_Conc<-Standardize(dat2$gluc_Conc)
+dat2$ChlorA<-Standardize(dat2$ChlorA)
+
+
+datG<-dat2 %>% select(Tag,Family,gluc_Conc,ChlorA,flav_Conc,GM_TotalLeaf_Area,gh_bench) %>%  pivot_longer(c(gluc_Conc,ChlorA,GM_TotalLeaf_Area))
+
+
+
+fit0<-gls(value ~ name,correlation = corSymm(form = ~ 1 |person),weights = varIdent(form = ~1|name),data=datG)
+
+
+datG
 
 fit<-glmmTMB(value~name+(1|Family),data=datG)
 summary(fit)
 
 
+####GEnetic variation for individual traits. 
 
-fit1<-lmer(value ~ 1 + name +(1 + name|Family),data=datG)
-summary(fit1)
+
+fit2<-lmer(ChlorA ~ gh_bench*treatment+GM_Leaf_Area+(1|Family),REML=T,data=dat2)
+summary(fit1) 
+
+fit2<-lmer(ChlorA ~ gh_bench*treatment+GM_Leaf_Area+(treatment|Family),REML=T,data=dat2) #Tests whethere there is significant genetic covariation amoung treatments.
+#Tests GXE for that trait. On the left of the pipe is what the axis are, on the right side of the pipe is what the points are. 
+summary(fit2) 
+
+#get genetic variation in each treatment. Genetic correlation betwen treatments (random effect) - 
+
+
+
+#---- 
+
+
+fit1<-lmer(value ~ gh_bench+ name+(1|Family),REML=T,data=datG)
+summary(fit1) #Can run seperately for each trait. 
+
+
+fit2<-lmer(value ~ -1+name+gh_bench +(-1+name|Family),REML=T,data=datG)
+summary(fit2)
+
+fit2<-lmer(value ~ -1+name+gh_bench +(-1+name|Family),REML=T,data=datG)
+
+summary(fit2)
+
+#fit2<-lmer(value ~ gh_bench+name+ (-1+name|Family),REML=T,data=datG)
+
+
+anova(fit1,fit2)
+
+#-----
 ```
 
 

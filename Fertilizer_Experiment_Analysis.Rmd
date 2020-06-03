@@ -33,10 +33,6 @@ Final<-Final %>% filter(!comp_number %in% deadNeighbour)
 #Check to ensure I did this correctly
 table(Final$comp_number)#looks good. 
 
-#Removing those with maples that died.... 
-
-#Final[treatment=="m" & is.na()
-
 #some maples were not properly identified
 Final[Final$treatment=="m" & is.na(Final$Maple_Area_sum_End),]
 #Two individuals were not properly identified. ... let us see
@@ -52,10 +48,45 @@ MapleTreatRM<-MapleTreat[!is.na(MapleTreat$Maple_Area_sum_End)&MapleTreat$Maple_
 #Now creating data frame with those with competitors that died in the experiment removed. 
 Final<-bind_rows(MapleTreatRM,OtherTreat)
 
+#Creating dataframe with replication at the genotype level
+dat2<-Final %>% group_by(ID) %>% summarize(Tag=first(Tag),treatment=first(treatment),Fert=first(Fert),Family=first(Family))
 
 ```
 
 
+#Generating table of sample size. 
+```{r}
+
+dat2$TreatFert<-paste(dat2$treatment,dat2$Fert,sep="_")
+
+# Creating sample size table
+repTable<-dat2 %>% group_by(Family,TreatFert) %>% summarize(SampleSize=n())
+
+
+#Making the table into a wide format
+repTableWide<-repTable %>% pivot_wider(names_from = TreatFert,values_from = SampleSize)
+
+repTableWide
+
+#Discerning sample size across genotype and treatment
+apply(repTableWide[,-1],2,sum,na.rm = T)
+apply(repTableWide[-1],1,sum,na.rm = T)
+
+
+##Adding a column for total sample size per genotype
+repTableWide$Total<-repTableWide$a+repTableWide$gm+repTableWide$m
+
+##Ordering the data set.  
+repTableWide<-repTableWide[order(repTableWide$Total,decreasing = T),]
+
+
+
+repTableWide
+##Printing table. 
+#write.csv(repTableWide,"SampleSize.csv")
+#write.csv(GenotypeLocation,"GenotypeLocation.csv")
+
+```
 
 #Modelling glucosinolate concentration. 
 ```{r}

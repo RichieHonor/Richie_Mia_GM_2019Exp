@@ -1,0 +1,256 @@
+---
+title: "Survival_Fitness_Analysis"
+author: "Richard Honor"
+date: "01/06/2020"
+output: html_document
+---
+#Read in and prep data
+```{r}
+library(ggplot2)
+library(lme4)
+#library(tidyr)
+library(cowplot)
+library(grid)
+library(gridExtra)
+library(dplyr)
+source("GGPlot_Themes.R")
+
+#read in data
+rm(list=ls())
+dat<-read.csv("DataSynthesis.csv")
+
+#Remove maple controls data from the data set.
+dat<-dat %>% filter(treatment!="mcnt") %>% droplevels()
+
+#remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
+dat<-dat[!grepl("i",dat$ID,fixed=T),]
+
+
+#Initializing columns to avoid constant error messages. 
+dat$WhiteFungLogis<-NA
+dat$BlackFungLogis<-NA
+```
+
+
+#Generating data frames with summarized leaf data (dat2) and summarized genotype data (dat3)
+```{r}
+hist(dat$gluc_Conc)
+hist(dat$flav_Conc)
+#Both concentrations are above zero. 
+min(dat$gluc_Conc,na.rm=T)
+min(dat$flav_Conc,na.rm=T)
+
+
+#Logging data
+dat$Fern<-log(dat$Fern+1)
+dat$gluc_Conc<-log(dat$gluc_Conc)
+dat$flav_Conc<-log(dat$flav_Conc)
+dat$ChlorA<-log(dat$ChlorA)
+dat$ThripsDam<-log(dat$ThripsDam+1)
+dat$BlackPathDam<-log(dat$BlackPathDam+1)
+
+
+
+#Creating leaf area vector 
+dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
+
+
+#Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
+dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),
+GM_StemHeight_Bolt=first(GM_StemHeight_Bolt),
+GM_Leaf_Number_Bolt=first(GM_Leaf_Number_Bolt),
+Larg_Leaf_Len_Bolt=first(Larg_Leaf_Len_Bolt),
+Larg_Leaf_Wid_Bolt=first(Larg_Leaf_Wid_Bolt),
+Row_Field=first(Row_Field),
+Col_Field=first(Col_Field),
+Maple_Died=first(Maple_Died),
+Maple_TotalLeafArea_End=first(Maple_TotalLeafArea_End)
+)
+
+#All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
+dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
+
+#Removing those with dead competitors from the garlic mustard treatment. ("e|JBCHY1-1-50|Q|240") did not die, we are simply missing the final measurement for it.
+
+dead_competitors<-dead %>% filter(treatment=="gm",Tag!="e|JBCHY1-1-50|Q|240") %>% select(comp_number)
+
+#Removing those with dead competitors from the analysis. 
+dat2<-dat2 %>% filter(!comp_number %in% dead_competitors$comp_number)
+dat<-dat %>% filter(!comp_number %in% dead_competitors$comp_number)
+
+
+##Summarizing: Taking the mean value of plants. This tibble contains data at the level of the family means within each treatment. 
+#dat3<-dat2 %>% drop_na(GM_TotalLeaf_Area) %>% group_by(Family,treatment)  %>% summarize_if(is.numeric,mean)
+
+
+
+#Because of how zero inflated white pathogen damage is, i will use a logistic regression to model it.
+dat2$WhiteFungLogis<-NA
+dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-0
+dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-1
+
+#Creating Survival Data.1 = survived, 0= dead.
+dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"]<-0
+dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt!="Dead"]<-1
+
+
+#Creating Maple Survival Data.1 = survived, 0= dead.
+dat2$Maple_Died<-as.character(dat2$Maple_Died)
+dat2$Maple_Survival[dat2$Maple_Died!="Y"]<-1
+dat2$Maple_Survival[dat2$Maple_Died=="Y"]<-0
+dat2<-dat2 %>% select(-Maple_Died)
+
+  #Function to standardize variables. 
+Standardize<-function(x){
+  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
+}
+
+#Standardizing leaf area. 
+dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
+
+
+```
+
+#Descriptive Statistics
+```{r}
+dat2[is.na(dat2$Bolt_Survival),] #There are 10 missing genotypes from the field. Purhaps a block was missed. Right now i will leave as NA. 
+
+#Garlic mustard survival
+sum(dat2$Bolt_Survival,na.rm = T)/length(dat2$Bolt_Survival[!is.na(dat2$Bolt_Survival)])
+
+#There was 30.1% Survival into the field for garlic mustard plants. 
+
+# maple survival
+(sum(dat2$Maple_Survival,na.rm = T)+31)/(length((dat2$Maple_Survival[!is.na(dat2$Maple_Survival)]))+31)
+#There was 99% survival of maples. 
+
+```
+
+
+```{r}
+library(glmmTMB)
+
+#Model is too complicated to do a top down analysis. I will do frontwards model selection. 
+
+#Is family important? 
+fit<-glmmTMB(Bolt_Survival~1+(1|Family),data=dat2,family="binomial")
+fit2<-glmmTMB(Bolt_Survival~1,data=dat2,family="binomial")
+anova(fit,fit2) #Yes Family is very important.
+
+#Is collumn important? 
+fit3<-glmmTMB(Bolt_Survival~1+(1|Family)+(1|Col_Field),data=dat2,family="binomial")
+anova(fit3,fit) #No Columns is not
+
+
+#Is row important? 
+fit3<-glmmTMB(Bolt_Survival~1+(1|Family)+(1|Row_Field),data=dat2,family="binomial")
+anova(fit3,fit) #No row is not
+
+#Is greenhouse bench important? 
+fit3<-glmmTMB(Bolt_Survival~1+(1|Family)+(1|gh_bench),data=dat2,family="binomial")
+anova(fit3,fit) #No gh_bench is not
+
+#Is treatmet  important? 
+fit3<-glmmTMB(Bolt_Survival~treatment+(1|Family),data=dat2,family="binomial")
+anova(fit3,fit) #No treatment is not important... what the heck.... 
+
+#Is white fungal presense  important? 
+fit3<-glmmTMB(Bolt_Survival~WhiteFungLogis+(1|Family),data=dat2,family="binomial")
+summary(fit3) #No white fungal damage is not important... 
+
+#Is black pathogen damage  important? 
+fit3<-glmmTMB(Bolt_Survival~BlackPathDam+(1|Family),data=dat2,family="binomial")
+summary(fit3) #No black Pathogen damage is not important... 
+
+
+#Is thrips damage  important? 
+fit3<-glmmTMB(Bolt_Survival~ThripsDam+(1|Family),data=dat2,family="binomial")
+summary(fit3) #No thrips Damage is not important... 
+
+
+
+#Is body size evenimportant? 
+fit3<-glmmTMB(Bolt_Survival~Standardize(GM_TotalLeaf_Area)+(1|Family),data=dat2,family="binomial")
+summary(fit3) #No it is not important, but it is close.
+
+#Is ChlorA  important? 
+fit3<-glmmTMB(Bolt_Survival~Standardize(GM_Leaf_Area)+ChlorA+(1|Family),data=dat2,family="binomial")
+summary(fit3) #Chlorophyll Appears to be the only significant predictor. 
+
+
+#Is gluc_Conc  important? 
+fit3<-glmmTMB(Bolt_Survival~Standardize(GM_Leaf_Area)+gluc_Conc+(1|Family),data=dat2,family="binomial")
+summary(fit3) #no it is not. 
+
+#Is flav_Conc  important? 
+fit3<-glmmTMB(Bolt_Survival~Standardize(GM_Leaf_Area)+flav_Conc+(1|Family),data=dat2,family="binomial")
+summary(fit3) #no it is not. 
+
+
+#The only significant predictor is then family, and chlorophyll A. 
+fit3<-glmmTMB(Bolt_Survival~Standardize(GM_Leaf_Area)+ChlorA+(1|Family),data=dat2,family="binomial")
+summary(fit3) 
+exp(0.7793 )
+
+fit3<-glmmTMB(Bolt_Survival~ChlorA+(1|Family),data=dat2,family="binomial")
+summary(fit3) # Chlorophyll increases chance of survival. 
+
+fit3<-glmmTMB(Bolt_Survival~Standardize(GM_TotalLeaf_Area)+(1|Family),data=dat2,family="binomial")
+summary(fit3) 
+exp(-0.18)
+#Size has the trend of actually reducing survival (as i predicted). 
+
+fit3<-glmmTMB(Bolt_Survival~Latitude+Longitude+Altitude+(1|Family),data=dat2,family="binomial")
+summary(fit3)
+
+fit3<-glmmTMB(Bolt_Survival~Latitude,data=dat2,family="binomial")
+summary(fit3) 
+
+exp(-0.09) #Survival decreases with increasing latitude. 
+```
+
+#Survival in maple treatment only.. Is there an effect of maples on survival? 
+```{r}
+datM<-dat2 %>% filter(treatment=="m")
+
+fit<-glmmTMB(Bolt_Survival~ChlorA+Standardize(Maple_TotalLeafArea_End),data=datM,family="binomial")
+summary(fit) 
+#Yes, maple size does predict survival. ... chlorphyll does not. 
+
+fit<-glmmTMB(Bolt_Survival~Standardize(Maple_TotalLeafArea_End),data=datM,family="binomial")
+summary(fit) 
+
+exp(-0.65)#.... It greatly reduces the likelyhood of survival, the larger the maple is. ... so how is treatment not significant? 
+
+fit<-glmmTMB(Bolt_Survival~Standardize(Maple_TotalLeafArea_End),data=datM,family="binomial")
+summary(fit) 
+
+fit<-glmmTMB(Bolt_Survival~Standardize(Maple_TotalLeafArea_End)+Standardize(GM_TotalLeaf_Area),data=datM,family="binomial")
+summary(fit) # Body size is not significant. Leaf size almost significantly reduces survival. here. 
+
+fit<-glmmTMB(Bolt_Survival~Standardize(Maple_TotalLeafArea_End)+Standardize(GM_TotalLeaf_Area),data=datM,family="binomial")
+summary(fit) # Body size is not significant. Leaf size almost significantly reduces survival. here. 
+
+
+datM
+```
+
+#Test
+```{r}
+dat2
+dattest<-dat2
+
+dattest$Maple_TotalLeafArea_End[is.na(dattest$Maple_TotalLeafArea_End)]<-0
+
+#Is family important? 
+fit<-glmmTMB(Bolt_Survival~1+(1|Family),data=dattest,family="binomial")
+fit2<-glmmTMB(Bolt_Survival~1,data=dattest,family="binomial")
+anova(fit,fit2) #Yes Family is very important.
+fit2<-glmmTMB(Bolt_Survival~treatment*Standardize(Maple_TotalLeafArea_End),data=dattest,family="binomial")
+
+summary(fit2)
+
+dattest
+
+```
+

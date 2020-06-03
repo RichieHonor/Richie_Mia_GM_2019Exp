@@ -114,3 +114,32 @@ theme_simple_multiCol<-function(){
       axis.line=element_line(colour = "black", size = 1)
     )
 }
+
+theme_simple_multiCol_First<-function(){
+  #base theme
+  theme_classic() %+replace%
+    #theme additions
+    theme(
+      
+      #Remove legend
+      legend.position="none",
+      
+      #Theme of axis text and ticks
+      axis.text.x = element_text(color = "black", size = 16, face = "bold"),
+      axis.text.y = element_text(color = "black", size = 12, face = "bold"),
+      axis.ticks = element_blank(),
+      
+      #Theme of Axis titles
+      axis.title.x =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,0,3,0)),
+      
+      plot.title =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,0,3,0)),
+      
+      axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(0,3,0,0),angle =90),
+      
+      #Plot Margin
+      plot.margin = unit(c(0,1,0,1), "cm"),
+      
+      #Theme of Axis lines
+      axis.line=element_line(colour = "black", size = 1)
+    )
+}

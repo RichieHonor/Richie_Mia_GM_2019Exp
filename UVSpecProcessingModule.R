@@ -35,16 +35,16 @@ ControlSubtract<-function(x,compound){
 
 
 
-#Flavonoid STD from Feb 7th with the final protocol
+#Flavonoid STD from Feb 7th with the final protocol... edited on May 27th to be correct.
 flavCONC<-function(x){
-  y=2.28450507*x+0.09187857
+  y=0.43323096*x-0.03648452
   return(y)
 }
 
 
-#Glucosinolate STD from Feb 7th with the final protocol
+#Glucosinolate STD from Feb 7th with the final protocol...edited on May 27th to be correct.
 glucCONC<-function(x){
-  y=1.433029*x+0.226200
+  y=0.6897384*x-0.1547517
   return(y)
 }
 

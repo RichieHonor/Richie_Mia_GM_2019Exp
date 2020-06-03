@@ -174,15 +174,52 @@ errors<-gluc %>% select(gluc_Sample,gluc_DataFile,gluc_Tag,gluc_Conc) %>% right_
 
 #Averaging duplicates (i.e. technical replicates) 
 ```{r}
+#Averaging duplicates
+#------
 #gluc
+#------
+#Creating pool collumn to help differentiate. 
+gluc$poolID[gluc$gluc_Column<6]<-"lower"
+gluc$poolID[gluc$gluc_Column>6]<-"upper"
+
+#Making an ID specific to each duplicated value on the plate. 
+gluc$gluc_Sample[gluc$gluc_Tag=="pool"]<-paste(gluc$gluc_Sample[gluc$gluc_Tag=="pool"],gluc$poolID[gluc$gluc_Tag=="pool"],sep="_")
+
 Average_gluc<-gluc %>% group_by(gluc_Sample) %>% summarize(gluc_Conc=mean(gluc_Conc))
 
+Average_gluc[grepl("pool",Average_gluc$gluc_Sample),]
 
+#------
 #flav
+#------
+
+#Creating pool collumn to help differentiate. 
+flav$poolID[flav$flav_Column<6]<-"lower"
+flav$poolID[flav$flav_Column>6]<-"upper"
+
+#Making an ID specific to each duplicated value on the plate. 
+flav$flav_Sample[flav$flav_Tag=="pool"]<-paste(flav$flav_Sample[flav$flav_Tag=="pool"],flav$poolID[flav$flav_Tag=="pool"],sep="_")
+
 Average_flav<-flav %>% group_by(flav_Sample) %>% summarize_at(.vars = vars(flav_Conc),.funs=mean)
 
+Average_flav[grepl("pool",Average_flav$flav_Sample),]
+
+
+#-------
 #ChlorNoCont
+#-------
+
+#Creating pool collumn to help differentiate. 
+ChlorNoCont$poolID[ChlorNoCont$Column<3]<-"lower"
+ChlorNoCont$poolID[ChlorNoCont$Column>=3]<-"upper"
+
+#Making an ID specific to each duplicated value on the plate. 
+ChlorNoCont$Sample[ChlorNoCont$Tag=="pool"]<-paste(ChlorNoCont$Sample[ChlorNoCont$Tag=="pool"],ChlorNoCont$poolID[ChlorNoCont$Tag=="pool"],sep="_")
+
 Average_ChlorNoCont<-ChlorNoCont %>% group_by(Sample) %>% summarize_at(.vars=vars(ChlorA,ChlorB),.funs=mean)
+
+
+Average_ChlorNoCont[grepl("pool",Average_ChlorNoCont$Sample),]
 
 #-----
 #Add in missing columns
@@ -210,7 +247,7 @@ All_Wide<-left_join(All_Wide0.1,Average_flav,by=c("Sample"="flav_Sample"))
 if(length(All_Wide$Sample)!=length(Average_ChlorNoCont$Sample) |length(All_Wide$Sample)!=length(Average_gluc$gluc_Sample)
 |length(All_Wide$Sample)!=length(Average_flav$flav_Sample)){
 
-  stop("gluc, flav and chlorophyll samples did not match upafter duplicates were averaged.")
+ stop("gluc, flav and chlorophyll samples did not match up after duplicates were averaged.")
 }
 
 
@@ -400,11 +437,20 @@ dat$Pool[dat$Tag!="pool"]<-"No"
 
 source("GGPlot_Themes.R")
 
+
 #Glucosinolate
 ggplot()+
   geom_boxplot(aes(y=as.numeric(dat$gluc_Conc),x=as.factor(dat$Pool)))+
-  theme_simple()+ylab(bquote(bold("[Total Glucosinolate] " (mg/ml))))+xlab("")
-  
+  theme_simple_vert()+ylab(bquote(bold("[Total Glucosinolate] " (mg/ml))))+xlab("")
+
+
+var(dat$gluc_Conc[dat$Pool=="Yes"],na.rm=T)/var(dat$gluc_Conc[dat$Pool=="No"],na.rm=T)*100
+
+var(dat$flav_Conc[dat$Pool=="Yes"],na.rm=T)/var(dat$flav_Conc[dat$Pool=="No"],na.rm=T)*100
+
+var(dat$ChlorA[dat$Pool=="Yes"],na.rm=T)/var(dat$ChlorA[dat$Pool=="No"],na.rm=T)*100
+
+
 
 #Flavonoid
 ggplot()+
@@ -790,6 +836,152 @@ write.csv(Final,"DataSynthesis.csv")
 
 
 ```
+
+#Insert mortality data. 
+```{r}
+field<-read.csv("Data_Moities/Bolt_Field_Data_May132020.csv",stringsAsFactors = F)
+
+#Replacing NA's with "Dead"
+field[is.na(field$GM_StemHeight_Bolt),c("Larg_Leaf_Len_Bolt","Larg_Leaf_Wid_Bolt","GM_StemHeight_Bolt","GM_Leaf_Number_Bolt")]<-"Dead"
+
+
+#Reading in Dat
+dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
+dat<-dat %>% select(-X.1,-X)
+
+#Creating a collumn called ID to be identified. 
+for(i in 1:length(dat$Tag)){
+  ID<-tail(strsplit(dat$Tag[i],split="|",fixed=T)[[1]],n=1)
+  dat$ID[i]<-ID
+  if(dat$Family[i]=="maple"){
+    dat$ID[i]<-dat$Tag[i]
+  }
+}
+
+ 
+#Forseeing any issues of multiple joins
+table(field$ID)[table(field$ID)>1] #There are many that were not IDed properly. I will need to determine which these are with reference to thier families. 
+
+#Creating a vector of ID labels that are replicated in the field (in error)
+Multi<-c("?","131", '160' ,'189', '273' , '28'  ,'31', '375' ,'464' )
+
+#Looking at the discepencies and how to fix them.
+dat %>% filter(ID %in% Multi) %>% select(ID,Family)
+
+field %>% filter(ID %in% Multi) %>% select(ID,Family)
+  
+
+#First fix -> 160 is recorded in field data as both Jar and Smith. There should hav ebeen an i in front of smith. This will be fixed. .. 
+dat %>% filter(ID == "i160") %>% select(ID,Family)
+
+field[field$ID==160 & field$Family=="smi","ID"]<-"i160"
+
+#Second fix -> 273 This is a known duplicate. That with family jbc is '273dd', that with kvedge is '273da'. This will be fixed. .. 
+dat[grepl("273",dat$Sample),c("ID","Family")] 
+
+field[field$ID==273 & field$Family=="jbc","ID"]<-"273dd"
+field[field$ID==273 & field$Family=="kve","ID"]<-"273da"
+
+dat[dat$ID==273 & dat$Family=="JBCHY1","ID"]<-"273dd"
+dat[dat$ID==273 & dat$Family=="KVEDG1","ID"]<-"273da"
+
+#Third fix -> 131 . This is recorded as both Mav and dvg. The Mav genotype was suppose to be i131.  This will be fixed. .. 
+dat[grepl("131",dat$ID),c("ID","Family")]
+field[field$ID==131 & field$Family=="mav","ID"]<-"i131"
+
+
+
+#Fourth fix -> 375 . This is recorded as msm twice.. This is actually not a mistake as there are two msmid 375. There is no way for me to differentiate the genotypes but luckily they both died so it doesnt matterif they are mis identified. 
+dat[grepl("375",dat$ID),]
+field[field$ID==375,]
+
+dat[grepl("375",dat$ID),"ID"]<-c("375a","375b")
+field[field$ID==375,"ID"]<-c("375a","375b")
+
+
+#Fifth fix -> 189 is recorded as jar and jbb. 189 is indeed JAr in the master file, however, jbb goes down as low as 194. There is a 198. I will check to see if the number has been reversed. 
+field[grepl("198",field$ID),] #198 is not in the data frame. which means i will replace 189 with 198 in the field data to represent jbb. 
+
+dat[grepl("189",dat$Tag),]
+dat %>% filter(Family=="JBBLB2")
+
+#Altering ID. 
+field[field$ID==189 & field$Family=="jbb","ID"]<-198
+
+#Sixth fix -> 31 is recorded as bwp and jwp. I need to determine which is going into which. The JWp genotype was replicated in the field measurements and can be deleted. 
+field<-field[field$ID!="31"|field$Family!="jwp",]
+
+
+
+#Seventh fix -> 28 is recorded as bwp and cwr. #The only ID listed as 28 in the data frame is bwp. 
+dat[dat$ID==28,]
+dat[dat$Family=="CWRIC2",]# The only CWR recorded in the master data file is 82. I will check to determine if that is in the field data and then i will alter it. 
+
+field[field$ID==28 & field$Family=="cwr","ID"]<-82
+
+#Seventh fix -> ?. There are two ? one for wss and one for jbc. this corresponds to the duplication in the master data file. I will fix this now. 
+field[field$ID=="?",]
+dat[dat$ID=="?",]
+
+dat[dat$Tag=="e|JBCHY1-1-50|?","ID"]<-"?-JBC"
+dat[dat$Tag=="b|WSSWM3-1-0|?|?","ID"]<-"?-WSS"
+
+field[field$ID=="?"&field$Family=="wsswm3-1-3","ID"]<-"?-WSS"
+field[field$ID=="?"&field$Family=="jbchy","ID"]<-"?-JBC"
+
+
+#Eigth fix -> 464 There are two 464. one from smi and one from mhn. There exists 364 for mhn, but not 464. Becuase 464 does not exist in the field data, I will replace it.
+field[field$ID=="464",]
+field[field$ID=="364",]
+dat[dat$Family=="MHNAT1",]
+
+field[field$ID=="464"&field$Family=="mhn","ID"]<-"364"
+
+
+
+#Checking again for errors 
+table(field$ID)[table(field$ID)>1]
+#There are no errors there. 
+
+
+
+
+
+anti_join(field,dat,by="ID") #there are two genotypes that didnt make it in. vrp 250 and mav i310, which are both dead. 
+
+#vrp250 is really vrp 520. This can be changed. 
+field[field$ID==250,"ID"]<-"520"
+
+
+#Joining data frames....Those that are not identified are considered to have died in the greenhouse experiment and were not brought out to the field. 
+#Removing family column 
+field <-field %>% select(-Family)
+dat<-left_join(dat,field,by="ID") 
+
+
+write.csv(dat,"DataSynthesis.csv")
+```
+
+#Adding growth Rate Data
+Growth rate data were organised under "GrowthRate_Analysis.rmd".
+```{r}
+dat<-read.csv("DataSynthesis.csv")
+RGR<-read.csv("Data_Moities/RGR_Dat.csv")
+
+dat<-dat %>% select(-X)
+RGR<-RGR %>% select(-X)
+
+
+final<-dat %>% left_join(RGR,by=c("Tag"="Genotype"))
+
+write.csv(final,"DataSynthesis.csv")
+```
+
+
+
+
+
+
 
 
 
