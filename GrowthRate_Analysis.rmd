@@ -112,9 +112,36 @@ dat2 %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(n=n()) %>% filter
 #REMOVING THOSE WITHOUT COMPLETE 5 SampleSession OBSERVATIONS.. calling this dataframe dat2C for dat2 "clean".
 dat2C<-dat2 %>% group_by(Genotype) %>% summarize(n=n()) %>% right_join(dat2) %>% filter(n==5)
 
+dat2
+
 
 ```
 
+#Generating RGR with all available data, 
+above analyses omitted data if there were not enough samples for 5 complete measurements. this analysis will include all RGR that are possible for each genotype and increase sample size significantly. 
+```{r}
+library(tidyr)
+#Converting to a factor. 
+dat2$SampleSession<-as.factor(dat2$SampleSession)
+
+#Converting factor names to sample session 1:5
+levels(dat2$SampleSession)<-c("1","2","3","4","5")
+
+datFull<-pivot_wider(dat2,names_from = c(SampleSession),values_from = c(area,Seconds))
+datFull
+
+attach(datFull)
+datFull$RGR1<-(log(area_2)-log(area_1))/(Seconds_2-Seconds_1)
+datFull$RGR2<-(log(area_3)-log(area_2))/(Seconds_3-Seconds_2)
+datFull$RGR3<-(log(area_4)-log(area_3))/(Seconds_4-Seconds_3)
+datFull$RGR4<-(log(area_5)-log(area_4))/(Seconds_5-Seconds_4)
+detach(datFull)
+
+#Writing growth rate data to file. 
+
+write<-datFull %>% select(Genotype,RGR1,RGR2,RGR3,RGR4)
+write.csv(write,"Data_Moities/RGR_Dat.csv")
+```
 
 ```{r}
 #Remove those that are not replicated in all three treatments. ( genotypes with an "i" in the lable. These are for use to analyze the GGMFS only).
@@ -203,43 +230,6 @@ Things of interest:
 
 
 
-#Simply analysis of relative growthrate to determine if there is evidence for treatment effects or genetic variation for growth rate. 
-```{r}
-#dat2 contains values for each individual. These will be used to calculate relative growth rates. 
-
-#Relative growth rate = lnW2-lnW1/(t2-t1)
-
-#Creating a long data frame to have each column represent a unique growth measurement 
-
-first<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = first(Seconds),area=first(area),treatment=first(treatment),Family=first(Family)) %>% rename(Seconds1="Seconds",area1="area")#This data frame has retained the treatment and family to be used in the analysis. 
-
-second<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,2),area=nth(area,2))  %>% rename(Seconds2="Seconds",area2="area")
-
-third<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,3),area=nth(area,3))  %>% rename(Seconds3="Seconds",area3="area")
-
-fourth<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,4),area=nth(area,4)) %>% rename(Seconds4="Seconds",area4="area")
-
-fifth<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,5),area=nth(area,5))  %>% rename(Seconds5="Seconds",area5="area")
-
-#Merging these together into one dataframe (i love dplyr)
-datLong<-first %>% left_join(second,by="Genotype") %>% left_join(third,by="Genotype")%>% left_join(fourth,by="Genotype")%>% left_join(fifth,by="Genotype")
-
-#generating relative growth rate values (RGR)
-attach(datLong)
-datLong$RGR1<-(log(area2)-log(area1))/(Seconds2-Seconds1)
-datLong$RGR2<-(log(area3)-log(area2))/(Seconds3-Seconds2)
-datLong$RGR3<-(log(area4)-log(area3))/(Seconds4-Seconds3)
-datLong$RGR4<-(log(area5)-log(area4))/(Seconds5-Seconds4)
-detach(datLong)
-
-datLong
-
-#Writing growth rate data to file. 
-
-write<-datLong %>% select(Genotype,RGR1,RGR2,RGR3,RGR4)
-#write.csv(write,"Data_Moities/RGR_Dat.csv")
-```
-
 #Visualizing
 ```{r}
 #Modifying Factor Names
@@ -286,7 +276,13 @@ Fixed effects:Seconds, treatment
 Ramdom slope and intercept: area~seconds per family with genotype nested inside.
 
 ```{r}
-library(nlme)
+library(glmmTMB)
+
+fit<-glmmTMB(RGR1~treatment+(1|Family),data=datFull)
+fit2<-glmmTMB(RGR1~treatment,data=datFull)
+anova(fit,fit2) #Family is highly significant. 
+summary(fit)
+
 
 #making an interaction column. 
 datLong$GXE<-paste(datLong$treatment,datLong$Family,sep="-")
@@ -362,48 +358,9 @@ model.matrix(RGR1~treatment,datLong[datLong$Family=="BWPEM1",])
 #Groups with larger means have more variation, but it is not huge here. I.e. Larger the growth rate, larger the variation. 
 ```
 
-Is there an effect of genotype on growth rate? Variance Component Analysis
-```{r}
-
-summary(fit1.1)
-
-100*c(6.411059e-08,3.963266e-07)/sum(c(6.411059e-08,3.963266e-07))
 
 
 
-#Genotype only accounts for 13% of the variation, wheras there is still 86% of the variation in the residuals. I do not think that genotype is even a worthwhile thing to account for in these models. 
 
-#Interestingly, there appears to be a GXE interaction when testing it out in a linear model framework. 
-fit.lm.GXE<-lm(RGR1~treatment*Family,data=datLong)
-fit.lm.GandE<-lm(RGR1~treatment+Family,data=datLong)
-
-fit.lm.E<-lm(RGR1~treatment,data=datLong) 
-fit.lm.G<-lm(RGR1~Family,data=datLong)
-
-summary(fit.lm.E)
-summary(fit.lm.GXE)
-summary(fit.lm.GandE)
-
-AIC(fit.lm.E)#This is the best model
-AIC(fit.lm.GandE)
-AIC(fit.lm.GXE)
-AIC(fit.lm.G) #This is the worst model. 
-
-
-
-summary(fit.lm.G) 
-anova(fit.lm.GXE,fit.lm.E)
-anova(fit.lm.GXE,fit.lm.GandE)
-anova(fit.lm.GXE,fit.lm.G)
-
-
-
-```
-
-#Writting to csv for future analyses
-```{R}
-#write.csv(datLong,"GrowthRateIntegrated.csv")
-
-```
 
 

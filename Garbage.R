@@ -1567,4 +1567,77 @@ summary(lmer(GM_TotalLeaf_Area ~ treatment*gluc_Conc+Fern+BlackPathDam  + (1 | g
 ```
 
 
+Is there an effect of genotype on growth rate? Variance Component Analysis
+```{r}
+
+summary(fit1.1)
+
+100*c(6.411059e-08,3.963266e-07)/sum(c(6.411059e-08,3.963266e-07))
+
+
+
+#Genotype only accounts for 13% of the variation, wheras there is still 86% of the variation in the residuals. I do not think that genotype is even a worthwhile thing to account for in these models. 
+
+#Interestingly, there appears to be a GXE interaction when testing it out in a linear model framework. 
+fit.lm.GXE<-lm(RGR1~treatment*Family,data=datLong)
+fit.lm.GandE<-lm(RGR1~treatment+Family,data=datLong)
+
+fit.lm.E<-lm(RGR1~treatment,data=datLong) 
+fit.lm.G<-lm(RGR1~Family,data=datLong)
+
+summary(fit.lm.E)
+summary(fit.lm.GXE)
+summary(fit.lm.GandE)
+
+AIC(fit.lm.E)#This is the best model
+AIC(fit.lm.GandE)
+AIC(fit.lm.GXE)
+AIC(fit.lm.G) #This is the worst model. 
+
+
+
+summary(fit.lm.G) 
+anova(fit.lm.GXE,fit.lm.E)
+anova(fit.lm.GXE,fit.lm.GandE)
+anova(fit.lm.GXE,fit.lm.G)
+
+
+
+```
+
+
+
+
+
+#Simply analysis of relative growthrate to determine if there is evidence for treatment effects or genetic variation for growth rate. 
+```{r}
+
+
+first<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = first(Seconds),area=first(area),treatment=first(treatment),Family=first(Family)) %>% rename(Seconds1="Seconds",area1="area")#This data frame has retained the treatment and family to be used in the analysis. 
+
+second<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,2),area=nth(area,2))  %>% rename(Seconds2="Seconds",area2="area")
+
+third<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,3),area=nth(area,3))  %>% rename(Seconds3="Seconds",area3="area")
+
+fourth<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,4),area=nth(area,4)) %>% rename(Seconds4="Seconds",area4="area")
+
+fifth<-dat2C %>% group_by(Genotype) %>% arrange(Seconds) %>% summarize(Seconds = nth(Seconds,5),area=nth(area,5))  %>% rename(Seconds5="Seconds",area5="area")
+
+#Merging these together into one dataframe (i love dplyr)
+datLong<-first %>% left_join(second,by="Genotype") %>% left_join(third,by="Genotype")%>% left_join(fourth,by="Genotype")%>% left_join(fifth,by="Genotype")
+
+#generating relative growth rate values (RGR)
+attach(datLong)
+datLong$RGR1<-(log(area2)-log(area1))/(Seconds2-Seconds1)
+datLong$RGR2<-(log(area3)-log(area2))/(Seconds3-Seconds2)
+datLong$RGR3<-(log(area4)-log(area3))/(Seconds4-Seconds3)
+datLong$RGR4<-(log(area5)-log(area4))/(Seconds5-Seconds4)
+detach(datLong)
+
+datLong
+
+
+```
+
+
 

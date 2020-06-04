@@ -55,7 +55,7 @@ dat$log_glucConc<-log(dat$gluc_Conc)
 dat$log_ChlorA<-log(dat$ChlorA)
 
 
-dat
+
 flav<-ggplot(dat)+
   geom_point(aes(y=log1_flavConc,x=log1_ChlorA))+
   ylab(bquote(bold("[Flavonoid] Log("(mg/ml)~"+1)")))+
@@ -79,6 +79,7 @@ flav<-ggplot(dat)+
   geom_point(aes(y=log_flavConc,x=log_ChlorA))+
   ylab(bquote(bold("[Flavonoid] Log("(mg/ml)~")")))+
   xlab(bquote(bold("[Chlorophyll A] Log("(μg/ml)~")")))+
+  geom_abline(slope=0.39312,intercept = -1.83498,size=1)+
   theme_simple_vert()
 
 
@@ -86,7 +87,16 @@ gluc<-ggplot(dat)+
   geom_point(aes(y=log_glucConc,x=log_ChlorA))+
   ylab(bquote(bold("[Glucosinolate] Log("(mg/ml)~")")))+
   xlab(bquote(bold("[Chlorophyll A] Log("(mg/ml)~")")))+
+    geom_abline(slope=0.45368,intercept = -1.14498,size=1 )+
+
   theme_simple_vert()
+
+
+flavfit<-lm(log_flavConc~log_ChlorA,data=dat)
+glucfit<-lm(log_glucConc~log_ChlorA,data=dat)
+
+summary(flavfit)
+summary(glucfit)
 
 tiff("Other_Figures/Log_GlucFlavChlor_Cor.tiff", units="in", width=12, height=6, res=300)
 grid.arrange(gluc,flav,ncol=2)
@@ -98,6 +108,9 @@ dev.off()
 dat %>% select(flav_Conc,gluc_Conc,log_flavConc,log_glucConc)
 
 plot(flav_Conc~ChlorA,data=dat)
+
+
+
 ```
 
 

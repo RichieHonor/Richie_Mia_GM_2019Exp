@@ -98,7 +98,7 @@ dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 ```{r}
 library(tidyr)
 #library(rms)
-library(nlme)
+#library(nlme)
 
 dat2$GM_TotalLeaf_Area<-Standardize(dat2$GM_TotalLeaf_Area)
 dat2$flav_Conc<-Standardize(dat2$flav_Conc)
@@ -267,15 +267,17 @@ summary(fit5) #Took away the effect of treatment on each value, respective to ea
 
 ```
 
-#Gnetic variation for individual traits
+#Gnetic variation for individual traits -- dont standardize those that are the y variable!
 ```{r}
 #-----
 ####. CHlorophyll A
-dat2$gh_bench<-as.factor(dat2$gh_bench)
+
 fit1<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_Area+(1|Family),REML=T,data=dat2)
-summary(fit1) 
-0.0214/(0.0214+0.89)
-#2.3 % of the variation in chlorophyll 
+fit<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_Area,REML=T,data=dat2)
+anova(fit,fit1)
+summary(fit1)
+0.02171/(0.02171+0.86973)
+#2.4 % of the variation in chlorophyll. # Chlorophyll genetic var not significant. 
 
 fit2<-glmmTMB(ChlorA ~ gh_bench*treatment+GM_Leaf_Area+(1|Family),REML=T,data=dat2)
 summary(fit2) 
@@ -288,6 +290,9 @@ summary(fit3) #Too large to fit.
 
 #Glucosinolate
 fit1<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_Area+(1|Family),REML=T,data=dat2)
+fit<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_Area,REML=T,data=dat2)
+anova(fit,fit1)
+#Glucosinolate variation highly significant. 
 summary(fit1) 
 0.0876/(0.819+0.0876)
 #Genotype accounts for 9.6% of glucosinolate variation
@@ -306,12 +311,21 @@ summary(fit3) #Too large to fit.
 
 #RGR1
 fit1<-glmmTMB(RGR1 ~ gh_bench+treatment+(1|Family),REML=T,data=dat2)
+fit<-glmmTMB(RGR1 ~ gh_bench+treatment,REML=T,data=dat2)
+anova(fit1,fit) #Family is not significant when greenouse bench is included? ?? Crazers
+summary(fit1)
+
+fit1<-glmmTMB(RGR1 ~ treatment+(1|Family),REML=T,data=dat2)
+fit<-glmmTMB(RGR1 ~ treatment,REML=T,data=dat2)
+anova(fit1,fit) #Family is not significant when greenouse bench is included? ?? Crazers
 summary(fit1)
 
 0.0259/(0.828+0.0259) #Genotype explains only 3% of the variation in growth rate. 
 
 #Total size
 fit1<-glmmTMB(GM_TotalLeaf_Area ~ gh_bench+treatment+(1|Family),REML=T,data=dat2)
+fit<-glmmTMB(GM_TotalLeaf_Area ~ gh_bench+treatment,REML=T,data=dat2)
+anova(fit,fit1) #Family not significant for body size. This is different than what i found in the other analyiss. The difference is that significance is found when i include the other vairables that accoutn for genetic variation. Heritability goes up to around 5%.
 summary(fit1)
 
 0.0097/(0.61+0.0097) #About Genotype explains only 1.5% of the variation in body size.
