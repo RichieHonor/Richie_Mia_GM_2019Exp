@@ -147,6 +147,8 @@ write.csv(write,"Data_Moities/RGR_Dat.csv")
 #Remove those that are not replicated in all three treatments. ( genotypes with an "i" in the lable. These are for use to analyze the GGMFS only).
 #Removing, calling this data set dat2CC because it only contains genotypes with all 5 measurements and it now excludes geontypes without full replication in each treatment. 
 dat2C<-dat2C[!grepl("\\|i\\d",dat2C$Genotype),]
+dat2<-dat2[!grepl("\\|i\\d",dat2$Genotype),]
+
 ```
 
 
@@ -278,11 +280,16 @@ Ramdom slope and intercept: area~seconds per family with genotype nested inside.
 ```{r}
 library(glmmTMB)
 
+dat2<-dat2[!grepl("\\|i\\d",dat2$Genotype),]
+
 fit<-glmmTMB(RGR1~treatment+(1|Family),data=datFull)
 fit2<-glmmTMB(RGR1~treatment,data=datFull)
-anova(fit,fit2) #Family is highly significant. 
+anova(fit,fit2) #Family is highly significant. , but only when ALL data are included, even those not replicated across treatment. 
 summary(fit)
-
+length(datFull$Genotype)
+datFull<-datFull[!grepl("\\|i\\d",datFull$Genotype),]
+datFull
+table(datFull$Genotype)
 
 #making an interaction column. 
 datLong$GXE<-paste(datLong$treatment,datLong$Family,sep="-")

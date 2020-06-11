@@ -14,7 +14,7 @@ The second purpose is to determine if glucosinolates and flavonoids influence su
 #Read in and prep data
 ```{r}
 library(ggplot2)
-library(lme4)
+library(lmerTest)
 #library(tidyr)
 library(cowplot)
 library(grid)
@@ -246,6 +246,10 @@ summary(fit6) #This is a much cleaner result than using three different models f
 #Percent variance explained: 
 337263/ ( 395515 + 5196413+337263 )
 
+580.7/ ( 395515 + 5196413+337263 )
+
+ 580.7
+
 #Does fern affect performance without accounting for leaf area (it is not affected by leaf area)
 fit7<-lmer(GM_TotalLeaf_Area~treatment+Fern+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit7) #Without account for leaf area, fern is a very significant predictor of performance and is correlated with reduced garlic mustard size. Whether it is doing the reduction or it can simply appear when garlic mustard is a worst performer is unclear. These estimates should be used to visualize the effect of treatment on performance. 
@@ -257,6 +261,28 @@ fitfull2<-lmer(GM_TotalLeaf_Area~treatment+Fern+(1|gh_bench), data=dat2)
 
 anova(fitfull,fitfull2) #Family only predicts performance when pathogens are accounted for. 
 ```
+
+
+#What influences fitness? Model with gluc and flav by treatment interaction, with pathogens controlled for.
+Because pathogen damages need to be controlled for leaf size, i will see what is significant and then use those in a model to assess the significance of glucosinolate and flavonoids. 
+```{r}
+library(lmerTest)
+
+#Modelling random effects.
+fitfull<-lmer(GM_TotalLeaf_Area~gluc_Conc*treatment+flav_Conc*treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+(1|Family)+(1|gh_bench), data=dat2)
+summary(fitfull)
+
+fitfull2<-lmer(GM_TotalLeaf_Area~gluc_Conc*treatment+flav_Conc*treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+(1|Family), data=dat2)
+
+fitfull3<-lmer(GM_TotalLeaf_Area~gluc_Conc*treatment+flav_Conc*treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+(1|gh_bench), data=dat2)
+
+#IS family imporatant? 
+anova(fitfull,fitfull3) #No... I will leave it in anyways. 
+#is bench important? 
+anova(fitfull,fitfull2) #Yes
+```
+
+
 
 #Modelling using lat long and alt
 These took away the effect of family
@@ -282,23 +308,29 @@ qqnorm(resid(fit6));qqnorm(resid(fit7))
 #The model appears to be a good fit.
 ```
 
-#Is there a cost to glucosinolate production? 
+#Is there a cost/benefit to glucosinolate production? 
 ```{r}
-fit6<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+gluc_Conc+(1|Family)+(1|gh_bench), data=dat2)
+fit6<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+gluc_Conc+Fern+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit6) #No, infact glucosinolates are positively correlated with performance. 
 
 #Is the cost dependent on the treatment
-fit7<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+(1|Family)+(1|gh_bench), data=dat2)
+fit7<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+Fern+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit7) 
 anova(fit6,fit7)#There is an interaction between treatment. However it is postive in all treatments and maple performance was not accounted for so this model is nullified as it is uninformative. 
 
+#Looking at standardized coefficients 
+fit<-lmer(GM_TotalLeaf_Area~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+GM_Leaf_Area+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit)
+
+fit<-lmer(GM_TotalLeaf_Area~treatment+Standardize(Fern)+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit)
 
 
-fit6<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+flav_Conc+(1|Family)+(1|gh_bench), data=dat2)
+fit6<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+flav_Conc+Fern+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit6) #As are flavonoids. 
 
 #Is the cost dependent on the treatment? 
-fit7<-lmer(GM_TotalLeaf_Area~treatment*flav_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+(1|Family)+(1|gh_bench), data=dat2)
+fit7<-lmer(GM_TotalLeaf_Area~treatment*flav_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+Fern+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit6) 
 
 anova(fit6,fit7) #There is not a significant interaction with flavonoids. 
@@ -308,21 +340,27 @@ anova(fit6,fit7) #There is not a significant interaction with flavonoids.
 
 
 
-
 #Visualization -- The conditional benefit of glucosinolates (allelopathy)
 ```{r}
+source("GGPlot_Themes.R")
+#Is the cost dependent on the treatment? 
+fit7<-lmer(GM_TotalLeaf_Area~treatment*gluc_Conc+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+Standardize(Fern)+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit7) 
+
+
+plot(residuals(fit7))
 
 aloneSlope<-function(x){
-  y=-3966.60*x+ 13751.96
+  y=130.69*x+ 9158.16
   return(y)
 }
 mapleSlope<-function(x){
-  y=(-4254.2+8417.95)*x+13751.96 -9243.71
+  y=(130.69+2830.28)*x+9158.16 +3864.18
   return(y)
 }
 
 mustardSlope<-function(x){
-  y=+13751.96-8376.67#Non significant slope
+  y=(130.69+1071.01)*x+9158.16-306.22#Non significant slope
   return(y)
 }
 
@@ -336,14 +374,16 @@ minG<-min(dat2$gluc_Conc[dat2$treatment=="gm"],na.rm = T)
 maxG<-max(dat2$gluc_Conc[dat2$treatment=="gm"],na.rm = T)
 
 #tiff("Selection_Figures/Gluc_Benefit.tiff", units="in", width=10, height=6, res=300)
-library(ggplot2)
 ggplot(dat2)+
   geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc,colour=treatment),size=2)+
   geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
     geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
   geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple()+
-  ylab(bquote(bold("Performance\n(Total Leaf Area "~(mm^2)~")")))+xlab(bquote(bold("[Total Glucosinolate] " (mg/ml))))+
-  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))
+  ylab(bquote(bold("Performance\n(Total Leaf Area "~(mm^2)*")")))+xlab(bquote(bold("[Total Glucosinolate] (log" (mg/ml)*")")))+
+  scale_y_continuous(breaks=seq(0,20000,by=2000))+
+  scale_x_continuous(breaks=seq(-3,0,by=0.25))+
+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
 #dev.off()
 
 minA
@@ -351,21 +391,24 @@ minA
 
 ```
 
+
 #Visualizing the effect of flavonoid on fitness.
 ```{r}
-summary(lmer(GM_TotalLeaf_Area~treatment+flav_Conc+BlackPathDam+Fern+(1|Family)+(1|gh_bench/gh_col), data=dat2))
+fit6<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+flav_Conc+Fern+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit6)
+
 
 aloneSlope<-function(x){
-  y=2024.62 *x+  8035.30
+  y=1707.79  *x+  13430.46
   return(y)
 }
 mapleSlope<-function(x){
-  y=(2024.62 )*x+ 8035.30 -1067.02
+  y=(1707.79 )*x+ 13430.46 -958.66
   return(y)
 }
 
 mustardSlope<-function(x){
-  y=2024.62 *x+ 8035.30-3746.91#Non significant slope
+  y=1707.79  *x+ 13430.46-1952.74 #Non significant slope
   return(y)
 }
 
@@ -385,10 +428,112 @@ ggplot(dat2)+
   geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
     geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+theme_simple()+
   geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple()+
-  ylab(bquote(bold("Performance\n(Total Leaf Area "~(mm^2)~")")))+xlab(bquote(bold("[Total Flavonoid] " (mg/ml))))+
-  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))
+  ylab(bquote(bold("Performance\n(Total Leaf Area "~(mm^2)*")")))+
+  xlab(bquote(bold("[Total Flavonoid] (log(" (mg/ml)*")")))+
+    scale_y_continuous(breaks=seq(0,20000,by=2000))+
+  scale_x_continuous(breaks=seq(-4,0,by=0.25))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
 #dev.off()
 ```
+
+
+#Multiplot
+```{r}
+source("GGPlot_Themes.R")
+
+aloneSlope<-function(x){
+  y=130.69*x+ 9158.16
+  return(y)
+}
+mapleSlope<-function(x){
+  y=(130.69+2830.28)*x+9158.16 +3864.18
+  return(y)
+}
+
+mustardSlope<-function(x){
+  y=(130.69+1071.01)*x+9158.16-306.22#Non significant slope
+  return(y)
+}
+
+minM<-min(dat2$gluc_Conc[dat2$treatment=="m"],na.rm = T)
+maxM<-max(dat2$gluc_Conc[dat2$treatment=="m"],na.rm = T)
+
+minA<-min(dat2$gluc_Conc[dat2$treatment=="a"],na.rm = T)
+maxA<-max(dat2$gluc_Conc[dat2$treatment=="a"],na.rm = T)
+
+minG<-min(dat2$gluc_Conc[dat2$treatment=="gm"],na.rm = T)
+maxG<-max(dat2$gluc_Conc[dat2$treatment=="gm"],na.rm = T)
+a<-ggplot(dat2)+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc,colour=treatment),size=2)+
+  geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
+    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
+  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+
+  theme_simple_multiCol_First()+
+  ylab(bquote(bold("Total Leaf Area "~(mm^2))))+
+  xlab(bquote(bold("[Total Glucosinolate] (log" (mg/ml)*")")))+
+  scale_y_continuous(breaks=seq(0,20000,by=2000))+
+  scale_x_continuous(breaks=seq(-3,0,by=0.25))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
+
+aloneSlope<-function(x){
+  y=1707.79  *x+  13430.46
+  return(y)
+}
+mapleSlope<-function(x){
+  y=(1707.79 )*x+ 13430.46 -958.66
+  return(y)
+}
+
+mustardSlope<-function(x){
+  y=1707.79  *x+ 13430.46-1952.74 #Non significant slope
+  return(y)
+}
+
+minM<-min(dat2$flav_Conc[dat2$treatment=="m"],na.rm = T)
+maxM<-max(dat2$flav_Conc[dat2$treatment=="m"],na.rm = T)
+
+minA<-min(dat2$flav_Conc[dat2$treatment=="a"],na.rm = T)
+maxA<-max(dat2$flav_Conc[dat2$treatment=="a"],na.rm = T)
+
+minG<-min(dat2$flav_Conc[dat2$treatment=="gm"],na.rm = T)
+maxG<-max(dat2$flav_Conc[dat2$treatment=="gm"],na.rm = T)
+
+
+b<-ggplot(dat2)+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=flav_Conc,colour=treatment),size=2)+
+  geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
+    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+theme_simple()+
+  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+
+  theme_simple_multiCol()+
+  ylab(bquote(bold("Total Leaf Area "~(mm^2))))+
+  xlab(bquote(bold("[Total Flavonoid] (log(" (mg/ml)*")")))+
+    scale_y_continuous(breaks=seq(0,20000,by=2000))+
+  scale_x_continuous(breaks=seq(-4,0,by=0.25))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
+
+c<-ggplot(dat2)+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=flav_Conc,colour=treatment),size=2)+
+  geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
+    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+theme_simple()+
+  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+
+  theme_simple()+
+  ylab(bquote(bold("Performance\n(Total Leaf Area "~(mm^2)*")")))+
+  xlab(bquote(bold("[Total Flavonoid] (log(" (mg/ml)*")")))+
+    scale_y_continuous(breaks=seq(0,20000,by=2000))+
+  scale_x_continuous(breaks=seq(-4,0,by=0.25))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
+
+d<-get_legend(c)
+
+plots <- align_plots(a, b,align="hv")
+
+top<-plot_grid(plots[[1]],plots[[2]],ncol=2,rel_widths=c(1,1),rel_heights = c(1,1),labels = c("a","b"),label_fontfamily = "Arial",label_size = 18)
+
+tiff("Selection_Figures/GlucFlav_Benefit.tiff", units="in", width=14, height=8, res=300)
+plot_grid(d,top,ncol=1,rel_heights = c(1,3.5))
+dev.off()
+```
+
 
 #Visualization-- The Detriment of pathogens and ferns
 ```{r}

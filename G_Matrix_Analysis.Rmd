@@ -8,17 +8,18 @@ output: html_document
 #Read in and prep data
 ```{r}
 library(ggplot2)
-library(lme4)
-#library(tidyr)
+#library(lme4)
+library(tidyr)
 library(cowplot)
 library(grid)
 library(gridExtra)
 library(dplyr)
+library(glmmTMB)
 source("GGPlot_Themes.R")
 
 #read in data
 rm(list=ls())
-dat<-read.csv("DataSynthesis.csv")
+dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
 
 #Remove maple controls data from the data set.
 dat<-dat %>% filter(treatment!="mcnt") %>% droplevels()
@@ -40,6 +41,11 @@ hist(dat$flav_Conc)
 min(dat$gluc_Conc,na.rm=T)
 min(dat$flav_Conc,na.rm=T)
 
+  #Function to standardize variables. 
+Standardize<-function(x){
+  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
+}
+
 
 #Logging data
 dat$Fern<-log(dat$Fern+1)
@@ -55,9 +61,10 @@ dat$BlackPathDam<-log(dat$BlackPathDam+1)
 dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
 
 
+
 #Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
-dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),RGR1=first(RGR1))
-dat
+dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),RGR1=first(RGR1),GM_Leaf_Len_Initial=first(GM_Leaf_Len_Initial),GM_NumberOfLeaves_Initial=first(GM_NumberOfLeaves_Initial))
+
 
 #All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
 dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
@@ -81,142 +88,49 @@ dat2$WhiteFungLogis<-NA
 dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-0
 dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-1
 
-
-  #Function to standardize variables. 
-Standardize<-function(x){
-  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
-}
-
-#Standardizing leaf area. 
-dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
-
 ```
 
 
 
 #Gmatrix model without growth rate
 ```{r}
-library(tidyr)
-#library(rms)
-#library(nlme)
-
-dat2$GM_TotalLeaf_Area<-Standardize(dat2$GM_TotalLeaf_Area)
-dat2$flav_Conc<-Standardize(dat2$flav_Conc)
-dat2$gluc_Conc<-Standardize(dat2$gluc_Conc)
-dat2$ChlorA<-Standardize(dat2$ChlorA)
-
-
-datG<-dat2 %>% select(Tag,Family,gluc_Conc,ChlorA,flav_Conc,GM_TotalLeaf_Area,gh_bench,treatment) %>%  pivot_longer(c(gluc_Conc,ChlorA,GM_TotalLeaf_Area))
-
-datG$gh_bench<-as.factor(datG$gh_bench)
-
-#---- #Genetic correlation between traits and within treatments
-library(glmmTMB)
-
-#Genetic variation for all traits
-fit1<-glmmTMB(value ~ name+(1|Family),REML=T,data=datG)
-summary(fit1) #Can run seperately for each trait. 
-
-#Genetic correlations between traits. 
-fit2<-glmmTMB(value ~ -1+name+(-1+name|Family),REML=T,data=datG)
-summary(fit2)
-cov2cor(vcov(fit2)$cond)
-
-anova(fit1,fit2)
-
-#Genetic correlations between traits accounting for bench and treatment
-fit3<-glmmTMB(value ~ -1+name+gh_bench+treatment +(-1+name|Family),REML=T,data=datG)
-summary(fit3) #Took away the effect of treatment on each value (mean effect of treatment). 
-anova(fit3,fit1) #This is a much better fit with treatment than both previous models. 
-
-#Genetic correlations between traits accounting for bench and treatment
-fit4<-glmmTMB(value ~ -1+name*treatment +gh_bench+(-1+name|Family),REML=T,data=datG)
-summary(fit4) #Took away the effect of treatment on each value, respective to each value (mean effect of treatment). 
-anova(fit4,fit3) #This is a better model than the previous. 
-
-#Genetic correlations between traits accounting for bench and treatment
-fit5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
-summary(fit5) #Took away the effect of treatment on each value, respective to each value (mean effect of treatment). #####This model has interaction with treatment , gh bench and name such that treatment and gh bench have individual effects on each of chlophyll body size, and glucosinolate concentration. Glucosinolate has alot of genetic variation, but it is highly correlated with total leaf area and chlrophyll a. 
-anova(fit5,fit4)
-#This is the best model yet. GXE effects are ellusive, however.
-cov2cor(vcov(fit5)$cond)
-
-#Looking for genetic variation within each treatment (GXE)
-fit6<-glmmTMB(value ~ -1+name*gh_bench+treatment+(-1+name|treatment/Family),REML=T,data=datG)
-summary(fit6) #Model too complicated to test a GXE for all. 
-
-```
-
-#Generating genetic correlations and H2
-```{r}
-dat2$GM_TotalLeaf_Area<-Standardize(dat2$GM_TotalLeaf_Area)
-dat2$flav_Conc<-Standardize(dat2$flav_Conc)
-dat2$gluc_Conc<-Standardize(dat2$gluc_Conc)
-dat2$ChlorA<-Standardize(dat2$ChlorA)
-dat2$RGR1<-Standardize(dat2$RGR1)
+#Standardizing Variables.
+dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
+dat2$flav_ConcS<-Standardize(dat2$flav_Conc)
+dat2$gluc_ConcS<-Standardize(dat2$gluc_Conc)
+dat2$ChlorAS<-Standardize(dat2$ChlorA)
+dat2$RGR1S<-Standardize(dat2$RGR1)
+dat2$GM_Leaf_AreaS<-Standardize(dat2$GM_Leaf_Area)
 dat2$gh_bench<-as.factor(dat2$gh_bench)
 
-#gluc_Conc,ChlorA,GM_TotalLeaf_Area
-datG<-dat2 %>% select(Tag,Family,gluc_Conc,ChlorA,flav_Conc,GM_TotalLeaf_Area,gh_bench,treatment) %>%  pivot_longer(c(gluc_Conc,ChlorA,GM_TotalLeaf_Area))
+#Generating data frame for g matrix.
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment) %>%  pivot_longer(c(gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
 
-fit5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
-summary(fit5)
-
-
-#flav_Conc,ChlorA #Genetic correlation with other variables are not possible due to reduced sample size. ... it just wont fit. 
-datG<-dat2 %>% select(Tag,Family,gluc_Conc,ChlorA,flav_Conc,GM_TotalLeaf_Area,gh_bench,treatment) %>%  pivot_longer(c(flav_Conc,ChlorA))
-
-fit5<-glmmTMB(value ~ -1+name+treatment +gh_bench+(-1+name|Family),REML=T,data=datG)
-summary(fit5)
-
-```
-
-
-
-
-
-#Gmatrix model with growth Rate
-```{r}
-library(tidyr)
-
-#Standardizing variables
-dat2$GM_TotalLeaf_Area<-Standardize(dat2$GM_TotalLeaf_Area)
-dat2$flav_Conc<-Standardize(dat2$flav_Conc)
-dat2$gluc_Conc<-Standardize(dat2$gluc_Conc)
-dat2$ChlorA<-Standardize(dat2$ChlorA)
-dat2$RGR1<-Standardize(dat2$RGR1)
-
-#Creating data frame
-datG<-dat2 %>% select(Tag,Family,gluc_Conc,ChlorA,flav_Conc,GM_TotalLeaf_Area,gh_bench,treatment,RGR1) %>%  pivot_longer(c(ChlorA,GM_TotalLeaf_Area,RGR1))
-
-#Making bench a factor. 
-datG$gh_bench<-as.factor(datG$gh_bench)
 
 #---- #Genetic correlation between traits and within treatments
-library(glmmTMB)
 
 #Genetic variation for all traits
 fit1<-glmmTMB(value ~ name+(1|Family),REML=T,data=datG)
-summary(fit1) # 
+summary(fit1) #Can run seperately for each trait. 
 
 #Genetic correlations between traits. 
-fit2<-glmmTMB(value ~ -1+name+(-1+name|Family),REML=T,data=datG) #Too complicated with growth rate included. even without glucosinolate included. 
+fit2<-glmmTMB(value ~ -1+name+(-1+name|Family),REML=T,data=datG)
 summary(fit2)
 cov2cor(vcov(fit2)$cond)
-
-anova(fit1,fit2)
+anova(fit1,fit2)#Not significantly better fit.
 
 #Genetic correlations between traits accounting for bench and treatment
 fit3<-glmmTMB(value ~ -1+name+gh_bench+treatment +(-1+name|Family),REML=T,data=datG)
 summary(fit3) #Took away the effect of treatment on each value (mean effect of treatment). 
 anova(fit3,fit1) #This is a much better fit with treatment than both previous models. 
 
-#Genetic correlations between traits accounting for bench and treatment
+#Genetic correlations between traits accounting for bench and treatment interaction
 fit4<-glmmTMB(value ~ -1+name*treatment +gh_bench+(-1+name|Family),REML=T,data=datG)
 summary(fit4) #Took away the effect of treatment on each value, respective to each value (mean effect of treatment). 
 anova(fit4,fit3) #This is a better model than the previous. 
 
-#Genetic correlations between traits accounting for bench and treatment
+
+#Genetic correlations between traits accounting for bench and treatment interaction.
 fit5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
 summary(fit5) #Took away the effect of treatment on each value, respective to each value (mean effect of treatment). #####This model has interaction with treatment , gh bench and name such that treatment and gh bench have individual effects on each of chlophyll body size, and glucosinolate concentration. Glucosinolate has alot of genetic variation, but it is highly correlated with total leaf area and chlrophyll a. 
 anova(fit5,fit4)
@@ -224,111 +138,152 @@ anova(fit5,fit4)
 cov2cor(vcov(fit5)$cond)
 
 #Looking for genetic variation within each treatment (GXE)
-fit6<-glmmTMB(value ~ -1+name*gh_bench+treatment+(-1+name|treatment/Family),REML=T,data=datG)
+fit6<-glmmTMB(value ~ -1+name*gh_bench+treatment+(-1+treatment|Family),REML=T,data=datG)
 summary(fit6) #Model too complicated to test a GXE for all. 
 
 ```
 
-#Gmatrix with flavonoids included. 
+#Generating genetic correlations for other variables
 ```{r}
+#flav_Conc,ChlorA, Body Size #Genetic correlation with other variables are not possible due to reduced sample size. ... it just wont fit. 
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment) %>%  pivot_longer(c(flav_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
 
-dat2$GM_TotalLeaf_Area<-Standardize(dat2$GM_TotalLeaf_Area)
-dat2$flav_Conc<-Standardize(dat2$flav_Conc)
-dat2$gluc_Conc<-Standardize(dat2$gluc_Conc)
-dat2$ChlorA<-Standardize(dat2$ChlorA)
-
-
-datG<-dat2 %>% select(Tag,Family,gluc_Conc,ChlorA,flav_Conc,GM_TotalLeaf_Area,gh_bench,treatment) %>%  pivot_longer(c(gluc_Conc,flav_Conc,ChlorA,GM_TotalLeaf_Area))
-
-datG$gh_bench<-as.factor(datG$gh_bench)
-
-#---- #Genetic correlation between traits and within treatments
-library(glmmTMB)
-
-#Genetic variation for all traits
-fit1<-glmmTMB(value ~ name+(1|Family),REML=T,data=datG)
-summary(fit1) #Can run seperately for each trait. 
-
-#Genetic correlations between traits.  #This model is too large to fit. not looking good. 
-fit2<-glmmTMB(value ~ -1+name+(-1+name|Family),REML=T,data=datG)
-summary(fit2)
-
-#Genetic correlations between traits accounting for bench and treatment .. too large to fit
-fit3<-glmmTMB(value ~ -1+name+gh_bench+treatment +(-1+name|Family),REML=T,data=datG)
+fit<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
+summary(fit) #Convergence problem
 
 
-#Genetic correlations between traits accounting for bench and treatment
-fit4<-glmmTMB(value ~ -1+name*treatment +gh_bench+(-1+name|Family),REML=T,data=datG)
-#Too large to fit.... 
+#RGR1, CHlorA and Body mass
+#Creating data frame
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment,RGR1S) %>%  pivot_longer(c(ChlorAS,GM_TotalLeaf_AreaS,RGR1S))
 
-#Genetic correlations between traits accounting for bench and treatment... this model fits though. 
-fit5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
-summary(fit5) #Took away the effect of treatment on each value, respective to each value (mean effect of treatment). #####This model has interaction with treatment , gh bench and name such that treatment and gh bench have individual effects on each of chlophyll body size, and glucosinolate concentration. Glucosinolate has alot of genetic variation, but it is highly correlated with total leaf area and chlrophyll a. 
+fit<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
+summary(fit) #Does not fit. 
 
+#gluc_Conc,Flav_Conc and ChlorA
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment) %>%  pivot_longer(c(gluc_ConcS,flav_ConcS,ChlorAS))
+
+fit<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
+summary(fit) #Wont Fit.
+
+
+#Flav_Conc and ChlorA
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment) %>%  pivot_longer(c(flav_ConcS,ChlorAS))
+
+fit<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
+summary(fit) #Wont fit. 
 ```
 
-#Gnetic variation for individual traits -- dont standardize those that are the y variable!
+#Gnetic variation for individual traits -- 
+On the left of the pipe is what the axis are, on the right side of the pipe is what the points are. ... too large. 
 ```{r}
 #-----
 ####. CHlorophyll A
+fit<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_AreaS,REML=T,data=dat2)
 
-fit1<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_Area+(1|Family),REML=T,data=dat2)
-fit<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_Area,REML=T,data=dat2)
-anova(fit,fit1)
+fit1<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family),REML=T,data=dat2)
+
+anova(fit,fit1) #Genetic Variation for Chlorophyll is not significant. 
 summary(fit1)
-0.02171/(0.02171+0.86973)
-#2.4 % of the variation in chlorophyll. # Chlorophyll genetic var not significant. 
+0.003975/(0.159282+0.003975) #2.4 % of the variation in chlorophyll. 
 
-fit2<-glmmTMB(ChlorA ~ gh_bench*treatment+GM_Leaf_Area+(1|Family),REML=T,data=dat2)
+
+#GXE interaction
+fit2<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family:treatment),REML=T,data=dat2)
 summary(fit2) 
 anova(fit1,fit2)#Interaction is not significant
 
-fit3<-glmmTMB(ChlorA ~ treatment+(treatment|Family),REML=T,data=dat2) #Tests whethere there is significant genetic covariation amoung treatments.
-#Tests GXE for that trait. On the left of the pipe is what the axis are, on the right side of the pipe is what the points are. ... too large. #get genetic variation in each treatment. Genetic correlation betwen treatments (random effect) - 
-summary(fit3) #Too large to fit. 
-
-
+#---------------
 #Glucosinolate
-fit1<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_Area+(1|Family),REML=T,data=dat2)
-fit<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_Area,REML=T,data=dat2)
+fit<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_AreaS,REML=T,data=dat2)
+fit1<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family),REML=T,data=dat2)
 anova(fit,fit1)
 #Glucosinolate variation highly significant. 
 summary(fit1) 
 0.0876/(0.819+0.0876)
+0.007448/(0.069621+0.007448)#Same as if it is standardized
 #Genotype accounts for 9.6% of glucosinolate variation
-
-
-fit2<-glmmTMB(gluc_Conc ~ gh_bench*treatment+GM_Leaf_Area+(1|Family),REML=T,data=dat2)
+confint(fit1)
+5.343228e-02/(0.819+0.0876) #95% CI
+0.13938976/(0.819+0.0876)
+#GXE Interaction
+fit2<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family:treatment),REML=T,data=dat2)
 summary(fit2) 
 anova(fit1,fit2)#Interaction is not significant
 
-fit3<-glmmTMB(gluc_Conc ~ treatment+(treatment|Family),REML=T,data=dat2) #Tests whethere there is significant genetic covariation amoung treatments.
-#Tests GXE for that trait. On the left of the pipe is what the axis are, on the right side of the pipe is what the points are. ... too large. 
-summary(fit3) #Too large to fit. 
-
-#Trying model with further nesting 
 
 
-#RGR1
-fit1<-glmmTMB(RGR1 ~ gh_bench+treatment+(1|Family),REML=T,data=dat2)
-fit<-glmmTMB(RGR1 ~ gh_bench+treatment,REML=T,data=dat2)
-anova(fit1,fit) #Family is not significant when greenouse bench is included? ?? Crazers
-summary(fit1)
+#---------------
+#Flavonoid
+fit<-glmmTMB(flav_Conc ~ gh_bench+treatment+GM_Leaf_AreaS,REML=T,data=dat2)
+fit1<-glmmTMB(flav_Conc ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family),REML=T,data=dat2)
+anova(fit,fit1)#Family not significant.
+summary(fit1) 
+9.062e-11/(7.863e-02+9.062e-11)
 
-fit1<-glmmTMB(RGR1 ~ treatment+(1|Family),REML=T,data=dat2)
-fit<-glmmTMB(RGR1 ~ treatment,REML=T,data=dat2)
-anova(fit1,fit) #Family is not significant when greenouse bench is included? ?? Crazers
-summary(fit1)
+#GXE Interaction
+fit2<-glmmTMB(flav_Conc ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family:treatment),REML=T,data=dat2)
+summary(fit2) 
+anova(fit1,fit2)#Interaction is not significant
 
-0.0259/(0.828+0.0259) #Genotype explains only 3% of the variation in growth rate. 
+#---------------
+#Total Leaf area (model selection performed elsewhere)
+fit<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+GM_Leaf_AreaS+(1|gh_bench), data=dat2)
 
-#Total size
-fit1<-glmmTMB(GM_TotalLeaf_Area ~ gh_bench+treatment+(1|Family),REML=T,data=dat2)
-fit<-glmmTMB(GM_TotalLeaf_Area ~ gh_bench+treatment,REML=T,data=dat2)
-anova(fit,fit1) #Family not significant for body size. This is different than what i found in the other analyiss. The difference is that significance is found when i include the other vairables that accoutn for genetic variation. Heritability goes up to around 5%.
-summary(fit1)
+fit1<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_AreaS+Fern+(1|gh_bench)+(1|Family), data=dat2)
+anova(fit,fit1) #Family highly significant. 
+summary(fit1) 
+337263/(337263 +395515 + 5196413 )#Accounts for 5.7% of variation.
 
-0.0097/(0.61+0.0097) #About Genotype explains only 1.5% of the variation in body size.
+#GXE Interaction
+fit2<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_AreaS+Fern+(1|gh_bench)+(1|Family:treatment), data=dat2)
+anova(fit2,fit1) #Degrees of freedom is zero. I must fix this. 
+summary(fit2) 
+465806/(404221+5051469)
+
+
+#GXE Interaction
+fit2<-lmer(GM_TotalLeaf_AreaS~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+gh_bench+GM_Leaf_AreaS+(1|Family), data=dat2)
+
+fit3<-lmer(GM_TotalLeaf_AreaS~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+gh_bench+GM_Leaf_AreaS+(1|Family:treatment), data=dat2)
+
+anova(fit2,fit3) #No treatment interaction 
+
+
+```
+
+
+#Special Case: RGR
+```{r}
+#RGR1 
+#This only fits if RGR is standardized. 
+fit0<-glmmTMB(RGR1S ~ treatment+GM_NumberOfLeaves_Initial+GM_Leaf_Len_Initial+(1|Family)+(1|gh_bench),REML=T,data=dat2)
+
+fit1<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial+(1|Family)+(1|gh_bench),REML=T,data=dat2)
+anova(fit0,fit1)#Initial number of leaves is not significant. 
+
+fit2<-glmmTMB(RGR1S ~ GM_Leaf_Len_Initial+(1|Family)+(1|gh_bench),REML=T,data=dat2)
+anova(fit2,fit1)#treatment is significant
+
+
+fit3<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial+(1|Family),REML=T,data=dat2)
+anova(fit3,fit1)#greenhouse bench not significant
+summary(fit3)
+0.00288/(0.00288+0.57003)
+fit4<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial,REML=T,data=dat2)
+
+anova(fit4,fit3) #Family not significant. .....
+
+#GXE Interaction
+fit5<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial+(1|Family:treatment),REML=T,data=dat2)
+anova(fit3,fit5) #GXE is highly significant. 
+
+
+#Double checking to see if interaction is better than nothing
+fit5<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial,REML=T,data=dat2)
+fit4<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial+(1|Family:treatment),REML=T,data=dat2)
+
+anova(fit4,fit5)  #But including the interaction term is not better than nothing at all. 
+
 ```
 
 

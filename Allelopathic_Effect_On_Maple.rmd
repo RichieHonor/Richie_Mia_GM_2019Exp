@@ -168,8 +168,10 @@ ggplot()+
   geom_point(aes(y=Maple$Maple_TotalLeafArea_End,x=Maple$PC1Tot,colour=Maple$treatment))+
   geom_path(aes(x=xCnt,y=slopeCnt(xCnt)),colour="black",size=1)+
   geom_path(aes(x=xComp,y=slopeComp(xComp)),colour="#E69F00",size=1)+
-    scale_colour_manual(values=c("#E69F00", "black"),labels=c("Maple-Garlic Mustard","Maple Alone"))+
+    scale_colour_manual(values=c("#E69F00", "black"),labels=c("Interspecific","Maple Alone"))+
   scale_y_continuous(breaks=seq(0,20000,2500))+
+  scale_x_continuous(breaks=seq(-3,5,1))+
+
   theme_simple()+
   ylab(bquote(bold("Total Leaf Area"~(mm^2))))+
   xlab("Initial Size (PC1)")
@@ -177,6 +179,7 @@ dev.off()
 
 #The conclusion is that, not only are maples in the mcnt treatment have higher fitness after controlling for differences in initial size, they also exhibit increased growth at a given body size. 
 ```
+
 
 # Modelling: Effect of GM on Maple Performance
 ```{r}
@@ -255,6 +258,80 @@ summary(fitTw3)
 #The simulated p value was 0.002, which is close to the observed value of 0.004. This is a reliable model. 
 
 ```
+
+#Modelling no tweedie distribution
+Normal distribution fits well enough, is much easier to interpret and does not change the outcome of the model. 
+```{r}
+fitTw1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot*gluc_Conc+MapleDamage, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+summary(fitTw1) #The interaction is not important, but glucosinolate concentration and maple damage are. 
+
+fitTw2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+summary(fitTw2)
+anova(fitTw1,fitTw2) #Interaction not significant
+
+
+fitTw2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+ChlorA+MapleDamage, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+summary(fitTw2)
+```
+
+
+
+#Visualizing effect of glucosinolates on maple performance. 
+```{r}
+source("GGPlot_Themes.R")
+fitTw2<-glmmTMB(Maple_TotalLeafArea_End~Standardize(PC1Tot)+gluc_Conc+Standardize(MapleDamage), data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+summary(fitTw2)
+
+#ChlorA Slope
+fitTw2<-glmmTMB(Maple_TotalLeafArea_End~Standardize(PC1Tot)+ChlorA+Standardize(MapleDamage), data=MapleModel)
+summary(fitTw2)
+
+glucSlope<-function(x){
+  y=-1338.5  *x+2282.3 #Non significant slope
+  return(y)
+}
+minG<-min(MapleModel$gluc_Conc,na.rm = T)
+maxG<-max(MapleModel$gluc_Conc,na.rm = T)
+
+chlorSlope<-function(x){
+  y= -1751.0  *x+2307.9  #Non significant slope
+  return(y)
+}
+
+minC<-min(MapleModel$ChlorA,na.rm = T)
+maxC<-max(MapleModel$ChlorA,na.rm = T)
+
+
+
+a<-ggplot(MapleModel)+
+  geom_point(aes(y=Maple_TotalLeafArea_End,x=gluc_Conc),colour="#E69F00")+
+    geom_segment(x=minG,xend=maxG,y=glucSlope(minG),yend=glucSlope(maxG),colour="black",size=1.5)+
+  scale_y_continuous(breaks=seq(0,20000,2500))+
+   scale_x_continuous(breaks=seq(-3,0,0.25))+
+  theme_simple_multiCol_First()+
+  ylab(bquote(bold("Total Leaf Area "*(mm^2))))+
+  xlab(bquote(bold("[Total Glucosinolate] (log" (mg/ml)*")")))
+
+b<-ggplot(MapleModel)+
+  geom_point(aes(y=Maple_TotalLeafArea_End,x=ChlorA),colour="#E69F00")+
+  geom_segment(x=minC,xend=maxC,y=chlorSlope(minC),yend=glucSlope(maxC),colour="black",size=1.5)+
+  scale_y_continuous(breaks=seq(0,20000,2500))+
+ scale_x_continuous(breaks=seq(-3,0,0.5))+
+  theme_simple_multiCol()+
+  ylab(bquote(bold("Total Leaf Area "~(mm^2))))+
+  xlab(bquote(bold("[Chlorophyll A] (log"(μg/ml)*")")))
+
+plots <- align_plots(a, b,align="hv")
+
+
+
+tiff("Maple_Figures/Maple_Inhibition_gluc_Chlor.tiff", units="in", width=12, height=6, res=300)
+plot_grid(plots[[1]],plots[[2]],ncol=2,rel_widths=c(1,1),rel_heights = c(1,1),labels = c("a","b"),label_fontfamily = "Arial",label_size = 18)
+dev.off()
+
+```
+
+
 
 
 #Is there evidence that those in the maple and garlic mustard treatment have the same relationship between glucosinolate and chlorA? If glucosinolates are truly beneficial in one treatment but not in another, we might expect for the relationship between glucosinolates and ChlorA to be stronger in the treatment in which glucosinolates are beneficial. This is because if those that create more chlorophyll a passively allocate more resources to glucosinolates, this relationship may be a weaker relationship than if glucosinolates are increasing fitness and allowing an increased allocation to chlrophyll A. 
@@ -339,7 +416,7 @@ fit6<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End + Fern +
 summary(fit6)
 
 #Fern is not significant
-fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End  +  
+fit7<-lmer(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)  +  
     ThripsDam + BlackPathDam  +GM_Leaf_Area+(1 | Family)+(1|gh_bench)  ,data= MapleModel)
 
 summary(fit7)

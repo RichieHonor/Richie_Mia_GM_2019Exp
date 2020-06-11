@@ -218,6 +218,8 @@ summary(fit1)
 
 #Visualization -- black pathogen abundance by flavonoids.
 ```{r}
+source("GGPlot_Themes.R")
+
 #Mininum adequate model for black pathogen abundance
 fit<-glmmTMB(BlackPathDam~treatment+flav_Conc+Standardize(GM_Leaf_Area)+Standardize(ChlorA)+(1|Family/Tag),family=nbinom2,data=dat)
 summary(fit)
@@ -227,10 +229,10 @@ source("GGPlot_Themes.R")
 #Reversing link function, to estimate the data on the response scale. 
 flavSlope=function(x,int,log=FALSE){
   if(log==T){
-    y=-1.68*x+int
+    y=-0.98*x+int
   }
   else{
-    y=exp(-1.68*x+int)
+    y=exp(-0.98*x+int)
   }
   return(y)
 }
@@ -241,9 +243,9 @@ flavSlope=function(x,int,log=FALSE){
 flavplot=seq(min(dat$flav_Conc,na.rm = T),max(dat$flav_Conc,na.rm=T),length.out = 688)
 
 #Calculating slope values
-flavyA<-flavSlope(flavplot, -0.99)
-flavyGM<-flavSlope(flavplot, -0.99+0.2519)
-flavyM<-flavSlope(flavplot, -0.99-0.43542)
+flavyA<-flavSlope(flavplot, -2.93618)
+flavyGM<-flavSlope(flavplot, -2.93618+ 0.25862)
+flavyM<-flavSlope(flavplot, -2.93618-0.44161)
 
 
 tiff("Defence_Figures/FlavonoidBlackPathogen2.tiff", units="in", width=8, height=6, res=300)
@@ -263,9 +265,9 @@ dev.off()
 
 #LOG Plot
 
-flavyA<-flavSlope(flavplot, -0.99+1,log = T)
-flavyGM<-flavSlope(flavplot, -0.99+0.2519+1,log = T)
-flavyM<-flavSlope(flavplot, -0.99-0.43542+1,log = T)
+flavyA<-flavSlope(flavplot, -2.93618+1,log = T)
+flavyGM<-flavSlope(flavplot, -2.93618+0.25862+1,log = T)
+flavyM<-flavSlope(flavplot, -2.93618-0.44161+1,log = T)
 
 
 

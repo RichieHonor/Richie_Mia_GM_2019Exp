@@ -802,6 +802,8 @@ write.csv(master,"DataSynthesis.csv")
 
 #Insert Genotype location (longitude and lattitude).
 ```{r}
+rm(list=ls())
+
 #Reading in data
 popinfo<-read.csv("Data_Moities/S0_population_info.csv")
 dat<-read.csv("DataSynthesis.csv")
@@ -839,6 +841,8 @@ write.csv(Final,"DataSynthesis.csv")
 
 #Insert mortality data. 
 ```{r}
+rm(list=ls())
+
 field<-read.csv("Data_Moities/Bolt_Field_Data_May132020.csv",stringsAsFactors = F)
 
 #Replacing NA's with "Dead"
@@ -965,13 +969,28 @@ write.csv(dat,"DataSynthesis.csv")
 #Adding growth Rate Data
 Growth rate data were organised under "GrowthRate_Analysis.rmd".
 ```{r}
-dat<-read.csv("DataSynthesis.csv")
-RGR<-read.csv("Data_Moities/RGR_Dat.csv")
+rm(list=ls())
 
+#Reading in data
+dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
+RGR<-read.csv("Data_Moities/RGR_Dat.csv",stringsAsFactors = F)
+
+#Removing bad collumns
 dat<-dat %>% select(-X)
 RGR<-RGR %>% select(-X)
 
+#Everything in the master file that didnt get joined
+dat %>% anti_join(RGR,by=c("Tag"="Genotype"))
+#8 genotypes are missing from the growth rate analysis. 
 
+#Everything in the growthrate file that didnt get joined
+RGR %>% anti_join(dat,by=c("Genotype"="Tag"))
+
+#Modyfying two names. There are still missing genotypes for which i dont know why they are missing. 
+RGR$Genotype[RGR$Genotype=="b|WSSWM3-1-0|?"]<-"b|WSSWM3-1-0|?|?"
+RGR$Genotype[RGR$Genotype=="e|JBCHY1-1-50|Q|?"]<-"e|JBCHY1-1-50|?"
+
+#Joining to master data frame. 
 final<-dat %>% left_join(RGR,by=c("Tag"="Genotype"))
 
 write.csv(final,"DataSynthesis.csv")

@@ -108,7 +108,7 @@ theme_simple_multiCol<-function(){
       axis.title.y =  element_blank(),
       
       #Plot Margin
-      plot.margin = unit(c(0,1,0,1), "cm"),
+      plot.margin = unit(c(0,0,0,0), "cm"),
       
       #Theme of Axis lines
       axis.line=element_line(colour = "black", size = 1)
@@ -137,7 +137,7 @@ theme_simple_multiCol_First<-function(){
       axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(0,3,0,0),angle =90),
       
       #Plot Margin
-      plot.margin = unit(c(0,1,0,1), "cm"),
+      plot.margin = unit(c(0,0,0,0), "cm"),
       
       #Theme of Axis lines
       axis.line=element_line(colour = "black", size = 1)
