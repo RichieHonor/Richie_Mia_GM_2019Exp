@@ -1641,3 +1641,681 @@ datLong
 
 
 
+
+
+#Influence of gluc and flav on defence. 
+```{r}
+
+hist(dat$Fern)
+hist(dat$ThripsDam)
+hist(dat$WhiteFungDam)
+hist(dat$BlackPathDam)
+
+dat$BlackPathDam
+
+#This data is very zero inflated and a poisson model will be too overdispersed. A Negative binomial distribution will be used. 
+```
+
+
+
+#Modelling : Negative binomial on Thrips Damage. 
+```{r}
+library("glmmTMB")
+
+dat$ThripsDam<-ceiling(dat$ThripsDam)
+
+fit_full<-glmmTMB(ThripsDam~treatment+gluc_Conc+flav_Conc+(1|Family/Tag)+(1|gh_bench),family=nbinom2,data=dat)
+
+fit_1<-update(fit_full,~.-treatment)
+anova(fit_full,fit_1) #treatment is unimportant. 
+
+fit_2<-update(fit_1,~.+ gluc_Conc:flav_Conc)
+
+anova(fit_1,fit_2)#interaction unimportant. 
+
+
+fit_1<-glmmTMB(ThripsDam~gluc_Conc+flav_Conc+(1|Family/Tag)+(1|gh_bench),family=nbinom2,data=dat[!is.na(dat$flav_Conc),])
+
+fit_2<-update(fit_1,~.- flav_Conc)
+anova(fit_1,fit_2)#
+#Flav_Conc is highly important. 
+
+
+
+fit_2<-update(fit_1,~.- gluc_Conc)
+anova(fit_1,fit_2)# gluc conc does not appear to be significant. I will try using the whole gluc conc data set. 
+
+fit_1<-glmmTMB(ThripsDam~gluc_Conc+(1|Family/Tag)+(1|gh_bench),family=nbinom2,data=dat[!is.na(dat$gluc_Conc),])
+
+fit_2<-update(fit_1,~.- gluc_Conc)
+anova(fit_1,fit_2)# gluc conc is highly significant however when flavonoids are excluded. Therefore secondary compounds, both glucosinolates and flavonoids predicts reduction in thrips damage. 
+
+#Best model includes both, however, putting both in the same model will distribute the effect amoungst both of the terms. This might not be appropriate, but i will check for this. 
+
+fit_g<-glmmTMB(ThripsDam~gluc_Conc+(1|Family/Tag)+(1|gh_bench),family=nbinom2,data=dat[!is.na(dat$gluc_Conc),])
+fit_f<-glmmTMB(ThripsDam~flav_Conc+(1|Family/Tag)+(1|gh_bench),family=nbinom2,data=dat[!is.na(dat$flav_Conc),])
+fit_full<-glmmTMB(ThripsDam~gluc_Conc+flav_Conc+(1|Family/Tag)+(1|gh_bench),family=nbinom2,data=dat)
+
+summary(fit_f)$coef
+summary(fit_g)$coef
+summary(fit_full)$coef
+
+#As expected, the coefficients are distributed evenly amoungst gluc and flav concentrations, the conclusion is that both reduce thrips abundance and it is not possible to tell which does the most, however, the effect is more significant for flavonoids. 
+
+plot(resid(fit_f))
+plot(resid(fit_f)^2)
+#The model appears to be a very good fit. 
+
+
+#Permutation test....
+fit_f<-glmmTMB(ThripsDam~flav_Conc+(1|Family/Tag)+(1|gh_bench),family=nbinom2,data=dat)
+summary(fit_f)
+
+datPerTest<-dat
+zStore<-c()
+for(i in 1:500){
+  #Randomize flavonoid concentration.
+  datPerTest$flav_Conc<-sample(dat$flav_Conc,length(dat$flav_Conc),replace = F)
+  
+  #Run Model with randomized flavonoid concentration and extract test statistic
+  flavZval<-summary(update(fit_f,data=datPerTest))$coef[[1]][2,3]
+  
+  #Store z value.
+  zStore[i]<-flavZval
+}
+
+sum(zStore<=-5.356)/length(zStore)
+#Wth the permutation test, the p value is still 0, which indicates that this model is a very good fit for the data. 
+hist(zStore)
+
+```
+
+
+#Visualize: Thrips Damage predicted by glucosinolates and flavonoids
+
+```{r}
+
+source("GGPlot_Themes.R")
+#Reversing link function, to estimate the data on the response scale. 
+flavSlope=function(x){
+  y=exp(-2.4621 *x+2.9746)
+  return(y)
+}
+glucSlope=function(x){
+  y=exp(-2.7869*x+3.5755)
+  return(y)
+}
+
+#Determining x range to fit the line to 
+flavplot=seq(min(dat$flav_Conc,na.rm = T),max(dat$flav_Conc,na.rm=T),length.out = 688)
+glucplot=seq(min(dat$gluc_Conc,na.rm = T),max(dat$gluc_Conc,na.rm=T),length.out = 708)
+
+#Calculating slope values
+flavy<-flavSlope(flavplot)
+glucy<-glucSlope(glucplot)
+
+
+#tiff("Defence_Figures/FlavonoidThrips.tiff", units="in", width=10, height=6, res=300)
+ggplot(dat[!is.na(dat$flav_Conc),])+
+  geom_point(aes(y=ThripsDam,x=flav_Conc))+theme_simple()+
+  geom_path(x=flavplot,y=flavy,size=1,colour="#999999")+
+  
+  scale_y_continuous(breaks=seq(0,70,5))+
+  ylab("Thrips Damage")+
+  xlab(bquote(bold("[Total Flavonoid] " (mg/ml))))
+#dev.off()
+
+ggplot(dat[!is.na(dat$gluc_Conc),])+
+  geom_point(aes(y=ThripsDam,x=gluc_Conc))+theme_simple()+
+  geom_path(x=glucplot,y=glucy,size=1,colour="#999999")+
+  
+  scale_y_continuous(breaks=seq(0,70,5))+
+  ylab("Thrips Damage")+
+  xlab(bquote(bold("[Total Glucosinolate] " (mg/ml))))
+
+```
+
+
+
+
+
+
+I think that a logistic regression is more appropriate for fungal abundance, because the count of fungal infection could be arbuitrary, especially when fungal patches were large or the leaf was completely covered. 
+
+#WhitePathDam -- logistic regression 
+```{r}
+
+#This is the biggest model that could converge. ... interaction with flavonoid could not.
+fit_full_g<-glmer(WhiteFungLogis~treatment*gluc_Conc+flav_Conc+(1|Family),family=binomial,data=dat2[!is.na(dat2$flav_Conc),])
+
+fit.1<-update(fit_full_g,~.-flav_Conc)
+anova(fit_full_g,fit.1) #Flavonoid Concentration is not significant. 
+
+
+#Testing glucosinolate treatment interaction. 
+fit.2<-glmer(WhiteFungLogis~treatment*gluc_Conc+(1|Family),family=binomial,data=dat2)
+fit.3<-glmer(WhiteFungLogis~treatment+gluc_Conc+(1|Family),family=binomial,data=dat2)
+anova(fit.2,fit.3) #Glucosinolate:Treatment interaction is not significant.
+
+#Testing glucosinolate involvment at all.
+fit.4<-glmer(WhiteFungLogis~treatment+(1|Family),family=binomial,data=dat2[!is.na(dat2$gluc_Conc),])
+fit.3<-glmer(WhiteFungLogis~treatment+gluc_Conc+(1|Family),family=binomial,data=dat2[!is.na(dat2$gluc_Conc),])
+anova(fit.4,fit.3) #Glucosinolate Concentration is not a significant predictor
+
+#Testing effect of treatment
+fit.4<-glmer(WhiteFungLogis~treatment+(1|Family),family=binomial,data=dat2)
+fit.5<-glmer(WhiteFungLogis~1+(1|Family),family=binomial,data=dat2)
+anova(fit.4,fit.5)
+#treatment is significant......
+
+summary(fit.4) #Garlic mustard in the maple treatment have less occurence of fungal colonization. 
+
+plot(fit.4)
+
+#Permutation test
+datPerTest<-dat2
+treatzStore<-c()
+for(i in 1:2000){
+  #Randomize flavonoid concentration.
+  datPerTest$treatment<-sample(dat2$treatment,length(dat2$treatment),replace = F)
+  #Run Model with randomized flavonoid concentration and extract test statistic
+  treatZval<-summary(update(fit.4,data=datPerTest))$coef[3,3]
+  
+  #Store z value.
+  treatzStore[i]<-treatZval
+}
+sum(treatzStore<=-2.916)/length(treatzStore)
+#Simulated p value is about 0.0025, which is very similar to the 0.003 I observed, suggesting this is a good model. 
+```
+
+
+
+#Visualizing -- effect of treatment on proportion of fungal abundance. 
+```{r}
+#Summarizing for Display: generating frequency of white funal infection by treatment
+plot<-dat2 %>% drop_na(WhiteFungLogis) %>% group_by(treatment) %>% summarize(PercWhitFung=sum(WhiteFungLogis)/length(WhiteFungLogis)*100)
+
+
+#tiff("Defence_Figures/TreatMeanWhiteFung.tiff", units="in", width=8, height=5, res=300)
+ggplot(plot)+
+  geom_col(aes(x=treatment,y=PercWhitFung,fill=treatment))+theme_simple()+ylab("Fungal Abundance\n (% Infected)")+
+  scale_y_continuous(breaks = seq(0,30,5))+
+  scale_x_discrete(name="",labels=c("Alone","Garlic Mustard","Maple"))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme_simple_multiCol()+theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0)))
+#dev.off()
+
+```
+
+
+
+#Modelling: Negative Binomial -- BlackPathDam 
+```{r}
+dat$BlackPathDam<-ceiling(dat$BlackPathDam)
+fit_full<-glmmTMB(BlackPathDam~treatment+gluc_Conc+flav_Conc+(1|Family/Tag)+(1|gh_bench),family=nbinom2,data=dat)
+fit_full_0.1<-glmmTMB(BlackPathDam~treatment+gluc_Conc+flav_Conc+(1|Family/Tag),family=nbinom2,data=dat)
+
+anova(fit_full,fit_full_0.1)#gh_Bench was not an important random effect in this model. 
+
+fit_full_0.1<-glmmTMB(BlackPathDam~treatment+gluc_Conc+flav_Conc+(1|Family/Tag),family=nbinom2,data=dat[!is.na(dat$flav_Conc),])
+fit_1<-glmmTMB(BlackPathDam~treatment+gluc_Conc+(1|Family/Tag),family=nbinom2,data=dat[!is.na(dat$flav_Conc),])
+anova(fit_full_0.1,fit_1) #Flav conc is a very important predictor of black pathogen damage. 
+
+fit_1<-glmmTMB(BlackPathDam~treatment+gluc_Conc+(1|Family/Tag),family=nbinom2,data=dat[!is.na(dat$gluc_Conc),])
+fit_2<-glmmTMB(BlackPathDam~treatment+(1|Family/Tag),family=nbinom2,data=dat[!is.na(dat$gluc_Conc),])
+anova(fit_1,fit_2) #Glucosinolates are not a significant predictor at all. 
+
+
+fit_2<-glmmTMB(BlackPathDam~treatment+flav_Conc+(1|Family/Tag),family=nbinom2,data=dat)
+fit_3<-glmmTMB(BlackPathDam~flav_Conc+(1|Family/Tag),family=nbinom2,data=dat)
+anova(fit_3,fit_2) #Treatment is a significant predictor of black pathogen damage. 
+
+
+#Therefore, the best model is one with flavonoids and treatment. 
+
+summary(fit_2)
+
+plot(resid(fit_2)) #Model fits well.
+
+#Permutation test. 
+
+datPerTest<-dat
+zStoreflav<-c()
+zStoretreat<-c()
+for(i in 1:500){
+  #Randomize flavonoid concentration.
+  datPerTest$flav_Conc<-sample(dat$flav_Conc,length(dat$flav_Conc),replace = F)
+  datPerTest$treatment<-sample(dat$treatment,length(dat$treatment),replace = F)
+  
+  #New Model with randomized treatment and flavonoids
+  newMod<-update(fit_2,data=datPerTest)
+  
+  # Extract test statistic
+  flavZval<-summary(newMod)$coef[[1]][4,3]
+  treatZval<-summary(newMod)$coef[[1]][3,3]
+  
+  #Store z value.
+  zStoreflav[i]<-flavZval
+  zStoretreat[i]<-treatZval
+}
+
+#treatment p value 
+sum(zStoretreat<=-2.082)/length(zStoretreat) 
+#The p value for treatment is 0.022, which is very close to the observed 0.03 p value.
+sum(zStoreflav<=-2.8863)/length(zStoreflav)
+#The p value of flavonoids is 0.002, which is very close to the observed 0.003 p value.
+#Conclusion: This is a good model. 
+```
+
+
+#Visualizing: The effect of treatment and flavonoid abundance on black pathogen abundance. 
+```{r}
+source("GGPlot_Themes.R")
+#Reversing link function, to estimate the data on the response scale. 
+flavSlope=function(x,int){
+  y=exp(-1.5060*x+int)
+  return(y)
+}
+
+
+
+#Determining x range to fit the line to 
+flavplot=seq(min(dat$flav_Conc,na.rm = T),max(dat$flav_Conc,na.rm=T),length.out = 680)
+
+
+#Calculating slope values
+flavyA<-flavSlope(flavplot, 0.7826)
+flavyGM<-flavSlope(flavplot, 0.7826+0.1049)
+flavyM<-flavSlope(flavplot, 0.7826-0.5204 )
+
+
+#tiff("Defence_Figures/FlavonoidThrips.tiff", units="in", width=10, height=6, res=300)
+ggplot(dat[!is.na(dat$flav_Conc),])+
+  geom_point(aes(y=BlackPathDam,x=flav_Conc,colour=treatment))+
+  theme_simple()+
+  geom_path(x=flavplot,y=flavyA,size=1,colour="#009E73")+
+  geom_path(x=flavplot,y=flavyGM,size=1,colour="#56B4E9")+
+  geom_path(x=flavplot,y=flavyM,size=1,colour="#E69F00")+
+  
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  
+  scale_y_continuous(breaks=seq(0,70,5))+
+  ylab("Black Pathogen Damage")+
+  xlab(bquote(bold("[Total Flavonoid] " (mg/ml))))
+```
+
+
+#Visualization -- Black pathogen damage by treatment
+```{r}
+
+plot2<-dat2 %>% drop_na(BlackPathDam) %>% group_by(treatment) %>% summarize(BlackPathAve=mean(BlackPathDam,na.rm=T))
+
+ggplot(plot2)+
+  geom_col(aes(x=treatment,y=BlackPathAve,fill=treatment))+theme_simple()+ylab("Black Pathogen Infection\n(spots/leaf)")+xlab("Treatment")+theme(legend.position = "none")
+
+```
+
+#Visualizing genetic variation and greenhouse variation, which will be controlled for. 
+```{r}
+#GH Bench
+ggplot(dat2)+
+  geom_point(aes(y=gluc_Conc,x=gh_bench,colour=as.factor(gh_bench)))
+
+#GH Col
+ggplot(dat2)+
+  geom_point(aes(y=gluc_Conc,x=gh_col,colour=as.factor(gh_bench)))
+
+#Investigating genetic differences by treatment
+#gluc_Conc
+boxplot(gluc_Conc~Family,data=dat2[dat2$treatment=="a",])
+boxplot(gluc_Conc~Family,data=dat2[dat2$treatment=="m",])
+boxplot(gluc_Conc~Family,data=dat2[dat2$treatment=="gm",])
+#bodymass
+boxplot(GM_TotalLeaf_Area~Family,data=dat2[dat2$treatment=="a",])
+boxplot(GM_TotalLeaf_Area~Family,data=dat2[dat2$treatment=="m",])
+boxplot(GM_TotalLeaf_Area~Family,data=dat2[dat2$treatment=="gm",])
+```
+
+
+
+#Visualization-- The Detriment of pathogens and ferns
+```{r}
+summary(lmer(GM_TotalLeaf_Area ~ Fern+
+               (1 | Family) + (1 | gh_bench/gh_col) ,data=dat2))
+
+a<-ggplot(dat2)+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=BlackPathDam))+theme_simple_multiCol()+
+  geom_abline(intercept=8281.76,slope = -105.28,size=1.5)+
+  xlab("Black Pathogen Damage")
+
+b<-ggplot(dat2[dat2$WhiteFungDam<30,])+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=WhiteFungDam),colour="#999999")+theme_simple_multiCol()+
+  theme(axis.title.x = element_text(color = "#999999", size = 16, face = "bold",margin=margin(3,0,3,0)),
+  )+xlab("Powdery Mildew Damage")
+
+c<-ggplot(dat2)+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=ThripsDam),colour="#E69F00")+theme_simple_multiCol()+xlab("Thrips Damage")+
+  theme(axis.title.x = element_text(color = "#E69F00", size = 16, face = "bold",margin=margin(3,0,3,0)))
+
+d<-ggplot(dat2)+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=Fern),colour="#009E73")+theme_simple_multiCol()+xlab("Fern Abundance")+
+  geom_abline(intercept=8003.44,slope = -179.47,size=1.5,color="#009E73")+
+  theme(axis.title.x = element_text(color = "#009E73", size = 16, face = "bold",margin=margin(3,0,3,0)))
+
+
+
+plot<-plot_grid(a, b,ncol=2,rel_widths = c(1,1))
+
+plot2<-plot_grid(d, c,ncol=2,rel_widths = c(1,1))
+
+plot3<-plot_grid(a,b,c,d,ncol=2,rel_widths = c(1,1))
+
+plot4<-plot_grid(a,b,c,ncol=1,rel_widths = c(1,1,1))
+plot5<-plot_grid(a,b,c,ncol=3,rel_widths = c(1,1,1))
+
+
+y.grob<-textGrob(bquote(bold("Shoot Area "(mm^2))),gp=gpar(fontface="bold",fontsize=20),rot=90)
+
+
+#tiff("Selection_Figures/PathogenEffect.tiff", units="in", width=14, height=6, res=300)
+grid.arrange(plot,left=y.grob)
+#dev.off()
+
+#tiff("Selection_Figures/PathogenEffect2.tiff", units="in", width=14, height=6, res=300)
+grid.arrange(plot2,left=y.grob)
+#dev.off()
+
+#tiff("Selection_Figures/PathogenEffect3.tiff", units="in", width=14, height=10, res=300)
+grid.arrange(plot3,left=y.grob)
+#dev.off
+
+grid.arrange(plot4,left=y.grob)
+
+
+#tiff("Selection_Figures/PathogenEffect5.tiff", units="in", width=16, height=5, res=300)
+grid.arrange(plot5,left=y.grob)
+#dev.off
+
+#tiff("Selection_Figures/FernEffect.tiff", units="in", width=8, height=6, res=300)
+grid.arrange(d,left=y.grob)
+#dev.off
+
+```
+
+```{r}
+
+#Percent variance explained: 
+337263/ ( 395515 + 5196413+337263 )
+580.7/ ( 395515 + 5196413+337263 )
+
+
+#Does fern affect performance without accounting for leaf area (it is not affected by leaf area)
+fit7<-glmmTMB(GM_TotalLeaf_Area~treatment+Fern+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit7) #Without account for leaf area, fern is a very significant predictor of performance and is correlated with reduced garlic mustard size. Whether it is doing the reduction or it can simply appear when garlic mustard is a worst performer is unclear. These estimates should be used to visualize the effect of treatment on performance. 
+
+#To what degree does family influence performance?
+
+fitfull<-glmmTMB(GM_TotalLeaf_Area~treatment+Fern+(1|Family)+(1|gh_bench), data=dat2)
+fitfull2<-glmmTMB(GM_TotalLeaf_Area~treatment+Fern+(1|gh_bench), data=dat2)
+
+anova(fitfull,fitfull2) #Family only predicts performance when pathogens are accounted for. 
+```
+
+
+#What influences performance? 
+```{r}
+library(glmmTMB)
+
+#Modelling random effects.
+fitfull<-glmmTMB(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+GM_Leaf_Area+(1|Family)+(1|gh_bench), data=dat2)
+
+fitfull1<-glmmTMB(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+GM_Leaf_Area+(1|Family), data=dat2)
+
+fitfull2<-glmmTMB(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+GM_Leaf_Area+(1|gh_bench), data=dat2)
+
+fitfull3<-glmmTMB(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+GM_Leaf_Area+(1|gh_bench)+(1|Family:treatment), data=dat2)
+
+fitfull4<-glmmTMB(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+GM_Leaf_Area+(1|gh_bench)+(1|Family/treatment), data=dat2)
+
+#Is family important? 
+anova(fitfull,fitfull2) #Yes, family predicts performance. 
+#Is gh bench important? 
+anova(fitfull,fitfull1) #Yes, gh_bench predicts performance. 
+#Is there a GxE interaction? 
+anova(fitfull,fitfull3) 
+anova(fitfull,fitfull4) #No there does not appear to be. 
+
+#Modelling fixed effects. 
+fit<-glmmTMB(GM_TotalLeaf_Area~treatment+BlackPathDam*WhiteFungLogis*ThripsDam+Fern+GM_Leaf_Area+(1|Family)+(1|gh_bench), data=dat2)
+
+fit2<-update(fit,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
+anova(fit,fit2) #Not a significant three way interaction.
+
+fit3<-update(fit2,~.-BlackPathDam:WhiteFungLogis)
+anova(fit3,fit2) #There is not a significant two way interaction, 
+
+fit4<-update(fit3,~.-BlackPathDam:ThripsDam)
+anova(fit4,fit3)
+#There is not a significant interaction between black path dam and thrips dam. 
+
+fit5<-update(fit4,~.-WhiteFungLogis:ThripsDam)
+anova(fit5,fit4) #There is not a significant whitefung dam and thrips dam interaction. 
+
+summary(fit5)
+
+#Fern is not significant. 
+fit6<-glmmTMB(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+(1|Family)+(1|gh_bench), data=dat2)
+
+fit6<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(BlackPathDam)+Standardize(WhiteFungLogis)+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|gh_bench)+(1|Family), data=dat2[!is.na(dat2$ThripsDam),])
+
+#Is black path dam significant
+fit7<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(WhiteFungLogis)+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|gh_bench)+(1|Family), data=dat2[!is.na(dat2$BlackPathDam),])
+anova(fit6,fit7)
+
+#Is  White Path dam significant
+fit8<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(BlackPathDam)+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|gh_bench)+(1|Family), data=dat2[!is.na(dat2$WhiteFungLogis),])
+anova(fit6,fit8)
+
+#Is thrips  dam significant
+fit9<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(BlackPathDam)+Standardize(WhiteFungLogis)+Standardize(GM_Leaf_Area)+(1|gh_bench)+(1|Family), data=dat2[!is.na(dat2$ThripsDam),])
+anova(fit6,fit9)
+
+summary(fit6) #What happens when i remove the effect of leaf size?
+fit7<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(BlackPathDam)+Standardize(WhiteFungLogis)+Standardize(ThripsDam)+(1|gh_bench)+(1|Family), data=dat2[!is.na(dat2$ThripsDam),])
+summary(fit7) #White fung dam and thrips dam lose significance
+
+
+
+#Percent variance explained: 
+337263/ ( 395515 + 5196413+337263 )
+580.7/ ( 395515 + 5196413+337263 )
+
+
+#Does fern affect performance without accounting for leaf area (it is not affected by leaf area)
+fit7<-glmmTMB(GM_TotalLeaf_Area~treatment+Fern+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit7) #Without account for leaf area, fern is a very significant predictor of performance and is correlated with reduced garlic mustard size. Whether it is doing the reduction or it can simply appear when garlic mustard is a worst performer is unclear. These estimates should be used to visualize the effect of treatment on performance. 
+
+#To what degree does family influence performance?
+
+fitfull<-glmmTMB(GM_TotalLeaf_Area~treatment+Fern+(1|Family)+(1|gh_bench), data=dat2)
+fitfull2<-glmmTMB(GM_TotalLeaf_Area~treatment+Fern+(1|gh_bench), data=dat2)
+
+anova(fitfull,fitfull2) #Family only predicts performance when pathogens are accounted for. 
+```
+
+
+
+
+
+#Is there a cost/benefit to glucosinolate production? 
+```{r}
+fit6<-glmmTMB(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+gluc_Conc+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit6) #No, infact glucosinolates are positively correlated with performance. 
+
+
+#Is the cost dependent on the treatment
+fit7<-glmmTMB(GM_TotalLeaf_Area~treatment*gluc_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit7) 
+anova(fit6,fit7)#There is an interaction between treatment. However it is postive in all treatments and maple performance was not accounted for so this model is nullified as it is uninformative. 
+
+#Looking at standardized coefficients 
+fit<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+GM_Leaf_Area+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit)
+
+fit<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(Fern)+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit)
+
+
+fit6<-glmmTMB(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+flav_Conc+Fern+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit6) #As are flavonoids. 
+
+#Is the benefit/cost dependent on the treatment? 
+fit7<-glmmTMB(GM_TotalLeaf_Area~treatment*flav_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+Fern+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit6) 
+
+anova(fit6,fit7) #There is not a significant interaction with flavonoids. 
+
+#Is the benefit/cost dependent on glucosinolates not being in the model?
+
+fit7<-glmmTMB(GM_TotalLeaf_Area~treatment*gluc_Conc+flav_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+Fern+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit7) 
+
+fit8<-glmmTMB(GM_TotalLeaf_Area~treatment+gluc_Conc+flav_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_Area+Fern+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit7) 
+anova(fit7,fit8)
+
+```
+
+
+
+#Permutation test
+datPerTest<-datFern
+zStoretreatGM<-c()
+zStoretreatM<-c()
+
+for(i in 1:500){
+  #Randomize flavonoid concentration.
+  datPerTest$treatment<-sample(datPerTest$treatment,length(datPerTest$treatment),replace = F)
+  
+  #New Model with randomized treatment and flavonoids
+  newMod<-update(fit_1,data=datPerTest)
+  
+  # Extract test statistics for maple (M) and garlic mustard (gm) treatments
+  MtreatZval<-summary(newMod)$coef[[1]][3,3]
+  GMtreatZval<-summary(newMod)$coef[[1]][3,2]
+  
+  #Store z value.
+  zStoretreatGM[i]<-GMtreatZval
+  zStoretreatM[i]<-MtreatZval
+}
+
+sum(zStoretreatM>=2.316180)/length(zStoretreatM)
+#Estimated p value for the maple treatment is 0.01. This is very close to the actual p value of 0.02
+sum(zStoretreatGM>=2.231574)/length(zStoretreatGM)
+#Estimated p value for the garlic mustard treatment is 0. This is close to the actual p value of 0.02
+
+summary(fit_1)
+
+
+
+#Visualizing --- the distribution of pathogens by treatment. 
+```{r}
+
+
+plot4<-dat2 %>% drop_na(Fern) %>% group_by(treatment) %>% summarize(Fern=mean(Fern,na.rm=T))
+
+
+table(dat$comp_number)
+ggplot(plot4)+
+  geom_col(aes(x=treatment,y=Fern,fill=treatment))+theme_simple()+ylab("Average Fern Abundance\n(ferns/pot)")+xlab("Treatment")+theme(legend.position = "none")+
+  scale_x_discrete(name="",labels=c("Alone","Garlic Mustard","Maple"))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme_simple_multiCol()+theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0)))
+#dev.off()
+
+```
+
+
+
+# Modelling: Effect of GM on Maple Performance
+```{r}
+#The influence of family, glucosinolates and flavonoids on competitive ability
+hist(Maple$Maple_TotalLeafArea_End,breaks=50)
+#There is a limit at zero, so this is not a true normal distribution. It resembles a reverse gaussian distribution except this distribution has values at zero, infact it is slighly zer inflated for the distibution. Therefore i think a tweedie distibution is best. 
+
+#Modelling Random effects 
+
+fitTwFull<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+(1|Family)+(1|gh_bench),family = tweedie, data=MapleModel)
+
+fitTwFull0.1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+(1|gh_bench),family = tweedie, data=MapleModel)
+
+fitTwFull0.2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+(1|Family),family = tweedie, data=MapleModel)
+
+fitTwFull0.3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
+
+#Is there an effect of family? 
+anova(fitTwFull,fitTwFull0.1) #No
+
+#Is there an effect of bench? 
+anova(fitTwFull,fitTwFull0.2) #No
+
+#It is not important to include random effects. 
+
+
+#Modelling: Fixed effects?
+
+fitTw1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot*gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
+summary(fitTw1) #The interaction is not important, but glucosinolate concentration and maple damage are. 
+
+fitTw2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+summary(fitTw2)
+#Glucosinolate concentration and MapleDamage are both highly significant.
+
+
+#The question is, however, do glucosinolates significant reduce maple performance because they are inhibiting maple (allelopathy) OR because those with high glucosinolate expression are better competitors and aquire more resources to then allocate more resources to defenes? (Chicken or the egg)
+
+#Is the negative effect of glucosinolates on maple performance removed once Chlorophyll A expression is added to the model? This would control for garlic mustard performance because those that produce more chlorophyll can also produce more glucosinolates. 
+fitTw3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+gluc_Conc+ChlorA,family = tweedie, data=MapleModel)
+summary(fitTw3)
+# Including Chlorophyll A completely removed the effect of glucosinolates. This suggests that glucosinolates may be correlated with maple performance due to plants that reduce maple performance having higher fitness and more resources for glucosinolates without glucosinolates actually being responsible. On the other hand, those with more glucosinolates may have higher fitness and be able to produce more Chlorophyll A because they are inhibiting maple.
+
+
+#Checking Model Assumptions. 
+summary(fitTw2)
+plot(resid(fitTw2))
+hist(resid(fitTw2),breaks=20)#Looks reasonably normal to me.
+
+fitV<-lm(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+gluc_Conc+ChlorA,data=MapleModel)
+summary(fitV)
+
+vif(fitV) #Vif for ChlorA and gluc concentration are both below 2. This suggest that gluc_Conc and Chlor concentration are not high enough that the effect of the two are indistinguishable. This suggests that the entire effect of glucosinolates is due to chlorophyll concentration. 
+
+
+#Permutation test to check the reliability of the p values in the best model.
+fitTw3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
+summary(fitTw3)
+# 
+# summary(fitTw3)$coef
+# datPerTest<-MapleModel
+# zStore<-c()
+# # #for(i in 1:500){
+#   #Randomize flavonoid concentration.
+#   datPerTest$gluc_Conc<-sample(datPerTest$gluc_Conc,length(datPerTest$gluc_Conc),replace = F)
+#   
+#   #Run Model with randomized flavonoid concentration and extract test statistic
+#   glucZval<-summary(update(fitTw3,data=datPerTest))$coef[[1]][3,3]
+#   
+#   #Store z value.
+#   zStore[i]<-glucZval
+#}
+
+#sum(zStore<=-2.883)/length(zStore)
+
+#The simulated p value was 0.002, which is close to the observed value of 0.004. This is a reliable model. 
+
+```
+
+
+
+
+

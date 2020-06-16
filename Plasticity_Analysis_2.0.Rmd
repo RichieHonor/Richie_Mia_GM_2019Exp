@@ -131,7 +131,7 @@ Vis<-data.frame(
   treatment=c("Alone","Garlic Mustard","Maple"),estimate=c(a,gm,m),upper=c(-1.50051001,a-0.09022637,a-0.11887264),lower=c(-1.61747353,a-0.24214691,a-0.25150238 ))
 
 
-passive<-ggplot(Vis,aes(x = treatment, 
+Gpassive<-ggplot(Vis,aes(x = treatment, 
                     y = estimate, colour = treatment))+
   geom_point(size = 5)+
   geom_errorbar(ymin = Vis$lower,
@@ -150,7 +150,7 @@ Vis<-data.frame(
   treatment=c("Alone","Garlic Mustard","Maple"),estimate=c(a,gm,m),upper=c(-1.585805632,a-0.005747620,a-0.021957509),lower=c(-1.68846825,a-0.11652391,a-0.11982939 ))
 
 #Visualizing Active plasticity
-active<-ggplot(Vis,aes(x = treatment, 
+Gactive<-ggplot(Vis,aes(x = treatment, 
                     y = estimate, colour = treatment))+
   geom_point(size = 5)+
   geom_errorbar(ymin = Vis$lower,
@@ -185,13 +185,15 @@ confint(fit3)
 fit<-glmmTMB(flav_Conc~treatment+Standardize(GM_Leaf_Area)+Standardize(ChlorA)+(1|Family),data=dat2)
 
 fit2<-glmmTMB(flav_Conc~Standardize(GM_Leaf_Area)+Standardize(ChlorA)+(1|Family),data=dat2)
+summary(fit2)
 
 anova(fit,fit2) #Treatment is not significant with flavonoids after accounting for chlorophyll. 
 summary(fit)
+confint(fit)
 
 ```
 
-#Visualization of treatment means glucosinolate
+#Visualization of treatment means flavonoid
 ```{r}
 #Visualizing passive plasticity
 a<--2.21675805
@@ -201,7 +203,7 @@ Vis<-data.frame(
   treatment=c("Alone","Garlic Mustard","Maple"),estimate=c(a,gm,m),upper=c(-2.11846559,a-0.12720992,a-0.03237505),lower=c(-2.31505050,a-0.29219007,a-0.17606816 ))
 
 
-passive<-ggplot(Vis,aes(x = treatment, 
+Fpassive<-ggplot(Vis,aes(x = treatment, 
                     y = estimate, colour = treatment))+
   geom_point(size = 5)+
   geom_errorbar(ymin = Vis$lower,
@@ -213,12 +215,42 @@ passive<-ggplot(Vis,aes(x = treatment,
     axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90),
   )
 
-tiff("Plasticity_Figures/FlavonoidPassive_Plasticity.tiff", units="in", width=10, height=6, res=300)
-passive
+
+
+#Visualizing active plasticity
+a<--2.26994454
+gm<--2.26994454-0.08570059
+m<--2.26994454-0.01716435
+Vis<-data.frame(
+  treatment=c("Alone","Garlic Mustard","Maple"),estimate=c(a,gm,m),upper=c(-2.2211349151,a-0.0123743864,a+0.0487751134),lower=c(-2.3187541572,a-0.1590268033,a-0.0831038233 ))
+
+
+Factive<-ggplot(Vis,aes(x = treatment, 
+                    y = estimate, colour = treatment))+
+  geom_point(size = 5)+
+  geom_errorbar(ymin = Vis$lower,
+                ymax = Vis$upper, width = 0.1)+
+  scale_x_discrete(name="",labels=c("Alone","Intraspecific","Interspecific"))+
+  scale_y_continuous(limits = c(-2.6,-2), name = bquote(bold("[Flavonoid] (log" (mg/mL)~")")),breaks=seq(-2.6,-2,by=0.1))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme_simple_multiCol()
+
+tiff("Plasticity_Figures/Flavonoid_Plasticity.tiff", units="in", width=12, height=6, res=300)
+plot_grid(Fpassive,Factive,labels = c("a","b"),rel_widths = c(1.1,1))
 dev.off
+
 ```
 
+#four panel plot
+```{r}
 
+tiff("Plasticity_Figures/FlavGluc_Plasticity.tiff", units="in", width=12, height=10, res=300)
+
+plot_grid(Gpassive,Gactive,Fpassive,Factive,labels = c("a","b","c","d"),align = "hv",label_fontfamily = "Arial",label_size = 18)
+
+dev.off()
+
+```
 
 
 

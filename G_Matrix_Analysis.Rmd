@@ -103,6 +103,7 @@ dat2$RGR1S<-Standardize(dat2$RGR1)
 dat2$GM_Leaf_AreaS<-Standardize(dat2$GM_Leaf_Area)
 dat2$gh_bench<-as.factor(dat2$gh_bench)
 
+
 #Generating data frame for g matrix.
 datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment) %>%  pivot_longer(c(gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
 
@@ -119,6 +120,10 @@ summary(fit2)
 cov2cor(vcov(fit2)$cond)
 anova(fit1,fit2)#Not significantly better fit.
 
+length(dat2$gluc_Conc[!is.na(dat2$gluc_Conc)])
+length(dat2$flav_Conc[!is.na(dat2$flav_Conc)])
+hist(dat2$gluc_ConcS)
+hist(dat2$flav_ConcS)
 #Genetic correlations between traits accounting for bench and treatment
 fit3<-glmmTMB(value ~ -1+name+gh_bench+treatment +(-1+name|Family),REML=T,data=datG)
 summary(fit3) #Took away the effect of treatment on each value (mean effect of treatment). 
@@ -131,15 +136,29 @@ anova(fit4,fit3) #This is a better model than the previous.
 
 
 #Genetic correlations between traits accounting for bench and treatment interaction.
+datG
 fit5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
 summary(fit5) #Took away the effect of treatment on each value, respective to each value (mean effect of treatment). #####This model has interaction with treatment , gh bench and name such that treatment and gh bench have individual effects on each of chlophyll body size, and glucosinolate concentration. Glucosinolate has alot of genetic variation, but it is highly correlated with total leaf area and chlrophyll a. 
+
+
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment,RGR1S) %>%  pivot_longer(c(gluc_ConcS,GM_TotalLeaf_AreaS,ChlorAS))
+hist(dat2$RGR1S)
+sum(!is.na(dat2$RGR1S))
+
+fit5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG,verbose=T)
+
+dat2$RGR1S
+
 anova(fit5,fit4)
 #This is the best model yet. GXE effects are ellusive, however.
 cov2cor(vcov(fit5)$cond)
 
 #Looking for genetic variation within each treatment (GXE)
-fit6<-glmmTMB(value ~ -1+name*gh_bench+treatment+(-1+treatment|Family),REML=T,data=datG)
+fit6<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
 summary(fit6) #Model too complicated to test a GXE for all. 
+
+#Does the G matrix change across treatments?
+
 
 ```
 
@@ -158,6 +177,7 @@ datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_Area
 
 fit<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG)
 summary(fit) #Does not fit. 
+
 
 #gluc_Conc,Flav_Conc and ChlorA
 datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment) %>%  pivot_longer(c(gluc_ConcS,flav_ConcS,ChlorAS))

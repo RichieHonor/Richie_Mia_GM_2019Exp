@@ -10,7 +10,6 @@ output: html_document
 ```{r}
 library(ggplot2)
 library(dplyr)
-library(lmerTest)
 library(car)
 library("glmmTMB")
 
@@ -123,16 +122,17 @@ plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_height_0)
 plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_leaf_length_0)
 plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_leaves_0)
 
-```
-
-#Examinging differences in maple performance, while controlling for the initial maple size. 
-```{r}
-
 #Adding in PC1 vales from the pca. This will be used to control for initial maple size in my experiment. 
 Maple$PC1Tot<-predict(pcaModelTotal)[,1]
 
 #Removing maple controls (to be used in models that do not include controls) 
 MapleModel<-Maple %>% filter(treatment=="m")
+
+
+```
+
+#Examinging differences in maple performance, while controlling for the initial maple size. 
+```{r}
 
 
 
@@ -181,83 +181,6 @@ dev.off()
 ```
 
 
-# Modelling: Effect of GM on Maple Performance
-```{r}
-#The influence of family, glucosinolates and flavonoids on competitive ability
-hist(Maple$Maple_TotalLeafArea_End,breaks=50)
-#There is a limit at zero, so this is not a true normal distribution. It resembles a reverse gaussian distribution except this distribution has values at zero, infact it is slighly zer inflated for the distibution. Therefore i think a tweedie distibution is best. 
-
-#Modelling Random effects 
-
-fitTwFull<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+(1|Family)+(1|gh_bench),family = tweedie, data=MapleModel)
-
-fitTwFull0.1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+(1|gh_bench),family = tweedie, data=MapleModel)
-
-fitTwFull0.2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+(1|Family),family = tweedie, data=MapleModel)
-
-fitTwFull0.3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
-
-#Is there an effect of family? 
-anova(fitTwFull,fitTwFull0.1) #No
-
-#Is there an effect of bench? 
-anova(fitTwFull,fitTwFull0.2) #No
-
-#It is not important to include random effects. 
-
-
-#Modelling: Fixed effects?
-
-fitTw1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot*gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
-summary(fitTw1) #The interaction is not important, but glucosinolate concentration and maple damage are. 
-
-fitTw2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
-summary(fitTw2)
- #Glucosinolate concentration and MapleDamage are both highly significant.
-
-
-#The question is, however, do glucosinolates significant reduce maple performance because they are inhibiting maple (allelopathy) OR because those with high glucosinolate expression are better competitors and aquire more resources to then allocate more resources to defenes? (Chicken or the egg)
-
-#Is the negative effect of glucosinolates on maple performance removed once Chlorophyll A expression is added to the model? This would control for garlic mustard performance because those that produce more chlorophyll can also produce more glucosinolates. 
-fitTw3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+gluc_Conc+ChlorA,family = tweedie, data=MapleModel)
-summary(fitTw3)
-# Including Chlorophyll A completely removed the effect of glucosinolates. This suggests that glucosinolates may be correlated with maple performance due to plants that reduce maple performance having higher fitness and more resources for glucosinolates without glucosinolates actually being responsible. On the other hand, those with more glucosinolates may have higher fitness and be able to produce more Chlorophyll A because they are inhibiting maple.
-
-
-#Checking Model Assumptions. 
-summary(fitTw2)
-plot(resid(fitTw2))
-hist(resid(fitTw2),breaks=20)#Looks reasonably normal to me.
-
-fitV<-lm(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+gluc_Conc+ChlorA,data=MapleModel)
-summary(fitV)
-
-vif(fitV) #Vif for ChlorA and gluc concentration are both below 2. This suggest that gluc_Conc and Chlor concentration are not high enough that the effect of the two are indistinguishable. This suggests that the entire effect of glucosinolates is due to chlorophyll concentration. 
-
-
-#Permutation test to check the reliability of the p values in the best model.
-fitTw3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage,family = tweedie, data=MapleModel)
-summary(fitTw3)
-# 
-# summary(fitTw3)$coef
-# datPerTest<-MapleModel
-# zStore<-c()
-# # #for(i in 1:500){
-#   #Randomize flavonoid concentration.
-#   datPerTest$gluc_Conc<-sample(datPerTest$gluc_Conc,length(datPerTest$gluc_Conc),replace = F)
-#   
-#   #Run Model with randomized flavonoid concentration and extract test statistic
-#   glucZval<-summary(update(fitTw3,data=datPerTest))$coef[[1]][3,3]
-#   
-#   #Store z value.
-#   zStore[i]<-glucZval
-#}
-
-#sum(zStore<=-2.883)/length(zStore)
-
-#The simulated p value was 0.002, which is close to the observed value of 0.004. This is a reliable model. 
-
-```
 
 #Modelling no tweedie distribution
 Normal distribution fits well enough, is much easier to interpret and does not change the outcome of the model. 
@@ -271,6 +194,12 @@ anova(fitTw1,fitTw2) #Interaction not significant
 
 
 fitTw2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+ChlorA+MapleDamage, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+summary(fitTw2)
+
+
+#Garlic mustard size doesnt even appear to effect maple. 
+fitTw2<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~PC1Tot+gluc_Conc+ChlorA+MapleDamage+GM_TotalLeaf_Area, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+
 summary(fitTw2)
 ```
 
@@ -372,27 +301,22 @@ MapleModel$GM_Leaf_Area<-Standardize(MapleModel$GM_Leaf_Area)
 MapleModel$Maple_TotalLeafArea_End<-Standardize(MapleModel$Maple_TotalLeafArea_End)
 
 #Modelling random effects 
-fit<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench/gh_col),data=MapleModel)
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+(1|Family)+(1|gh_bench),data=MapleModel)
 
-fit2<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=MapleModel)
+fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+(1|Family),data=MapleModel)
 
-fit3<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family),data=MapleModel)
+fit3<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+(1|gh_bench),data=MapleModel)
 
-fit4<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|gh_bench),data=MapleModel)
-
-
-#Is collumn important?
-anova(fit,fit2) #No it is not
 
 #Is Bench important? 
-anova(fit2,fit3) #Yes bench is very important
+anova(fit,fit2) #Yes bench is very important
 
 #Is family important? 
-anova(fit2,fit4) #Yes family is very important
+anova(fit,fit3) #Family is on the edge. but i will leave it for now. 
 
 #Modeling fixed effects: 
 
-fit<-lmer(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=MapleModel)
+fit<-glmmTMB(GM_TotalLeaf_Area~Maple_TotalLeafArea_End+Fern+ThripsDam*BlackPathDam*WhiteFungLogis+(1|Family)+(1|gh_bench),data=MapleModel)
 
 fit2<-update(fit,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
 anova(fit,fit2) #Not a significant three way interaction.
@@ -410,30 +334,37 @@ anova(fit5,fit4) #There is not significant white path and thripsdamage interacti
 summary(fit5) #White fungal damage not significant. 
 
 
-fit6<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End + Fern +  
-    ThripsDam + BlackPathDam  +GM_Leaf_Area+(1 | Family)+(1|gh_bench)  ,data= MapleModel)
+fit6<-glmmTMB(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End + Fern +  
+    ThripsDam + BlackPathDam +(1 | Family)+(1|gh_bench)  ,data= MapleModel)
 
 summary(fit6)
 
-#Fern is not significant
+#Thrips is not significant
+fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End  +  
+    Fern + Standardize(BlackPathDam ) +(1 | Family)+(1|gh_bench)  ,data= MapleModel)
+
+summary(fit7) #Best model. 
+
+#What is the p value of Maple?
+fit8<-lmer(GM_TotalLeaf_Area ~    
+   +Fern+ Standardize(BlackPathDam ) +(1 | Family)+(1|gh_bench)  ,data= MapleModel)
+anova(fit7,fit8)
+
+plot(fit7)
+plot(residuals(fit7,type="pearson")~fitted(fit7))
+qqnorm(residuals(fit7)) #looks good. 
+
+#Modelling with standardized data to get coefficients.
 fit7<-lmer(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)  +  
-    ThripsDam + BlackPathDam  +GM_Leaf_Area+(1 | Family)+(1|gh_bench)  ,data= MapleModel)
-
+    Standardize(Fern) + Standardize(BlackPathDam ) +(1 | Family)+(1|gh_bench)  ,data= MapleModel)
 summary(fit7)
-
-
-
-
-plot(fit2)
-plot(residuals(fit2))
-qqnorm(residuals(fit2)) #looks good. 
 ```
 
 #Using the best model of what determines fitness in the presense of competitor and pathogens, is there a cost to glucosinolates after holding these values constant? 
 ```{r}
 
 #Cost of glucosinolates ?
-fit7<-lmer(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)   +  
+fit7<-glmmTMB(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)   +  
     ThripsDam + BlackPathDam + (1 | Family) +  
     (1 | gh_bench) + Standardize(GM_Leaf_Area)+gluc_Conc,data=MapleModel)
 summary(fit7) #Gluc conc is significantly positive. 
@@ -441,7 +372,7 @@ summary(fit7) #Gluc conc is significantly positive.
 
 #Cost of Flavonoids ?
 #Cost of glucosinolates ?
-fit7<-lmer(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End   +  
+fit7<-glmmTMB(GM_TotalLeaf_Area ~ Maple_TotalLeafArea_End   +  
     ThripsDam + BlackPathDam + (1 | Family) +  
     (1 | gh_bench) + GM_Leaf_Area+flav_Conc,data=MapleModel)
 summary(fit7) #no there is not.
