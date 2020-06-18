@@ -48,9 +48,21 @@ MapleTreatRM<-MapleTreat[!is.na(MapleTreat$Maple_Area_sum_End)&MapleTreat$Maple_
 #Now creating data frame with those with competitors that died in the experiment removed. 
 Final<-bind_rows(MapleTreatRM,OtherTreat)
 
-#Creating dataframe with replication at the genotype level
-dat2<-Final %>% group_by(ID) %>% summarize(Tag=first(Tag),treatment=first(treatment),Fert=first(Fert),Family=first(Family))
+#Logging relevant variables. 
+Final$gluc_Conc<-log(Final$gluc_Conc)
+Final$flav_Conc<-log(Final$flav_Conc)
+Final$ChlorA<-log(Final$ChlorA)
 
+
+
+#Creating dataframe with replication at the genotype level
+dat2<-Final %>% group_by(ID) %>% summarize(Tag=first(Tag),treatment=first(treatment),Fert=first(Fert),Family=first(Family),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),ChlorA=mean(ChlorA),GM_Leaf_Area=mean(GM_Leaf_Area),GM_Shoot_Mass=first(GM_Shoot_Mass))
+
+
+#Function to standardize data.
+Standardize<-function(x){
+  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
+}
 ```
 
 
@@ -87,42 +99,96 @@ repTableWide
 #write.csv(GenotypeLocation,"GenotypeLocation.csv")
 
 ```
+#Simple anova's
+```{r}
+fit6<-lm(Standardize(gluc_Conc)~Fert,data=dat2)
+fit6<-lm(Standardize(gluc_Conc)~Fert*treatment,data=dat2)
+
+
+summary(fit6)
+length(residuals(fit6))
+anova(fit6) #Leaf size is significant.
+fit6<-lm(Standardize(flav_Conc)~Fert,data=dat2)
+fit6<-lm(Standardize(flav_Conc)~Fert*treatment,data=dat2)
+
+summary(fit6)
+anova(fit6) #
+
+
+fit6<-lm(Standardize(ChlorA)~Fert,data=dat2)
+fit6<-lm(Standardize(ChlorA)~Fert*treatment,data=dat2)
+
+summary(fit6)
+anova(fit6) #
+
+fit6<-lm(Standardize(GM_Shoot_Mass)~Fert,data=dat2)
+fit7<-lm(Standardize(GM_Shoot_Mass)~Fert*treatment,data=dat2)
+
+summary(fit6)
+length(residuals(fit7))
+anova(fit6) #
+anova(fit7)
+
+summary(dat2$gluc_Conc)
+
+
+
+library(car)
+fit7<-lm(Standardize(gluc_Conc)~Fert+ChlorA,data=dat2)
+
+vif(fit7)
+
+fit7<-lm(Standardize(flav_Conc)~Fert+ChlorA,data=dat2)
+
+vif(fit7)
+
+```
+
+
+
 
 #Modelling glucosinolate concentration. 
 ```{r}
 library(glmmTMB)
 #Modelling random effect of Tag (accounting for leaf psuedoreplication)
-
 fit<-glmmTMB(gluc_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family+(1|Tag),data=Final)
 fit2<-glmmTMB(gluc_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family,data=Final)
-anova(fit,fit2)#Tag is not a significant predictor of glucosinolate concentration.I will therefore not account for it. 
+anova(fit,fit2)#Tag is not a significant predictor of glucosinolate concentration.I will therefore not account for it. but i must use the summarized data to avoid psuedoreplication.
 
 #Modelling fixed effects
-
-fit<-lm(gluc_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family,data=Final)
-fit2<-lm(gluc_Conc~treatment+Fert+ChlorA+Family+GM_Leaf_Area,data=Final)
-fit3<-lm(gluc_Conc~treatment+Fert+Family+GM_Leaf_Area,data=Final)
-fit4<-lm(gluc_Conc~Fert+ChlorA+Family+GM_Leaf_Area,data=Final)
-fit5<-lm(gluc_Conc~Fert+ChlorA+GM_Leaf_Area,data=Final)
+fit<-lm(gluc_Conc~treatment*Fert+ChlorA+GM_Leaf_Area+Family,data=dat2)
+fit2<-lm(gluc_Conc~treatment+Fert+ChlorA+Family+GM_Leaf_Area,data=dat2)
+fit3<-lm(gluc_Conc~treatment+Fert+Family+GM_Leaf_Area,data=dat2)
+fit4<-lm(gluc_Conc~Fert+ChlorA+Family+GM_Leaf_Area,data=dat2)
+fit5<-lm(gluc_Conc~Fert+ChlorA+GM_Leaf_Area,data=dat2)
+fit6<-lm(gluc_Conc~Fert+ChlorA,data=dat2)
+fit7<-lm(gluc_Conc~ChlorA,data=dat2)
+fit8<-lm(gluc_Conc~Fert,data=dat2)
 
 anova(fit,fit2)#no interaction
 anova(fit3,fit2) #ChlorA imporatnt
 anova(fit4,fit2) #treatment is not important.
 anova(fit5,fit4) #family not important
+anova(fit6,fit5) #leaf size not important
+anova(fit7,fit6) #fertilizer not important when chlorA is accounted for. 
+anova(fit8,fit6) #chlorA is however.
 
-summary(fit5)
+summary(fit8)
+anova(fit8)
+
 library(car)
-vif(fit5) #The correlation between of fertilizer and chlorophyll A are exceptionally high such that there is little difference between the two. Leaf size is very close to having a significant negative effect, however there is not one. 
+vif(fit6)
+#The correlation between of fertilizer and chlorophyll A are exceptionally high such that there is little difference between the two. Leaf size is very close to having a significant negative effect, however there is not one. MUST REPORT THIS 
 
 #Could there be a higher order thing going on?
-fit5.5<-lm(gluc_Conc~Fert+ChlorA+GM_Leaf_Area+I(GM_Leaf_Area^2),data=Final)
+fit5.5<-lm(gluc_Conc~Fert+ChlorA+GM_Leaf_Area+I(GM_Leaf_Area^2),data=dat2)
 summary(fit5.5)#no there isnt.
 
-fit6<-lm(gluc_Conc~Fert+ChlorA,data=Final)
+fit6<-lm(gluc_Conc~Fert+ChlorA,data=dat2)
 anova(fit5,fit6) #Leaf size is significant.
 
-fit6<-lm(gluc_Conc~ChlorA+GM_Leaf_Area,data=Final)
-fit7<-lm(gluc_Conc~Fert+GM_Leaf_Area,data=Final)
+fit6<-lm(gluc_Conc~ChlorA+GM_Leaf_Area,data=dat2)
+fit7<-lm(gluc_Conc~Fert+GM_Leaf_Area,data=dat2)
 summary(fit6)
 summary(fit7)
 #ChlorA and fertilizer are correlated and are essentially sharing the effect on glucosinolates completely
@@ -168,7 +234,8 @@ summary(fit6)
 
 
 fit6<-lm(flav_Conc~ChlorA+GM_Leaf_Area,data=Final)
-fit7<-lm(flav_Conc~Fert+GM_Leaf_Area,data=Final)
+
+fit7<-lm(flav_Conc~Fert,data=dat2)
 summary(fit6)
 summary(fit7)
 #ChlorA and fertilizer are correlated and are essentially sharing the effect on flavonoid concentration completely
@@ -234,47 +301,43 @@ source("GGPlot_Themes.R")
 
 #Body Mass figure. 
 tiff("Fertilizer_Figures/BodyMass.tiff", units="in", width=10, height=6, res=300)
-ggplot(Final2)+
-  geom_boxplot(aes(x=Fert,y=GM_Shoot_Mass,fill=treatment))+theme_simple()+
+ggplot(dat2)+
+  geom_boxplot(aes(x=Fert,y=GM_Shoot_Mass,fill=treatment))+theme_simple_vert()+
   ylab("Shoot Mass (g)")+
   #scale_y_continuous(breaks = seq(0,5,0.25))+
 scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
-  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
-  theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0)))
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))
 dev.off()
-#Chlorophyll A figure. 
 
-tiff("Fertilizer_Figures/Chlorophyll.tiff", units="in", width=10, height=6, res=300)
-ggplot(Final)+
-  geom_boxplot(aes(x=Fert,y=ChlorA,fill=treatment))+theme_simple()+
-  ylab(bquote(bold("[Chlorophyll A]"~(ug/ml))))+
-  scale_y_continuous(breaks = seq(0,5,0.25))+
+#Chlorophyll A figure. 
+tiff("Fertilizer_Figures/log_Chlorophyll.tiff", units="in", width=10, height=6, res=300)
+ggplot(dat2)+
+  geom_boxplot(aes(x=Fert,y=ChlorA,fill=treatment))+theme_simple_vert()+
+  ylab(bquote(bold("[Chlorophyll A] (log"*(μg/ml)*")")))+
+  scale_y_continuous(breaks = seq(-3,1,0.25))+
 scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
-  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
-  theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle=90))
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))
 dev.off()
 
 #Glucosinolate Figure
-tiff("Fertilizer_Figures/Glucosinolate.tiff", units="in", width=10, height=6, res=300)
-ggplot(Final)+
-  geom_boxplot(aes(x=Fert,y=gluc_Conc,fill=treatment))+theme_simple()+
-  ylab(bquote(bold("[Total Glucosinolate]"~(mg/ml))))+
-  scale_y_continuous(breaks = seq(0,5,0.25),)+
+tiff("Fertilizer_Figures/log_Glucosinolate.tiff", units="in", width=10, height=6, res=300)
+ggplot(dat2)+
+  geom_boxplot(aes(x=Fert,y=gluc_Conc,fill=treatment))+theme_simple_vert()+
+  ylab(bquote(bold("[Glucosinolate] (log"*(mg/ml)*")")))+
+   scale_y_continuous(breaks = seq(-4,0,0.25))+
 scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
-  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
-  theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90))
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))
 dev.off()
 
 
 #Flavonoid Figure
-tiff("Fertilizer_Figures/Flavonoid.tiff", units="in", width=10, height=6, res=300)
-ggplot(Final)+
-  geom_boxplot(aes(x=Fert,y=flav_Conc,fill=treatment))+theme_simple()+
-  ylab(bquote(bold("[Total Flavonoid]"~(mg/ml))))+
-  scale_y_continuous(breaks = seq(0,5,0.25),)+
+tiff("Fertilizer_Figures/log_Flavonoid.tiff", units="in", width=10, height=6, res=300)
+ggplot(dat2)+
+  geom_boxplot(aes(x=Fert,y=flav_Conc,fill=treatment))+theme_simple_vert()+
+  ylab(bquote(bold("[Flavonoid] (log"*(mg/ml)*")")))+
+  scale_y_continuous(breaks = seq(-4,1,0.25))+
 scale_x_discrete(name="",labels=c("No Amendment","Fertilizer"))+
-  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
-  theme(axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90))
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))
 dev.off()
 
 

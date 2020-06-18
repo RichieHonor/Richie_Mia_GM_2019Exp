@@ -22,24 +22,14 @@ dat<-read.csv("DataSynthesis.csv")
 dat<-dat[!grepl("i",dat$Sample,fixed=T),]
 
 
-#Function to weigh pathogen damage by leaf area. 
-Weigh<-function(x){
-  x/(dat$GM_Leaf_Len*dat$GM_Leaf_Wid)
-}
-
 #Function to standardize data.
 Standardize<-function(x){
   standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
 }
 
-dat$BlackPathDamW<-Weigh(dat$BlackPathDam)
-dat$ThripsDamW<-Weigh(dat$ThripsDam)
-dat$WhiteFungDamW<-Weigh(dat$WhiteFungDam)
 
 
 #Logging pathogen damage data variables as they are very skewed. 
-dat$BlackPathDamW<-log(dat$BlackPathDamW+abs(min(dat$BlackPathDamW,na.rm=T)+1))
-dat$ThripsDamW<-log(dat$ThripsDamW+abs(min(dat$ThripsDamW,na.rm=T)+1))
 dat$Fern<-log(dat$Fern+1)
 dat$gluc_Conc<-log(dat$gluc_Conc)
 dat$flav_Conc<-log(dat$flav_Conc)
@@ -53,7 +43,7 @@ dat$GM_Leaf_Area<-dat$GM_Leaf_Wid*dat$GM_Leaf_Len
 
 
 #Average Duplicates. 
-dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDamW=mean(BlackPathDamW),ThripsDamW=mean(ThripsDamW),WhiteFungDamW=mean(WhiteFungDamW),comp_number=first(comp_number),GM_Leaf_Area=mean(GM_Leaf_Area))
+dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),comp_number=first(comp_number),GM_Leaf_Area=mean(GM_Leaf_Area))
 
 
 #Converting white fungal damage to logistic. 
@@ -131,20 +121,24 @@ MapleModel<-Maple %>% filter(treatment=="m")
 
 ```
 
-#Examinging differences in maple performance, while controlling for the initial maple size. 
+#Visuallization: maple treatments -- initial maple size controlled.. 
 ```{r}
-
-
-
 #Modelling
 fitTreat<-lm(Maple_TotalLeafArea_End~PC1Tot+treatment,data=Maple)
 summary(fitTreat) #This is highly significant effect of treatment.... 
+length(residuals(fitTreat))
 
 fitTreatInt<-lm(Maple_TotalLeafArea_End~PC1Tot*treatment,data=Maple)
-anova(fitTreat,fitTreatInt)#The interaction term is on the edge of significance.  
+anova(fitTreat,fitTreatInt)#The interaction term is on the edge of significance. However, it is not technically significant. 
 summary(fitTreatInt)
 
 
+fitTreat<-lm(Standardize(Maple_TotalLeafArea_End)~PC1Tot+treatment,data=Maple)
+summary(fitTreat)#This is highly significant effect of treatment.... 
+
+confint(fitTreat)
+fitTreat2<-lm(Standardize(Maple_TotalLeafArea_End)~PC1Tot,data=Maple)
+anova(fitTreat,fitTreat2)
 
 slopeComp<-function(x){
   y=1317.2*x+4844.0
@@ -182,25 +176,48 @@ dev.off()
 
 
 
-#Modelling no tweedie distribution
-Normal distribution fits well enough, is much easier to interpret and does not change the outcome of the model. 
+#Modelling: what effects maple performance?
 ```{r}
-fitTw1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot*gluc_Conc+MapleDamage, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
-summary(fitTw1) #The interaction is not important, but glucosinolate concentration and maple damage are. 
+#Is bench important? 
+fit<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+(1|gh_bench), data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+anova(fit,fit2) #No it is not.
 
-fitTw2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
-summary(fitTw2)
-anova(fitTw1,fitTw2) #Interaction not significant
+#Modelling fixed effects. 
+fit<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+Family+GM_TotalLeaf_Area+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+summary(fit) 
 
+fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+GM_TotalLeaf_Area+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+anova(fit,fit2) #Family not significant. 
 
-fitTw2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+ChlorA+MapleDamage, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
-summary(fitTw2)
+fit3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+anova(fit2,fit3) #Total leaf area not significant. 
 
+#Is family important if I add it mack in? 
+fit4<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+Family+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+anova(fit4,fit3) #No, still not important.
 
-#Garlic mustard size doesnt even appear to effect maple. 
-fitTw2<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~PC1Tot+gluc_Conc+ChlorA+MapleDamage+GM_TotalLeaf_Area, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+#IS glucosinolate significant?
+fit5<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+anova(fit3,fit5) #Yes it is. 
 
-summary(fitTw2)
+#IS damage significant?
+fit6<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+anova(fit3,fit6) #Yes it is. 
+
+#IS Fern significant?
+fit7<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+anova(fit3,fit7) #No it is not. 
+
+#The best model is 
+fit3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+summary(fit3)
+length(residuals(fit3))
+
+plot(residuals(fit3,type="pearson"),fitted(fit3))
+
+plot(residuals(fit3,type="pearson"))
+qqnorm(residuals(fit3,type="pearson"))
 ```
 
 
@@ -260,37 +277,88 @@ dev.off()
 
 ```
 
-
-
-
-#Is there evidence that those in the maple and garlic mustard treatment have the same relationship between glucosinolate and chlorA? If glucosinolates are truly beneficial in one treatment but not in another, we might expect for the relationship between glucosinolates and ChlorA to be stronger in the treatment in which glucosinolates are beneficial. This is because if those that create more chlorophyll a passively allocate more resources to glucosinolates, this relationship may be a weaker relationship than if glucosinolates are increasing fitness and allowing an increased allocation to chlrophyll A. 
+#Genetic correlation model to determine if genotype or glucosinolate is responsible 
 ```{r}
-fit<-lm(gluc_Conc~ChlorA*treatment,data=dat)
-fit2<-lm(gluc_Conc~ChlorA+treatment,data=dat)
-anova(fit,fit2)
-#There is not a significant interaction when logged data are used...... This figure is now obsolete. 
-summary(fit)
-summary(fit2)
- 
- 
-datplot<-dat %>% filter(treatment!="mcnt")
-datplot$treatment<-droplevels.factor(datplot$treatment)
+library(tidyr)
 
-source("GGPlot_Themes.R")
-tiff("Other_Figures/Gluc_Chlor*trement_Cor.tiff", units="in", width=10, height=6, res=300)
-ggplot(datplot)+
-  geom_point(aes(x=ChlorA,y=gluc_Conc,colour=treatment))+
-  geom_abline(slope = 0.37585,intercept = 0.85057,colour="#009E73",size=1)+#alone
-  geom_abline(slope = 0.37585+0.20463,intercept = 0.85057-0.09106,colour="#56B4E9",size=1)+#gm
-  geom_abline(slope = 0.37585+0.18856,intercept = 0.85057-0.09837,colour="#E69F00",size=1)+#maple
-  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00","black"),labels=c("Alone","Garlic Mustard","Maple"))+
-  ylab(bquote(bold("[Glucosinolate] "(mg/ml))))+
-  xlab(bquote(bold("[Chlorophyll A] "(μg/ml))))+
-  theme_simple()
-dev.off()
+MapleModel$Family<-as.character(MapleModel$Family)
+#Standardizing variables
+MapleModel$gluc_ConcS<-Standardize(MapleModel$gluc_Conc)
+MapleModel$ChlorAS<-Standardize(MapleModel$ChlorA)
+MapleModel$GM_TotalLeaf_AreaS<-Standardize(MapleModel$GM_TotalLeaf_Area)
+MapleModel$PC1TotS<-Standardize(MapleModel$PC1Tot)
+MapleModel$MapleDamageS<-Standardize(MapleModel$MapleDamage)
+MapleModel$Maple_TotalLeafArea_EndS<-Standardize(MapleModel$Maple_TotalLeafArea_End)
 
-#This demonstrates that the relationship between glucosinolate and chlorophyll is steeper in the treatments with competition. Therefore, there may be a benefit to producing glucosinolates in the competition treatments? Those with high glucosinolates in the maple treatment have higher chlorophyll levels than those with high glucosinolates in the alone treatment. In other words, those in the competition treatment have lower levels of chlorophyll at low levels of glucosinolates, and have higher level of chlorphyll at higher levels of glucosinolates. In other words (again) glucosinolates may be increasing performance in the competition treatments. 
+  
+#Shifting data wide
+datG<-MapleModel %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench,MapleDamageS,PC1TotS,Maple_TotalLeafArea_EndS,Maple_TotalLeafArea_End) %>%  pivot_longer(c(Maple_TotalLeafArea_End,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
+
+#Genetic variation for all traits
+fit1<-glmmTMB(value ~ name*PC1TotS+name*MapleDamageS+(-1+name|Family),REML=T,data=datG)
+#Would not converge. Removing damage interaction as it has a small effect. ... why would damage be expected to effect garlic mustard traits? 
+summary(fit1)
+
+
+fit2<-glmmTMB(value ~ name*PC1TotS+MapleDamageS+(-1+name|Family),REML=T,data=datG) 
+#Still no good. ..Removing damage entirely. 
+
+fit3<-glmmTMB(value ~ name*PC1TotS+(-1+name|Family),REML=T,data=datG) 
+#Still no convergence.
+
+
+#Trying model without garlic mustard size, as i found that that was not significant predictor
+datG<-MapleModel %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench,MapleDamageS,PC1TotS,Maple_TotalLeafArea_EndS,Maple_TotalLeafArea_End) %>%  pivot_longer(c(Maple_TotalLeafArea_EndS,gluc_ConcS,ChlorAS))
+
+fit1<-glmmTMB(value ~ name*PC1TotS+name*MapleDamageS+(-1+name|Family),REML=T,data=datG)
+#Would not converge. Removing damage interaction 
+
+fit2<-glmmTMB(value ~ name*PC1TotS+MapleDamageS+(-1+name|Family),REML=T,data=datG) 
+#Still no good. ..Removing damage entirely. 
+
+fit3<-glmmTMB(value ~ name*PC1TotS+(-1+name|Family),REML=T,data=datG) 
+#Still no convergence.
+summary(fit3)
+fit4<-glmmTMB(value ~-1 +(-1+name|Family),REML=T,data=datG) 
+
+
+
+#Removing Chlor A as there is little genetic correlation for it anyways 
+datG<-MapleModel %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench,MapleDamageS,PC1TotS,Maple_TotalLeafArea_EndS,Maple_TotalLeafArea_End) %>%  pivot_longer(c(Maple_TotalLeafArea_End,gluc_ConcS))
+
+fit1<-glmmTMB(value ~ name*PC1TotS+name*MapleDamageS+(-1+name|Family),REML=T,data=datG)
+#Would not converge. Removing damage interaction 
+
+fit2<-glmmTMB(value ~ name*PC1TotS+MapleDamageS+(-1+name|Family),REML=T,data=datG) 
+#Still no good. ..Removing damage entirely. 
+
+fit3<-glmmTMB(value ~ name*PC1TotS+(-1+name|Family),REML=T,data=datG) 
+#Still no convergence.
+summary(fit3)
+
+
+fit4<-glmmTMB(value ~ PC1TotS+(-1+name|Family),REML=T,data=datG) 
+summary(fit4)
+
+fit4<-glmmTMB(value ~ -1+(-1+name|Family),REML=T,data=datG) 
+summary(fit4)
+#Model just wont run. 
 ```
+
+#Calculating genetic correlation between gluc, chlor and total size. 
+```{r}
+datG<-MapleModel %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench,MapleDamageS,PC1TotS,Maple_TotalLeafArea_EndS,Maple_TotalLeafArea_End) %>%  pivot_longer(c(gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
+
+glmmTMB(value ~ -1+name*gh_bench+(-1+name|Family),REML=T,data=datG)
+#did not converge... removing bench interaction.
+
+glmmTMB(value ~ -1+name+gh_bench+(-1+name|Family),REML=T,data=datG)
+#Did not converge, removing bench. 
+glmmTMB(value ~ -1+(-1+name|Family),REML=T,data=datG)
+#Still did not converge. 
+
+```
+
 
 
 #Effect of maple on GM performance. 

@@ -15,6 +15,7 @@ The second purpose is to determine if glucosinolates and flavonoids influence su
 ```{r}
 library(ggplot2)
 #library(tidyr)
+library(glmmTMB)
 library(cowplot)
 library(grid)
 library(gridExtra)
@@ -101,7 +102,6 @@ dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 
 #What influences performance (update with gluc model selection)? 
 ```{r}
-library(glmmTMB)
 
 #Modelling random effects.
 fitfull<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*gluc_Conc+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
@@ -170,6 +170,14 @@ qqnorm(residuals(fit))
 
 #Coefficients for table 
 fit<-glmmTMB(GM_TotalLeaf_Area~treatment*Standardize(gluc_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit)
+
+fit<-glmmTMB(GM_TotalLeaf_Area~treatment*Standardize(ChlorA)+treatment*Standardize(gluc_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit)
+
+
+#Coefficients without glucosinolate table 
+fit<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit)
 
 ```
@@ -413,11 +421,35 @@ fit<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(Fern)+Standardize(BlackPath
 
 summary(fit)
 
+#With standardized coefficients
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
+summary(fit)
+
+confint(fit)
 
 ```
 
 
+#Visualizing -- effect of treatment
+```{r}
+source("GGPlot_Themes.R")
 
+Competitors<-factor(c("Maple on GM","GM on GM","GM on Maple"),levels=c("Maple on GM","GM on GM","GM on Maple"))
+Values<-c(-0.36,-1.16,-0.55)
+min<-c(-0.19,-0.93,-0.30)
+max<-c(-0.54,-1.38,-0.81)
+col<-c("a","a","b")
+
+point<-data.frame(Competitors,Values,min,max,col)
+
+ggplot(point)+
+geom_pointrange(aes(x=Competitors,y=Values,ymin=min,ymax=max,colour=col))+
+  scale_y_continuous(limits=c(-1.5,0))+
+  theme_simple_multiCol_First()+
+  labs(y="Reduction in Performance\n (Standard Deviation TLA)",x="")
+  
+ 
+```
 
 
 

@@ -320,7 +320,7 @@ colnames(MapFinal)[2]<-"Maple_LeafNum_End"
 #Merging with Main DataFrame. 
 Final<-left_join(Final,MapFinal,by="Tag")
 
-#write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
+write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
 
 ```
 
@@ -352,7 +352,7 @@ colnames(mass)[2]<-"GM_Shoot_Mass"
 Final<-left_join(dat,mass,by=c("Tag"="ID"))
 
 
-#write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
+write.csv(Final,"Data_Moities/FertilizerExperiment/FertilizerSynthesis.csv")
 
 print("Done")
 ```

@@ -190,3 +190,28 @@ summary(fit7) #Not for flavonoids (Significant postive correlation. )
 
 ```
 
+
+
+#Calculating genetic correlation between gluc, chlor and total size. 
+```{r}
+
+#Standardizing variables
+dat2$gluc_ConcS<-Standardize(dat2$gluc_Conc)
+dat2$ChlorAS<-Standardize(dat2$ChlorA)
+dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
+
+dat2$Family<-as.character(dat2$Family)
+
+
+
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench) %>%  pivot_longer(c(gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
+
+glmmTMB(value ~ -1+name*gh_bench+(-1+name|Family),REML=T,data=datG)
+#did not converge... removing bench interaction.
+
+glmmTMB(value ~ -1+name+gh_bench+(-1+name|Family),REML=T,data=datG)
+#Did not converge, removing bench. 
+glmmTMB(value ~ -1+(-1+name|Family),REML=T,data=datG)
+#Still did not converge. 
+
+```

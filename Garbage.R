@@ -2318,4 +2318,37 @@ summary(fitTw3)
 
 
 
+#Is there evidence that those in the maple and garlic mustard treatment have the same relationship between glucosinolate and chlorA? If glucosinolates are truly beneficial in one treatment but not in another, we might expect for the relationship between glucosinolates and ChlorA to be stronger in the treatment in which glucosinolates are beneficial. This is because if those that create more chlorophyll a passively allocate more resources to glucosinolates, this relationship may be a weaker relationship than if glucosinolates are increasing fitness and allowing an increased allocation to chlrophyll A. 
+```{r}
+fit<-lm(gluc_Conc~ChlorA*treatment,data=dat)
+fit2<-lm(gluc_Conc~ChlorA+treatment,data=dat)
+anova(fit,fit2)
+#There is not a significant interaction when logged data are used...... This figure is now obsolete. 
+summary(fit)
+summary(fit2)
+
+
+datplot<-dat %>% filter(treatment!="mcnt")
+datplot$treatment<-droplevels.factor(datplot$treatment)
+
+source("GGPlot_Themes.R")
+tiff("Other_Figures/Gluc_Chlor*trement_Cor.tiff", units="in", width=10, height=6, res=300)
+ggplot(datplot)+
+  geom_point(aes(x=ChlorA,y=gluc_Conc,colour=treatment))+
+  geom_abline(slope = 0.37585,intercept = 0.85057,colour="#009E73",size=1)+#alone
+  geom_abline(slope = 0.37585+0.20463,intercept = 0.85057-0.09106,colour="#56B4E9",size=1)+#gm
+  geom_abline(slope = 0.37585+0.18856,intercept = 0.85057-0.09837,colour="#E69F00",size=1)+#maple
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00","black"),labels=c("Alone","Garlic Mustard","Maple"))+
+  ylab(bquote(bold("[Glucosinolate] "(mg/ml))))+
+  xlab(bquote(bold("[Chlorophyll A] "(μg/ml))))+
+  theme_simple()
+dev.off()
+
+#This demonstrates that the relationship between glucosinolate and chlorophyll is steeper in the treatments with competition. Therefore, there may be a benefit to producing glucosinolates in the competition treatments? Those with high glucosinolates in the maple treatment have higher chlorophyll levels than those with high glucosinolates in the alone treatment. In other words, those in the competition treatment have lower levels of chlorophyll at low levels of glucosinolates, and have higher level of chlorphyll at higher levels of glucosinolates. In other words (again) glucosinolates may be increasing performance in the competition treatments. 
+```
+
+
+
+
+
 
