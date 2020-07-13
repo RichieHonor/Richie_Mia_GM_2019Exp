@@ -23,23 +23,15 @@ dat<-read.csv("DataSynthesis.csv")
 dat<-dat[!grepl("i",dat$Sample,fixed=T),]
 
 
-#Function to weigh pathogen damage by leaf area. 
-Weigh<-function(x){
-  x/(dat$GM_Leaf_Len*dat$GM_Leaf_Wid)
+#Function to standardize data.
+Standardize<-function(x,set.sd=F,SD){
+  if(set.sd==T){
+      standard<-(x-mean(x,na.rm=T))/SD
+  }
+  else{
+     standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
+  }
 }
-#Function to standardize variables. 
-Standardize<-function(x){
-  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
-}
-
-#Weighing pathogen damage
-dat$BlackPathDamW<-Weigh(dat$BlackPathDam)
-dat$ThripsDamW<-Weigh(dat$ThripsDam)
-
-
-#Logging pathogen damage data and fern data variables as they are very skewed. 
-dat$BlackPathDamW<-log(dat$BlackPathDamW+abs(min(dat$BlackPathDamW,na.rm=T)+1))
-dat$ThripsDamW<-log(dat$ThripsDamW+abs(min(dat$ThripsDamW,na.rm=T)+1))
 
 
 dat$Fern<-log(dat$Fern+1)
@@ -55,7 +47,7 @@ dat$BlackPathDam<-log(dat$BlackPathDam+1)
 dat$GM_Leaf_Area<-dat$GM_Leaf_Wid*dat$GM_Leaf_Len
 
 #Average Duplicates. 
-dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDamW=mean(BlackPathDamW),ThripsDamW=mean(ThripsDamW),comp_number=first(comp_number),GM_Leaf_Area=mean(GM_Leaf_Area))
+dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),comp_number=first(comp_number),GM_Leaf_Area=mean(GM_Leaf_Area))
 
 
 #Converting white fungal damage to logistic. 
@@ -175,6 +167,15 @@ plot(residuals(fit,type="pearson"))
 plot(residuals(fit,type="pearson")~fitted(fit))
 
 
+#Coefficients for results
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area,set.sd=T,3549.252)~Standardize(comp_Size)+Standardize(ThripsDam)+Standardize(BlackPathDam)+(1|Family),data=dat2[!is.na(dat2$comp_Size),])
+summary(fit)
+
+#-0.31502 effect on SD per SD unit. (GM on GM)
+
+GMonGM<-Standardize(dat2$comp_Size)
+GMonGM
+#write.csv(GMonGM,"GM_SD_OnGM.csv")
 ```
 
 
@@ -205,6 +206,9 @@ dat2$Family<-as.character(dat2$Family)
 
 
 datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench) %>%  pivot_longer(c(gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
+
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench) %>%  pivot_longer(c(gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
+
 
 glmmTMB(value ~ -1+name*gh_bench+(-1+name|Family),REML=T,data=datG)
 #did not converge... removing bench interaction.

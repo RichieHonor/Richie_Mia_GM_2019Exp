@@ -340,6 +340,8 @@ write.csv(Final,"DataSynthesis.csv")
 The output above will be empty if all labels were matched correctly. Else there will be a dataframe containing the samples that were not matched. 
 
 
+
+
 Integrating
 ###File for *fern abundance and moss presence* **fern_cover.csv**. in Raw_Data.
 
@@ -1000,6 +1002,61 @@ write.csv(final,"DataSynthesis.csv")
 
 
 
+
+Integrating
+###Adding in fern data for the maple controls
+
+```{r}
+#Clear Environment. 
+rm(list=ls())
+library(dplyr)
+
+
+#Read in data
+dat<-read.csv("Data_Moities/fern_cover.csv",stringsAsFactors = F)
+
+final0.1<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
+
+#Modyfiyng tag to match final document. 
+dat$Genotype<-gsub("\\","|",dat$Genotype,fixed=T)
+dat$Genotype<-gsub("/","-",dat$Genotype,fixed=T)
+
+#Modifying column names to match final document.
+colnames(dat)[1]<-"Tag"
+
+#Genotype "e|SMITH1-1-0|Q|i159" was entered twice into the fern datasheet. As there is no way to assign an identity, and fern data are ratically different (i.e. 1 vs 15). This will be treated as a NA unless evidence for an ID arises. 
+dat[dat$Tag=="e|SMITH1-1-0|Q|i159",c("Moss.tf","Fern")]<-NA
+
+#Removing the duplicate
+dat<-dat[!duplicated(dat$Tag),]
+
+#Generating dataframe without maple controls 
+final0.2<-final0.1[!grepl("maple",final0.1$Tag),]
+
+
+#Isolating maple values
+final0.3<-final0.1[grepl("maple",final0.1$Tag),]
+
+#Isolating fern values for maple controls 
+fernVal<-dat[grepl("maple",dat$Tag),]
+
+#Removing the fern collumn (which is blank) from the main data frame subset.
+final0.3<-final0.3 %>% select(-Fern)
+
+#Adding in the fern values 
+MapleCntComplete<-fernVal %>% select(-Moss.tf) %>% left_join(final0.3,by="Tag") #%>% select(-X)
+
+
+#Merging the data back with the original dataframe. 
+final<-rbind(final0.2,MapleCntComplete)
+
+final<-final %>% select(-X)
+
+#Writting to file. 
+write.csv(final,"DataSynthesis.csv")
+
+
+```
 
 
 

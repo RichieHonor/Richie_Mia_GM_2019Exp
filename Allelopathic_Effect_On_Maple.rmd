@@ -23,8 +23,13 @@ dat<-dat[!grepl("i",dat$Sample,fixed=T),]
 
 
 #Function to standardize data.
-Standardize<-function(x){
-  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
+Standardize<-function(x,set.sd=F,SD){
+  if(set.sd==T){
+      standard<-(x-mean(x,na.rm=T))/SD
+  }
+  else{
+     standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
+  }
 }
 
 
@@ -43,7 +48,7 @@ dat$GM_Leaf_Area<-dat$GM_Leaf_Wid*dat$GM_Leaf_Len
 
 
 #Average Duplicates. 
-dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),comp_number=first(comp_number),GM_Leaf_Area=mean(GM_Leaf_Area))
+dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA),RGR1=first(RGR1), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),comp_number=first(comp_number),GM_Leaf_Area=mean(GM_Leaf_Area))
 
 
 #Converting white fungal damage to logistic. 
@@ -100,11 +105,20 @@ PCAMaple<-data.frame(apply(PCAMaple,2,Standardize))
 #Model with everything
 pcaModelTotal<-prcomp(PCAMaple)
 
+pcaModelEnd<-prcomp(PCAMaple %>% select(Maple_StemHeight_End,Maple_LeafNum_End,Maple_TotalLeafArea_End))
+pcaModelZero<-prcomp(PCAMaple %>% select(maple_height_0,maple_leaf_length_0,maple_leaves_0))
+
+
 #All variables go in the same direction.
 biplot(pcaModelTotal)
+biplot(pcaModelZero)
+biplot(pcaModelEnd)
+
 
 #40% of the variation in the data is explained in the first PCA. 
 summary(pcaModelTotal)
+summary(pcaModelEnd)
+summary(pcaModelZero)
 
 #All variables are correlated with the PC1 loading. 
 plot(predict(pcaModelTotal)[,1]~PCAMaple$Maple_TotalLeafArea_End)
@@ -121,38 +135,128 @@ MapleModel<-Maple %>% filter(treatment=="m")
 
 ```
 
+#Getting residuals of simple correlation between final leaf area and initial size
+```{r}
+fit<-lm(Maple_TotalLeafArea_End~PC1Tot,data=MapleModel)
+residual<-as.data.frame(resid(fit))
+
+summary(fit)
+
+resi<-tibble::rownames_to_column(residual, "rownumber")
+
+#Adding in residuals to data frame. 
+MapleModel[resi$rownumber,"MapleLeafAreaResidual"]<-resi$'resid(fit)'
+
+MapleModel$MapleLeafAreaResidualS<-Standardize(MapleModel$MapleLeafAreaResidual)
+```
+
+
+
+#Genetic correlation with PCA for glucosinolates and chlorA 
+```{r}
+#Standardizing Variables.
+MapleModel$GM_TotalLeaf_AreaS<-Standardize(MapleModel$GM_TotalLeaf_Area)
+MapleModel$flav_ConcS<-Standardize(MapleModel$flav_Conc)
+MapleModel$gluc_ConcS<-Standardize(MapleModel$gluc_Conc)
+MapleModel$MapleDamageS<-Standardize(MapleModel$MapleDamage)
+MapleModel$ChlorAS<-Standardize(MapleModel$ChlorA)
+MapleModel$RGR1S<-Standardize(MapleModel$RGR1)
+MapleModel$GM_Leaf_AreaS<-Standardize(MapleModel$GM_Leaf_Area)
+MapleModel$gh_bench<-as.factor(MapleModel$gh_bench)
+MapleModel$PC1TotS<-Standardize(MapleModel$PC1Tot)
+MapleModel$MapleDamageS<-Standardize(MapleModel$MapleDamage)
+MapleModel$Maple_TotalLeafArea_EndS<-Standardize(MapleModel$Maple_TotalLeafArea_End)
+
+
+pcaGlucCor<-prcomp(~gluc_ConcS+ChlorAS,data=MapleModel,na.action=na.omit)
+
+prediction<-as.data.frame(predict(pcaGlucCor))
+
+df<-tibble::rownames_to_column(prediction, "rownumber")
+
+biplot(pcaGlucCor)
+
+MapleModel[df$rownumber,"PC1GC"]<-df$PC1
+MapleModel[df$rownumber,"PC2GC"]<-df$PC2
+
+
+MapleModel$PC1GC<-MapleModel$PC1GC*-1
+plot(MapleModel$PC1GC~MapleModel$PC2GC)
+
+datG<-MapleModel %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment,RGR1S,GM_Leaf_AreaS,PC1GC,PC2GC) %>%  pivot_longer(c(PC1GC,GM_TotalLeaf_AreaS))
+
+hist(MapleModel$PC1GC)
+#This fit fine. 
+#Model convergence issue again. 
+fit5<-glmmTMB(value ~ name*gh_bench+(-1+name|Family),REML=T,data=datG)
+summary(fit5)
+vignette('troubleshooting')
+datG
+```
+
+
+#Determining if glucosinolate or chlorophyll causes reduction in maple performance. 
+```{r}
+
+#Shifting data wide
+datG<-MapleModel %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench,MapleDamageS,PC1TotS,Maple_TotalLeafArea_EndS,Maple_TotalLeafArea_End,PC1GC,PC2GC,MapleLeafAreaResidualS) %>%  pivot_longer(c(MapleLeafAreaResidualS,PC2GC))
+
+plot(MapleLeafAreaResidualS~PC2GC,data=MapleModel)
+#try with pc1 and pc2. can not do pc2 if no genetic variation. 
+
+#Genetic variation for all traits #Still no fit using the residuals from the model
+fit1<-glmmTMB(value ~ name+(-1+name|Family),REML=T,data=datG)
+#Would not converge. Removing damage interaction as it has a small effect. ... why would damage be expected to effect garlic mustard traits? 
+summary(fit1)
+#Model without total leaf area. 
+fit2<-glmmTMB(value ~ gh_bench+(-1+name|Family),REML=T,data=datG)
+#Still no fit. 
+```
+
+
+
+
 #Visuallization: maple treatments -- initial maple size controlled.. 
 ```{r}
 #Modelling
-fitTreat<-lm(Maple_TotalLeafArea_End~PC1Tot+treatment,data=Maple)
-summary(fitTreat) #This is highly significant effect of treatment.... 
-length(residuals(fitTreat))
 
-fitTreatInt<-lm(Maple_TotalLeafArea_End~PC1Tot*treatment,data=Maple)
-anova(fitTreat,fitTreatInt)#The interaction term is on the edge of significance. However, it is not technically significant. 
-summary(fitTreatInt)
+#Is Damage significant?
+fit1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
+fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern,data=Maple)
+anova(fit1,fit2) #Yes
+summary(fit1)
+#Is Fern significant?
+fit1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
+fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+MapleDamage,data=Maple)
+anova(fit1,fit2) #Yes
 
+#Is treatment significant?
+fit1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+Fern+MapleDamage,data=Maple)
+fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
+anova(fit1,fit2) #Yes
 
-fitTreat<-lm(Standardize(Maple_TotalLeafArea_End)~PC1Tot+treatment,data=Maple)
-summary(fitTreat)#This is highly significant effect of treatment.... 
+#Is there an interaction?
+fit1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
+fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot*treatment+Fern+MapleDamage,data=Maple)
+anova(fit1,fit2) #no, not at all when other variables are accounted for.
 
-confint(fitTreat)
-fitTreat2<-lm(Standardize(Maple_TotalLeafArea_End)~PC1Tot,data=Maple)
-anova(fitTreat,fitTreat2)
-
-slopeComp<-function(x){
-  y=1317.2*x+4844.0
+#Generating coefficients
+fit1<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~PC1Tot+treatment+Standardize(Fern)+Standardize(MapleDamage),data=Maple)
+summary(fit1)
+slope<-function(x,PlusInt){
+  y=1261.58*x+6674.52+PlusInt
   return(y)
 }
+#-1914.29 change in intercept in the competition treatment
+
+#Competition x axis
 Comp<-Maple$PC1Tot[Maple$treatment=="m"]
 xComp<-seq(min(Comp),max(Comp),length.out = 194)
 
-slopeCnt<-function(x){
-  y=(1317.2+486.8)*x+4844.0+1309.9
-  return(y)
-}
-Cnt<-Maple$PC1Tot[Maple$treatment=="mcnt"]
-xCnt<-seq(min(Cnt),max(Cnt),length.out = 194)
+#Control x axis
+Cont<-Maple$PC1Tot[Maple$treatment=="mcnt"]
+xCont<-seq(min(Cont),max(Cont),length.out = 194)
+
 
 
 source("GGPlot_Themes.R")
@@ -160,9 +264,9 @@ source("GGPlot_Themes.R")
 tiff("Maple_Figures/Maple_Control.tiff", units="in", width=10, height=6, res=300)
 ggplot()+
   geom_point(aes(y=Maple$Maple_TotalLeafArea_End,x=Maple$PC1Tot,colour=Maple$treatment))+
-  geom_path(aes(x=xCnt,y=slopeCnt(xCnt)),colour="black",size=1)+
-  geom_path(aes(x=xComp,y=slopeComp(xComp)),colour="#E69F00",size=1)+
-    scale_colour_manual(values=c("#E69F00", "black"),labels=c("Interspecific","Maple Alone"))+
+  geom_path(aes(x=xCont,y=slope(xCont,0)),colour="black",size=1)+
+  geom_path(aes(x=xComp,y=slope(xComp,-1914.29)),colour="#E69F00",size=1)+
+    scale_colour_manual(values=c("black","#E69F00" ),labels=c("Maple Alone","Interspecific"))+
   scale_y_continuous(breaks=seq(0,20000,2500))+
   scale_x_continuous(breaks=seq(-3,5,1))+
 
@@ -172,6 +276,13 @@ ggplot()+
 dev.off()
 
 #The conclusion is that, not only are maples in the mcnt treatment have higher fitness after controlling for differences in initial size, they also exhibit increased growth at a given body size. 
+
+#Generating coefficients for display
+Maple$treatment<-factor(Maple$treatment,levels=c("mcnt","m"))
+fitTreat<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+treatment+Standardize(Fern)+Standardize(MapleDamage),data=Maple)
+summary(fitTreat)
+
+confint(fitTreat)
 ```
 
 
@@ -189,6 +300,7 @@ summary(fit)
 
 fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+GM_TotalLeaf_Area+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
 anova(fit,fit2) #Family not significant. 
+summary(fit2)
 
 fit3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
 anova(fit2,fit3) #Total leaf area not significant. 
@@ -209,8 +321,13 @@ anova(fit3,fit6) #Yes it is.
 fit7<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
 anova(fit3,fit7) #No it is not. 
 
+#IS initial size significant?
+fit8<-glmmTMB(Maple_TotalLeafArea_End~gluc_Conc+MapleDamage+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+anova(fit3,fit8) #No it is not. 
+
+
 #The best model is 
-fit3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+Fern, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+fit3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+Standardize(gluc_Conc)+Standardize(MapleDamage)+Standardize(Fern), data=MapleModel[!is.na(MapleModel$gluc_Conc),])
 summary(fit3)
 length(residuals(fit3))
 
@@ -218,6 +335,35 @@ plot(residuals(fit3,type="pearson"),fitted(fit3))
 
 plot(residuals(fit3,type="pearson"))
 qqnorm(residuals(fit3,type="pearson"))
+
+#What is the effect with chlorophyll included?
+fit0.1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+ChlorA, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+fit0.2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+ChlorA, data=MapleModel[!is.na(MapleModel$gluc_Conc),])
+anova(fit0.1,fit0.2) #
+
+#What is the effect of chlorophyll?
+fit0.1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage+ChlorA, data=MapleModel[!is.na(MapleModel$ChlorA),])
+fit0.2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+gluc_Conc+MapleDamage, data=MapleModel[!is.na(MapleModel$ChlorA),])
+anova(fit0.1,fit0.2) #
+
+
+```
+
+
+
+```{r}
+#Generating SD for figure. This model has the standard deviation of the enire maple data set to make it translateable to the model scale. 
+fit3<-glmmTMB(Standardize(Maple_TotalLeafArea_End,set.sd = T,3132.683)~Standardize(PC1Tot)+Standardize(GM_TotalLeaf_Area)+Standardize(MapleDamage), data=MapleModel)
+
+summary(fit3)
+
+#The effect of GM size on maple is -0.0354822  SD/SD
+
+GM_SD_OnMap<-Standardize(MapleModel$GM_TotalLeaf_Area)
+GM_SD_OnMap
+#write.csv(GM_SD_OnMap,"GM_SD_OnMap.csv")
+
+#Ferns did not effect maple.....
 ```
 
 
@@ -290,9 +436,13 @@ MapleModel$PC1TotS<-Standardize(MapleModel$PC1Tot)
 MapleModel$MapleDamageS<-Standardize(MapleModel$MapleDamage)
 MapleModel$Maple_TotalLeafArea_EndS<-Standardize(MapleModel$Maple_TotalLeafArea_End)
 
-  
+  #Genetic correlation model to determine if genotype or glucosinolate is responsible 
+
+
 #Shifting data wide
 datG<-MapleModel %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench,MapleDamageS,PC1TotS,Maple_TotalLeafArea_EndS,Maple_TotalLeafArea_End) %>%  pivot_longer(c(Maple_TotalLeafArea_End,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
+
+#try with pc1 and pc2. can not do pc2 if no genetic variation. 
 
 #Genetic variation for all traits
 fit1<-glmmTMB(value ~ name*PC1TotS+name*MapleDamageS+(-1+name|Family),REML=T,data=datG)
@@ -426,6 +576,20 @@ qqnorm(residuals(fit7)) #looks good.
 fit7<-lmer(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)  +  
     Standardize(Fern) + Standardize(BlackPathDam ) +(1 | Family)+(1|gh_bench)  ,data= MapleModel)
 summary(fit7)
+
+#Getting coefficients from standardized data (respective to the whole data set)
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area,set.sd=T,3549.252) ~  Standardize(Maple_TotalLeafArea_End)  +
+    Standardize(Fern) + Standardize(BlackPathDam ) +(1 | Family)+(1|gh_bench)  ,data= MapleModel)
+summary(fit7)
+
+
+ #-0.24305 is the SD/ SD effect of maple on GM. 
+
+MaponGM<-Standardize(MapleModel$Maple_TotalLeafArea_End)
+MaponGM
+write.csv(MaponGM,"Map_SD_OnGM.csv")
+
+
 ```
 
 #Using the best model of what determines fitness in the presense of competitor and pathogens, is there a cost to glucosinolates after holding these values constant? 
@@ -478,9 +642,21 @@ anova(fit_full,fit_full_0.1)#Bench is an extremenly important predictor.
 anova(fit_full,fit_full_0.2)#Family is not. 
 
 
+
+#Testing the effect of glucosinolates without chlorophyll in the model
+fit_full<-glmmTMB(Fern~treatment+gluc_Conc+(1|gh_bench),family=nbinom2,data=datFern[!is.na(datFern$gluc_Conc),])
+fit_1<-glmmTMB(Fern~treatment+(1|gh_bench),family=nbinom2,data=datFern[!is.na(datFern$gluc_Conc),])
+
+anova(fit_full,fit_1)
+
+
+
 fit_full<-glmmTMB(Fern~treatment+gluc_Conc+ChlorA+(1|gh_bench),family=nbinom2,data=datFern[!is.na(datFern$gluc_Conc),])
+fit_1<-glmmTMB(Fern~treatment+ChlorA+(1|gh_bench),family=nbinom2,data=datFern[!is.na(datFern$gluc_Conc),])
 
 anova(fit_full,fit_1)#Glucosinolates are not a significant predictor of fern abundance (although the AIC is about the same)
+
+
 
 summary(fit_full)
 summary(fit_1)
@@ -534,6 +710,14 @@ summary(fit_1)
 ggplot(datFern)+
   geom_col(aes(x=treatment,y=Fern),stat=mean)
 
+tapply(datFern$Fern,datFern$treatment,mean)
+tapply(Maple$Fern
+,Maple$treatment
+,mean,na.rm=T)
+
+dat
+Maple
+MapleModel$Fern
 tapply(datFern$Fern,datFern$treatment,mean)#Wow....
 ```
 

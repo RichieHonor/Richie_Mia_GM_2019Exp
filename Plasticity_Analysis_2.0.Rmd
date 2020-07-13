@@ -57,8 +57,7 @@ dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
 
 
 #Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
-dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude))
-dat
+dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude), RGR1=first(RGR1))
 
 #All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
 dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
@@ -90,7 +89,267 @@ Standardize<-function(x){
 
 #Standardizing leaf area. 
 dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
+
+#Function to extract random effect heritabilities from a glmmTMB model. 
+Xtract<-function(x,Resi){
+  temp<-VarCorr(x)
+GXE=temp$cond$`Family:treatment`[[1]]
+E=temp$cond$treatment[[1]]
+G=temp$cond$Family[[1]]
+
+G_by_E<-GXE/(GXE+E+G+Resi)
+Envir<-E/(GXE+E+G+Resi)
+Genet<-G/(GXE+E+G+Resi)
+data.frame(Type=c("GXE","E","G"),Value=c(G_by_E,Envir,Genet)*100)
+}
 ```
+
+#Generating pc1 pc2 values. 
+```{r}
+pcaGlucCor<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA),data=dat2,na.action=na.omit)
+
+prediction<-as.data.frame(predict(pcaGlucCor))
+
+df<-tibble::rownames_to_column(prediction, "rownumber")
+
+biplot(pcaGlucCor)
+pcaGlucCor
+summary(pcaGlucCor)
+dat2[df$rownumber,"PC1GC"]<-df$PC1
+dat2[df$rownumber,"PC2GC"]<-df$PC2
+
+#Trying a pca with all three variables. 
+pcaGlucCorFlav<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA)+Standardize(flav_Conc),data=dat2,na.action=na.omit)
+biplot(pcaGlucCorFlav)
+pcaGlucCorFlav
+summary(pcaGlucCorFlav)
+pcaGlucCorFlav
+
+pcaCorFlav<-prcomp(~Standardize(ChlorA)+Standardize(flav_Conc),data=dat2,na.action=na.omit)
+biplot(pcaCorFlav)
+summary(pcaCorFlav)
+pcaCorFlav
+prediction2<-as.data.frame(predict(pcaCorFlav))
+
+
+df2<-tibble::rownames_to_column(prediction2, "rownumber")
+dat2[df2$rownumber,"PC1FC"]<-df2$PC1
+dat2[df2$rownumber,"PC2FC"]<-df2$PC2
+
+```
+
+#I dont think another pca is the way to go. 
+```{r}
+pcaAll<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA)+(Standardize(RGR1)+Standardize(GM_TotalLeaf_Area)+Standardize(flav_Conc)),data=dat2,na.action=na.omit)
+summary(pcaAll)
+biplot(pcaAll)
+pcaAll
+```
+
+
+
+
+#Running analysis with mixed model to generate G, E and GXE effects. First with gluc,then flav, then pc1, pc2. 
+```{r}
+#Glucosinolate
+fit<-glmmTMB(gluc_Conc~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(gluc_Conc~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(gluc_Conc~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#Yes. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(gluc_Conc~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. 
+
+summary(fit)
+Xtract(fit,0.067131)
+
+
+
+##Flavonoids...
+fit<-glmmTMB(flav_Conc~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(flav_Conc~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(flav_Conc~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#No. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(flav_Conc~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. 
+
+summary(fit)
+Xtract(fit,7.751e-02)
+
+
+```
+
+#Total leaf area RGR and Chlor A
+```{r}
+#Total leaf area. 
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+
+#Is there an effect of GXE? 
+fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#Yes. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. 
+
+summary(fit)
+Xtract(fit,0.39888)
+
+
+
+##Relative growth rate. 
+fit<-glmmTMB(Standardize(RGR1)~as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(Standardize(RGR1)~as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(Standardize(RGR1)~as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#No. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(Standardize(RGR1)~as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. 
+
+summary(fit)
+Xtract(fit,0.80543)
+
+##Chlor A
+fit<-glmmTMB(Standardize(ChlorA)~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(Standardize(ChlorA)~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(Standardize(ChlorA)~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#No. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(Standardize(ChlorA)~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. 
+
+summary(fit)
+Xtract(fit,8.592e-01)
+
+
+
+```
+
+
+
+#Principle component glucosinolate and chlorophyll. 
+```{r}
+#PC1
+fit<-glmmTMB(PC1GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(PC1GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(PC1GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#No... not when assessing in this model. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(PC1GC~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. 
+
+summary(fit)
+Xtract(fit,1.38577) #Extremely high environmental effect fot PC1
+
+
+#PC2
+fit<-glmmTMB(PC2GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(PC2GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(PC2GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#YEs.... extremely high as well. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(PC2GC~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Not at all. 
+
+summary(fit)
+Xtract(fit,2.538e-01) #Extremely high Genetic effect fot PC2
+#Very interesting. 
+```
+#fit<-glmmTMB(gluc_Conc~1+(name|treatment/Family)+(name|Family),data=dat2)
+for gmatrix model 
+
+
+#G,GXE and E for flav pc
+```{r}
+library(glmmTMB)
+#PC1
+fit<-glmmTMB(PC1FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(PC1FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(PC1FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#No... not when assessing in this model. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(PC1FC~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. ... very high. 
+
+summary(fit)
+Xtract(fit,1.324e+00) #Extremely high environmental effect fot PC1
+
+
+#PC2
+fit<-glmmTMB(PC2FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(PC2FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(PC2FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#No....not at all. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(PC2FC~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#....Almost. interesting.  
+
+summary(fit)
+Xtract(fit,0.406801) #
+
+```
+
+
+
+#For modelling. 
+
+
+
+
 
 
 #Glucosinolate plastsicity
@@ -100,10 +359,13 @@ library(glmmTMB)
 fit<-glmmTMB(gluc_Conc~treatment+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=dat2)
 fit2<-glmmTMB(gluc_Conc~treatment+GM_Leaf_Area+(1|Family),data=dat2)
 fit3<-glmmTMB(gluc_Conc~treatment+GM_Leaf_Area+(1|gh_bench),data=dat2)
+fit3.3<-glmmTMB(gluc_Conc~treatment+GM_Leaf_Area+(1|Family/treatment),data=dat2)
 
+anova(fit2,fit3.3) #Is a GXE significant? # no. 
 anova(fit,fit2) #Greenhouse bench is not
 anova(fit3,fit) #Family and Tag is very significant. 
 
+#Significance of plasticity for glucosinolates 
 fit<-glmmTMB(gluc_Conc~treatment+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
 fit4<-glmmTMB(gluc_Conc~Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
 anova(fit,fit4)
@@ -174,12 +436,26 @@ fit<-glmmTMB(flav_Conc~treatment+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_benc
 fit2<-glmmTMB(flav_Conc~treatment+Standardize(GM_Leaf_Area)+(1|Family),data=dat2) 
 fit3<-glmmTMB(flav_Conc~treatment+Standardize(GM_Leaf_Area)+(1|gh_bench),data=dat2) #Convergence problem
 
+fit3.3<-glmmTMB(flav_Conc~treatment+Standardize(GM_Leaf_Area)+(1|Family/treatment),data=dat2) 
+
+anova(fit2,fit3.3)#No GXE effect. 
 anova(fit,fit2) #Greenhouse bench is significant
 
 anova(fit3,fit) #Family is not significant at all. No genetic variation for family.
 
 summary(fit3)
 confint(fit3)
+
+
+#"apparent plasticity" Eventhough it could still be passive after accounting for chlorophyll
+fit<-glmmTMB(flav_Conc~treatment+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
+fit2<-glmmTMB(flav_Conc~Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
+summary(fit2)
+
+anova(fit,fit2)
+
+
+
 
 #"Active plasticity" Eventhough it could still be passive after accounting for chlorophyll
 fit<-glmmTMB(flav_Conc~treatment+Standardize(GM_Leaf_Area)+Standardize(ChlorA)+(1|Family),data=dat2)
@@ -296,8 +572,11 @@ gluc
 flavfit<-lm(flav_Conc~ChlorA,data=dat)
 glucfit<-lm(gluc_Conc~ChlorA,data=dat)
 
+flavglucfit<-lm(gluc_Conc~flav_Conc,data=dat)
+
 summary(flavfit)
 summary(glucfit)
+summary(flavglucfit)
 
 tiff("Other_Figures/Log_GlucFlavChlor_Cor.tiff", units="in", width=12, height=6, res=300)
 plot_grid(gluc,flav,ncol=2,nrow=1,labels=c("a","b"),label_fontfamily = "Arial",label_size = 18)

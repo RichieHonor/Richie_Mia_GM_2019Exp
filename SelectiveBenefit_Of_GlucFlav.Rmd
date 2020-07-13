@@ -102,7 +102,6 @@ dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 
 #What influences performance (update with gluc model selection)? 
 ```{r}
-
 #Modelling random effects.
 fitfull<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*gluc_Conc+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
 
@@ -158,7 +157,11 @@ fit10<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+gluc_Conc+BlackPathDam+W
 anova(fit6,fit10) #Yes it is.
 
 #What is the influence of flavonoids? 
-fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+flav_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+flav_Conc+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$flav_Conc),])
+fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$flav_Conc),])
+anova(fit,fit2)
+
+
 summary(fit6)
 summary(fit)
 
@@ -166,22 +169,80 @@ plot(residuals(fit6,type="pearson",fitted(fit6)))
 qqnorm(residuals(fit6))
 plot(residuals(fit,type="pearson",fitted(fit)))
 qqnorm(residuals(fit))
+```
 
 
-#Coefficients for table 
-fit<-glmmTMB(GM_TotalLeaf_Area~treatment*Standardize(gluc_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
+```{r}
+
+#Coefficients for glucosinolate table 
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(gluc_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit)
 
+#Modified coefficients (glucosinolate) with chlorophyll A for figure
 fit<-glmmTMB(GM_TotalLeaf_Area~treatment*Standardize(ChlorA)+treatment*Standardize(gluc_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
+
+fit1<-glmmTMB(GM_TotalLeaf_Area~treatment*Standardize(ChlorA)+treatment+Standardize(gluc_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit)
+anova(fit,fit1)
+
+
+#Modified coefficients (flavonoid) with chlorophyll A for figure
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+flav_Conc+Standardize(ChlorA)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$flav_Conc),])
+
+fit1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(ChlorA)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$flav_Conc),])
+anova(fit,fit1)
 
 
 #Coefficients without glucosinolate table 
 fit<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit)
 
+
 ```
 
+Graphs of effects With Chlrophyll included.
+```{r}
+fit<-glmmTMB(GM_TotalLeaf_Area~treatment*Standardize(ChlorA)+treatment*gluc_Conc+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
+summary(fit)
+
+source("GGPlot_Themes.R")
+
+aloneSlope<-function(x){
+  y=-741.2*x+ 7725.3
+  return(y)
+}
+mapleSlope<-function(x){
+  y=(-741.2+2855.1)*x+7725.3 +3905.2
+  return(y)
+}
+
+mustardSlope<-function(x){
+  y=(-741.2+1692.5)*x+7725.3+758.8#Non significant slope
+  return(y)
+}
+
+minM<-min(dat2$gluc_Conc[dat2$treatment=="m"],na.rm = T)
+maxM<-max(dat2$gluc_Conc[dat2$treatment=="m"],na.rm = T)
+
+minA<-min(dat2$gluc_Conc[dat2$treatment=="a"],na.rm = T)
+maxA<-max(dat2$gluc_Conc[dat2$treatment=="a"],na.rm = T)
+
+minG<-min(dat2$gluc_Conc[dat2$treatment=="gm"],na.rm = T)
+maxG<-max(dat2$gluc_Conc[dat2$treatment=="gm"],na.rm = T)
+
+#tiff("Selection_Figures/Gluc_Benefit.tiff", units="in", width=10, height=6, res=300)
+ggplot(dat2)+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=gluc_Conc,colour=treatment),size=2)+
+  geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
+    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
+  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple()+
+  ylab(bquote(bold("Performance\n(Total Leaf Area "~(mm^2)*")")))+xlab(bquote(bold("[Total Glucosinolate] (log" (mg/ml)*")")))+
+  scale_y_continuous(breaks=seq(0,20000,by=2000))+
+  scale_x_continuous(breaks=seq(-3,0,by=0.25))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
+#dev.off()
+
+```
 
 
 
@@ -190,7 +251,7 @@ summary(fit)
 ```{r}
 source("GGPlot_Themes.R")
 #Is the cost dependent on the treatment? 
-fit7<-glmmTMB(GM_TotalLeaf_Area~treatment*gluc_Conc+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+Standardize(Fern)+(1|Family)+(1|gh_bench), data=dat2)
+fit7<-glmmTMB(GM_TotalLeaf_Area~treatment*gluc_Conc+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit7) 
 
 
@@ -396,7 +457,7 @@ for(i in 1:length(datFern$Tag)){
     datFern$Tag[i]<-datFern$comp_number[i]
   }
 }
-
+library(dplyr)
 #Averaging pot values in the GM treatment.
 datFernGM<-datFern %>% group_by(Tag) %>% filter(treatment=="gm") %>% summarize_all(~mean(.))
 datFernGM$treatment<-"gm"
@@ -416,6 +477,12 @@ anova(fit_full1,fit_full2) #Fern highly significant
 
 summary(fit_full1)
 
+#Treatment effect 
+fit_full1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Fern+(1|gh_bench),data=datFern2)
+fit_full2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+WhiteFungLogis+Fern+(1|gh_bench),data=datFern2)
+anova(fit_full1,fit_full2) #Treatment highly significant
+
+
 #Modelling to get coefficients
 fit<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
 
@@ -430,25 +497,78 @@ confint(fit)
 ```
 
 
+
 #Visualizing -- effect of treatment
 ```{r}
 source("GGPlot_Themes.R")
+library(ggridges)
 
-Competitors<-factor(c("Maple on GM","GM on GM","GM on Maple"),levels=c("Maple on GM","GM on GM","GM on Maple"))
-Values<-c(-0.36,-1.16,-0.55)
-min<-c(-0.19,-0.93,-0.30)
-max<-c(-0.54,-1.38,-0.81)
-col<-c("a","a","b")
+#Generating within treatment effects
+ #-0.24305 is the SD/ SD effect of maple on GM. 
+#-0.0354822 The effect of GM size on maple is  SD/SD
+#-0.31502 # Within treatment effect of GM on GM SD/SD
+#Loading in SD of competitors. 
+GM_SD_OnMap<-read.csv("GM_SD_OnMap.csv")[,2]
+Map_SD_OnGM<-read.csv("Map_SD_OnGM.csv")[,2]
+GM_SD_OnGM<-read.csv("GM_SD_OnGM.csv")[,2]
+#Fern_SD_OnGM<-Standardize(dat2$Fern)
 
-point<-data.frame(Competitors,Values,min,max,col)
+# GM_SD_OnMap<-GM_SD_OnMap+abs(min(GM_SD_OnMap,na.rm=T))
+ #Map_SD_OnGM<-Map_SD_OnGM+abs(min(Map_SD_OnGM,na.rm=T))
+# GM_SD_OnGM<-GM_SD_OnGM+abs(min(GM_SD_OnGM,na.rm=T))
+# #Generating the range of effects that size within treatment can have. 
 
-ggplot(point)+
-geom_pointrange(aes(x=Competitors,y=Values,ymin=min,ymax=max,colour=col))+
-  scale_y_continuous(limits=c(-1.5,0))+
-  theme_simple_multiCol_First()+
-  labs(y="Reduction in Performance\n (Standard Deviation TLA)",x="")
+MaponGM<-(-0.24305*Map_SD_OnGM)-0.36 -0.089# +mean(Map_SD_OnGM,na.rm=T) #intercept of model
+
+GMonGM<-(-0.31502*GM_SD_OnGM)-1.16 #+mean(GM_SD_OnGM,na.rm=T) # intercept of model 
+
+GMonMap<-(-0.0354822*GM_SD_OnMap)-0.63990#+mean(GM_SD_OnMap,na.rm=T)#Intercept of model 
+
+#Fern effect on Garlic mustard
+#Fern_SD_OnGM<-Fern_SD_OnGM+abs(min(Fern_SD_OnGM,na.rm=T))
+#FernonGM<-(-0.14912*Fern_SD_OnGM)
+
+
+
+WithinEffect<-data.frame(
+  SD=c(MaponGM,GMonGM,GMonMap),
+  Type=factor(c(rep("MaponGM",length(MaponGM)),rep("GMonGM",length(GMonGM)),rep("GMonMap",length(GMonMap))),levels=c("GMonGM","MaponGM","GMonMap")),
   
- 
+  Focal=c(rep("A. petiolata",length(MaponGM)),rep("A. petiolata",length(GMonGM)),rep("A. saccharum",length(GMonMap))),
+  
+  Comp=c(rep("A. saccharum",length(MaponGM)),rep("A. petiolata",length(GMonGM)),rep("A. petiolata",length(GMonMap)))
+)
+#rep("FernonGM",length(FernonGM)
+
+
+
+#Generating dataframe
+Competitors<-factor(c("MaponGM","GMonGM","GMonMap"),levels=c("GMonGM","MaponGM","GMonMap"))
+Values<-c(-0.36,-1.16,-0.6399022)
+min<-c(-0.19,-0.93,-0.35334370)
+max<-c(-0.54,-1.38,-0.9264607)
+Focal<-c("A. petiolata","A. petiolata","A. saccharum")
+Comp<-factor(c("A. saccharum","A. petiolata","A. petiolata"),levels=c("A. petiolata","A. saccharum"))
+point<-data.frame(Competitors,Values,min,max,Focal,Comp)
+
+
+source("GGPlot_Themes.R")
+
+tiff("Other_Figures/StandardizedCompetitionEffects3.tiff", units="in", width=10, height=6, res=300)
+ ggplot()+
+  scale_x_continuous(limits=c(-2.5,0),breaks=seq(-2.5,0,0.5))+
+    geom_point(aes(x=SD,y=Type,fill=factor(Comp)),panel_scaling = F,scale=0.9,data=WithinEffect,rel_min_height=0.01,position = position_nudge(y=-0.05),colour="#0072B2",alpha=0.35)+
+
+     # geom_density_ridges2(aes(x=SD,y=Type,fill=Comp),panel_scaling = F,scale=0.9,data=WithinEffect,rel_min_height=0.03)+
+   
+   geom_pointrange(aes(y=Competitors,x=Values,xmin=min,xmax=max,fill=Comp),data=point,position = position_nudge(y=0.1))+
+
+   geom_vline(aes(xintercept=0),lty="88")+
+  theme_simple_vertScientific()+
+   theme( legend.position="none")+
+   scale_y_discrete(labels=c("A. petiolata","A. petiolata","A. saccharum"))+
+  labs(y="Focal Plant",fill="Competitor:",x="Estimated change in TLA\ndue to competition (σ)")
+  dev.off()
 ```
 
 

@@ -8,7 +8,6 @@ output: html_document
 #Read in and prep data
 ```{r}
 library(ggplot2)
-#library(lme4)
 library(tidyr)
 library(cowplot)
 library(grid)
@@ -141,11 +140,16 @@ fit5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family)
 summary(fit5) #Took away the effect of treatment on each value, respective to each value (mean effect of treatment). #####This model has interaction with treatment , gh bench and name such that treatment and gh bench have individual effects on each of chlophyll body size, and glucosinolate concentration. Glucosinolate has alot of genetic variation, but it is highly correlated with total leaf area and chlrophyll a. 
 
 
-datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment,RGR1S) %>%  pivot_longer(c(gluc_ConcS,GM_TotalLeaf_AreaS,ChlorAS))
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment,RGR1S,GM_Leaf_AreaS) %>%  pivot_longer(c(gluc_ConcS,GM_TotalLeaf_AreaS,ChlorAS))
 hist(dat2$RGR1S)
 sum(!is.na(dat2$RGR1S))
 
 fit5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family),REML=T,data=datG,verbose=T)
+summary(fit5)
+
+fit5.5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+1|Family),REML=T,data=datG,verbose=T)
+
+anova(fit5,fit5.5)
 
 dat2$RGR1S
 
@@ -159,8 +163,76 @@ summary(fit6) #Model too complicated to test a GXE for all.
 
 #Does the G matrix change across treatments?
 
-
+0.45^2
+0.63^2
+0.87^2
 ```
+
+
+#Genetic correlation with PCA for glucosinolates and chlorA 
+```{r}
+#Standardizing Variables.
+dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
+dat2$flav_ConcS<-Standardize(dat2$flav_Conc)
+dat2$gluc_ConcS<-Standardize(dat2$gluc_Conc)
+dat2$ChlorAS<-Standardize(dat2$ChlorA)
+dat2$RGR1S<-Standardize(dat2$RGR1)
+dat2$GM_Leaf_AreaS<-Standardize(dat2$GM_Leaf_Area)
+dat2$gh_bench<-as.factor(dat2$gh_bench)
+
+pcaGlucCor<-prcomp(~gluc_ConcS+ChlorAS,data=dat2,na.action=na.omit)
+
+prediction<-as.data.frame(predict(pcaGlucCor))
+
+df<-tibble::rownames_to_column(prediction, "rownumber")
+
+dat2[df$rownumber,"PC1GC"]<-df$PC1
+dat2[df$rownumber,"PC2GC"]<-df$PC2
+summary(pcaGlucCor)
+pcaGlucCor
+#Greater PC2 = less glucosinolate, more chlorophyll. I.e. more pc2 is lower gluc:flav ratio
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment,RGR1S,GM_Leaf_AreaS,PC1GC,PC2GC) %>%  pivot_longer(c(GM_TotalLeaf_AreaS,PC2GC))
+
+#This fit fine. 
+fit5<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|treatment)+(1|Family),REML=T,data=datG)
+summary(fit5)
+
+#Complex model to get at genetic correlations in treatments
+fitW<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(-1+name|Family)+(-1+treatment|Family),REML=T,data=datG)
+summary(fitW)
+
+(1|treatment/Family)+(1|Family)
+
+fit6<-glmmTMB(value ~ -1+name*treatment +gh_bench+name:gh_bench+(1|Family),REML=T,data=datG)
+anova(fit5,fit6) #Highly significant genetic correlation. 
+
+#Does PC2 have significant genetic variation?
+fit7<-glmmTMB(PC2GC ~ treatment +gh_bench
+              +(1|Family),REML=T,data=dat2)
+summary(fit7)
+
+  fit8<-glmmTMB(PC2GC ~ treatment +gh_bench
+             ,REML=T,data=dat2)
+anova(fit8,fit7) #Highly significant genetic variation for PC2! This is good news. 
+
+#Does PC1 have significant genetic correlation?
+fit7<-glmmTMB(PC1GC ~ treatment +gh_bench
+              +(1|Family),REML=T,data=dat2)
+summary(fit7)
+
+0.067/(0.067+1.469) #only 4 percent H^2 for PC1 
+  fit8<-glmmTMB(PC1GC ~ treatment +gh_bench
+             ,REML=T,data=dat2)
+anova(fit8,fit7) #Oddly genetic variation for PC1 is only on the edge of significance. I suppose this means that all individuals exhibit a phenotypic correlation between gluc_Conc and ChlorA but the genetic level lies in how the ratio differs between the two. 
+
+pcaGlucCor #If i understand this correctly, this means that a high pc2 exhibits low glucosinolate and high chlorophyll and a low pc2 means high glucosinolate and low chlorophyll. Therefore, those with larger sizes  have a higher glucosinolate:chlorophyll ratio. 
+
+summary(fit5)
+```
+
+
+
+
 
 #Generating genetic correlations for other variables
 ```{r}
@@ -198,14 +270,18 @@ On the left of the pipe is what the axis are, on the right side of the pipe is w
 ```{r}
 #-----
 ####. CHlorophyll A
+fit<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_AreaS,REML=T,data=dat2[!is.na(dat2$GM_Leaf_AreaS),])
+fit0.1<-glmmTMB(ChlorA ~ gh_bench+treatment,REML=T,data=dat2[!is.na(dat2$GM_Leaf_AreaS),])
+anova(fit,fit0.1) #Leaf area highly important. 
+
 fit<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_AreaS,REML=T,data=dat2)
 
 fit1<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family),REML=T,data=dat2)
 
-anova(fit,fit1) #Genetic Variation for Chlorophyll is not significant. 
+anova(fit,fit1) #Genetic Variation for Chlorophyll is not significant.
+
 summary(fit1)
 0.003975/(0.159282+0.003975) #2.4 % of the variation in chlorophyll. 
-
 
 #GXE interaction
 fit2<-glmmTMB(ChlorA ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family:treatment),REML=T,data=dat2)
@@ -219,14 +295,14 @@ fit1<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family),REML=T,dat
 anova(fit,fit1)
 #Glucosinolate variation highly significant. 
 summary(fit1) 
-0.0876/(0.819+0.0876)
+  0.0876/(0.819+0.0876)
 0.007448/(0.069621+0.007448)#Same as if it is standardized
 #Genotype accounts for 9.6% of glucosinolate variation
 confint(fit1)
 5.343228e-02/(0.819+0.0876) #95% CI
 0.13938976/(0.819+0.0876)
 #GXE Interaction
-fit2<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family:treatment),REML=T,data=dat2)
+fit2<-glmmTMB(gluc_Conc ~ gh_bench+treatment+GM_Leaf_AreaS+(1|Family/treatment),REML=T,data=dat2)
 summary(fit2) 
 anova(fit1,fit2)#Interaction is not significant
 
@@ -247,18 +323,25 @@ anova(fit1,fit2)#Interaction is not significant
 
 #---------------
 #Total Leaf area (model selection performed elsewhere)
-fit<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Fern+GM_Leaf_AreaS+(1|gh_bench), data=dat2)
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_AreaS+gh_bench, data=dat2)
 
-fit1<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_AreaS+Fern+(1|gh_bench)+(1|Family), data=dat2)
+fit1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_AreaS+gh_bench+(1|Family), data=dat2)
 anova(fit,fit1) #Family highly significant. 
 summary(fit1) 
-337263/(337263 +395515 + 5196413 )#Accounts for 5.7% of variation.
+0.02347/(0.4060+0.02347) #5.4% of variation 
+
 
 #GXE Interaction
-fit2<-lmer(GM_TotalLeaf_Area~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_AreaS+Fern+(1|gh_bench)+(1|Family:treatment), data=dat2)
-anova(fit2,fit1) #Degrees of freedom is zero. I must fix this. 
+fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+GM_Leaf_AreaS+gh_bench+(1|Family/treatment), data=dat2)
+anova(fit2,fit1) #Must analyze GXE like so, otherwise it is impossible to hypothesis test. 
 summary(fit2) 
-465806/(404221+5051469)
+
+#Alternate Without leaf area accounted for
+fit1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+BlackPathDam+WhiteFungLogis+Fern+gh_bench+(1|Family), data=dat2)
+summary(fit1)
+0.009858/(0.547077+0.009858) #1 %
+
+
 
 
 #GXE Interaction
@@ -303,6 +386,19 @@ fit5<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial,REML=T,data=dat2)
 fit4<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial+(1|Family:treatment),REML=T,data=dat2)
 
 anova(fit4,fit5)  #But including the interaction term is not better than nothing at all. 
+
+
+
+fit3<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial+gh_bench,REML=T,data=dat2)
+
+fit4<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial+gh_bench+(1|Family),REML=T,data=dat2)
+#Family not significant. 
+summary(fit4)
+anova(fit3,fit4)
+
+fit5<-glmmTMB(RGR1S ~ treatment+GM_Leaf_Len_Initial+gh_bench+(1|Family/treatment),REML=T,data=dat2)
+anova(fit3,fit4)
+anova(fit4,fit5) #GXE not significant.
 
 ```
 

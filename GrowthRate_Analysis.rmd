@@ -139,8 +139,8 @@ detach(datFull)
 
 #Writing growth rate data to file. 
 
-write<-datFull %>% select(Genotype,RGR1,RGR2,RGR3,RGR4)
-write.csv(write,"Data_Moities/RGR_Dat.csv")
+#write<-datFull %>% select(Genotype,RGR1,RGR2,RGR3,RGR4)
+#write.csv(write,"Data_Moities/RGR_Dat.csv")
 ```
 
 ```{r}
@@ -194,19 +194,30 @@ dat3$treatment<-factor(dat3$treatment)
 #standardizing the day measurement
 dat3$Day<-dat3$Day-min(dat3$Day)
 
+#Removing NA from data
+dat3$Family<-as.character(dat3$Family)
+
+dat3<-dat3[!is.na(dat3$treatment),]
+
 levels(dat3$treatment)<-c("Alone","Garlic Mustard","Maple")
 
-#pdf("GrowthRateFigures/FamilyGrowthRate.pdf",height=6,width=12)
+source("GGPlot_Themes.R")
+tiff("GrowthRateFigures/FamilyGrowthRate_new.tiff",height=6,width=12,units="in",res=300)
 ggplot(dat3)+
   geom_path(aes(y=area_mean,x=Day,colour=Family))+
   facet_grid(.~treatment)+
-  scale_y_continuous(name="Leaf Area (Pixels)")+
+  scale_y_continuous(name="Total Leaf Area (Pixels)")+
+  labs(x="Growing Days")+
   theme_classic()+
   panel_border()+
+  theme_simple_vert()+
   theme(legend.position = "top",
-        legend.box.margin = margin(0,-100,0,-100)
+        legend.box.margin = margin(0,-100,0,-100),
+          strip.text.x = element_text(
+        size = 16, face = "bold"
+        )
       )
-#dev.off()
+dev.off()
 
 
 ```
