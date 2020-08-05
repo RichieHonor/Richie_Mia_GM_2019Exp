@@ -1060,6 +1060,96 @@ write.csv(final,"DataSynthesis.csv")
 
 
 
+```{r}
+library(dplyr)
+#Loading master file
+dat<-read.csv("DataSynthesis.csv")
+
+#Loading fitness data 
+fec<-read.csv("Data_Moities/Fecundity.csv",stringsAsFactors = F)
+
+#Maple indicates the plant is a maple, Together indicates the maple was with the GM competitor, BigBag represents the bag that was used, y = big bag, n=other relevant bag. 
+
+#Remove NA. 
+fec<-fec[!is.na(fec$Together),]
+
+#Change the symbols to be correct. 
+#Replacing Characters in Tag Column. 
+fec$Tag<-gsub("§","|",fec$Tag,perl = F)
+fec$Tag<-gsub("_","?",fec$Tag,perl = F)
+fec$Tag<-gsub("/","-",fec$Tag,perl = F)
+fec
+#Changing BigBag column to be reflective of the bag used. 
+
+#Maple bags are denoted by no big bag and yes maple
+fec$BigBag[fec$BigBag=="n"&fec$Maple=="y"]<-"MapleBag"
+
+#Regular GM bags are denoted by no big bag and no maple
+fec$BigBag[fec$BigBag=="n"&fec$Maple=="n"]<-"RegGM"
+
+#big bags are denoted by y
+fec$BigBag[fec$BigBag=="y"]<-"BigGM"
+
+#Subtracting weight of the bag from the total weight of the plant + bag
+#Maples
+fec$Mass[fec$BigBag=="MapleBag"]<-fec$Mass[fec$BigBag=="MapleBag"]-5.74
+
+#BigBag
+fec$Mass[fec$BigBag=="BigGM"]<-fec$Mass[fec$BigBag=="BigGM"]-14.14
+
+#Regular Bag
+fec$Mass[fec$BigBag=="RegGM"]<-fec$Mass[fec$BigBag=="RegGM"]-8.57
+
+hist(fec$Mass[fec$Maple=="y"],breaks=20)
+
+hist(fec$Mass[fec$Maple=="n"],breaks=20)
+
+#Eliminating unneccesairy columns
+
+fec<-fec %>% select(Tag,Mass,Maple)
+
+#Convert data to longer form. 
+library(tidyr)
+fec<-fec %>% pivot_wider(id_cols=Tag,names_from = Maple,values_from = Mass)
+
+#Renaming columns to be correct. 
+colnames(fec)<-c("Tag","MapleFinalMass","GM_Fecundity")
+
+#Merging data frame with master file. 
+
+#Random corrections to labels. 
+fec$Tag[fec$Tag=="c|DVGM-20|Q|117"]<-"b|DVGM-20|Q|117"
+fec$Tag[fec$Tag=="b|WSSWM3-1-0|?"]<-"b|WSSWM3-1-0|?|?"
+
+
+dat<-dat %>% left_join(fec)
+
+write.csv(dat,"DataSynthesis.csv")
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

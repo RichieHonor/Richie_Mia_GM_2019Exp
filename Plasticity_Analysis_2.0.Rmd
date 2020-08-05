@@ -57,7 +57,11 @@ dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
 
 
 #Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
-dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude), RGR1=first(RGR1),GM_Leaf_Len_Initial=first(GM_Leaf_Len_Initial))
+dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude), RGR1=first(RGR1),GM_Leaf_Len_Initial=first(GM_Leaf_Len_Initial),
+                                          GM_Fecundity=first(GM_Fecundity),
+MapleFinalMass=first(MapleFinalMass),
+GM_StemHeight_Bolt=first(GM_StemHeight_Bolt),
+Maple_Died=first(Maple_Died))
 
 
 #All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
@@ -130,8 +134,16 @@ return(Standardize(newDF[,2]))
 
 
 
-resiCalc(flav_Conc~GM_Leaf_Area+gh_bench,data=dat2)
+#Creating Survival Data.1 = survived, 0= dead.
+dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"]<-0
+dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt!="Dead"]<-1
 
+
+#Creating Maple Survival Data.1 = survived, 0= dead.
+dat2$Maple_Died<-as.character(dat2$Maple_Died)
+dat2$Maple_Survival[dat2$Maple_Died!="Y"]<-1
+dat2$Maple_Survival[dat2$Maple_Died=="Y"]<-0
+dat2<-dat2 %>% select(-Maple_Died)
 ```
 
 
@@ -166,7 +178,6 @@ ggplot(dat2)+
 
 
 ```
-
 
 
 
@@ -215,6 +226,52 @@ biplot(pcaAll)
 pcaAll
 ```
 
+#Fitness variance partition analysis
+```{r}
+#Fecundity
+fit<-glmmTMB(GM_Fecundity~as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(GM_Fecundity~as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(GM_Fecundity~as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#No. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(GM_Fecundity~as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. 
+
+summary(fit)
+Xtract(fit,5.492e+00) #Large effect of treatment on the values fecundity. 
+
+
+#Survival 
+#some genotypes that were recorded as dead actually grew again from the root to produce a bolt and seeds. I am replacing these with a 1 to designate that they are alive. 
+dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"&!is.na(dat2$GM_Fecundity)]<-1
+
+
+#Conducting analysis on Survival
+fit<-glmmTMB(Bolt_Survival~as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2,family="binomial")
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(Bolt_Survival~as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2,family="binomial")
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(Bolt_Survival~as.factor(gh_bench)+(1|treatment),data=dat2,family="binomial")
+anova(fit2,fit3)#Yes, very strong effect. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(Bolt_Survival~as.factor(gh_bench)+(1|Family),data=dat2,family="binomial")
+anova(fit2,fit4)#No, Not at all. 
+
+summary(fit)
+Xtract(fit,pi^2/3) #Large effect of treatment on the values fecundity. 
+df.residual(fit)
+pi^2/3
+```
 
 
 
