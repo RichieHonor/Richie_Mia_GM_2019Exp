@@ -203,15 +203,19 @@ anova(fit,fit2) #No interaction. ... but on the edge of significance.
 fit3<-glmmTMB(Bolt_Survival~treatment+Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+(1|Family),data=dat2[!is.na(dat2$gluc_Conc),],family="binomial")
 anova(fit3,fit2) #No 
 
-#Is there a flav_conc interaction? 
-fit3<-glmmTMB(Bolt_Survival~treatment*flav_Conc+Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+(1|Family),data=dat2[!is.na(dat2$flav_Conc),],family="binomial")
-fit4<-glmmTMB(Bolt_Survival~treatment+flav_Conc+Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+(1|Family),data=dat2[!is.na(dat2$flav_Conc),],family="binomial")
+
+
+#Is there a flav conc interaction with treatment? 
+fit3<-glmmTMB(Bolt_Survival~treatment*flav_Conc+Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_TotalLeaf_Area)+(1|Family),data=dat2[!is.na(dat2$flav_Conc),],family="binomial")
+fit4<-glmmTMB(Bolt_Survival~treatment+flav_Conc+Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_TotalLeaf_Area)+(1|Family),data=dat2[!is.na(dat2$flav_Conc),],family="binomial")
 anova(fit3,fit4) #No 
+
 
 #IS flav conc significant? 
 fit3<-glmmTMB(Bolt_Survival~treatment+flav_Conc+Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+(1|Family),data=dat2[!is.na(dat2$flav_Conc),],family="binomial")
 fit4<-glmmTMB(Bolt_Survival~treatment+Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+(1|Family),data=dat2[!is.na(dat2$flav_Conc),],family="binomial")
 anova(fit3,fit4) #No 
+
 
 #IS Black PAth Dam significant? 
 fit3<-glmmTMB(Bolt_Survival~treatment+Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),],family="binomial")
@@ -220,6 +224,9 @@ anova(fit3,fit4) #No
 
 #IS White PAth Dam significant? 
 fit4<-glmmTMB(Bolt_Survival~treatment+Standardize(Fern)+WhiteFungLogis+ThripsDam+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),],family="binomial")
+
+
+
 fit5<-glmmTMB(Bolt_Survival~treatment+Standardize(Fern)+ThripsDam+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),],family="binomial")
 
 anova(fit4,fit5) #No 
@@ -241,6 +248,8 @@ fit7<-glmmTMB(Bolt_Survival~Standardize(Fern)+(1|Family),data=dat2,family="binom
 fit8<-glmmTMB(Bolt_Survival~1+(1|Family),data=dat2,family="binomial")
 anova(fit7,fit8) #Yes. Fern is a highly significant predictor of bolt survival.  really predicts survival except for family. 
 summary(fit7) #This says that ferns makes it more likely to survive... Likely an artefact of there being much less ferns in the GM treatment and so many dying there? I need to redo this analysis with pots averaged in the GM treatment. 
+
+
 ```
 
 
@@ -380,6 +389,7 @@ anova(fit,fit1) #No
 
 #####
 dat2$PC1BoltSize
+
 ```
 
 #Fern effect on survival with psedoreplication removed. 
@@ -497,8 +507,24 @@ fit<-glmmTMB(GM_Fecundity~treatment*gluc_Conc+BlackPathDam+WhiteFungLogis+Thrips
 fit1<-glmmTMB(GM_Fecundity~treatment+gluc_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_TotalLeaf_Area),data=dat2[!is.na(dat2$gluc_Conc),])
 anova(fit,fit1) #No interaction
 
+#Is gluc conc significant?
 fit2<-glmmTMB(GM_Fecundity~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_TotalLeaf_Area),data=dat2[!is.na(dat2$gluc_Conc),])
 anova(fit1,fit2) #No
+
+
+#Is there a flav_Conc*Treatment interaction ?
+fit<-glmmTMB(GM_Fecundity~treatment*flav_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_TotalLeaf_Area),data=dat2[!is.na(dat2$flav_Conc),])
+
+fit1<-glmmTMB(GM_Fecundity~treatment+flav_Conc+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_TotalLeaf_Area),data=dat2[!is.na(dat2$flav_Conc),])
+anova(fit,fit1) #Yes there is an interaction
+summary(fit)
+
+summary(fit)
+#Is there a ChlorA *treatment interaction ?
+fit1<-glmmTMB(GM_Fecundity~treatment*ChlorA+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_TotalLeaf_Area),data=dat2[!is.na(dat2$ChlorA),])
+fit2<-glmmTMB(GM_Fecundity~treatment+ChlorA+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_TotalLeaf_Area),data=dat2[!is.na(dat2$ChlorA),])
+anova(fit1,fit2) #Yes there is 
+
 
 #Thrips  dam?
 fit3<-glmmTMB(GM_Fecundity~treatment+BlackPathDam+WhiteFungLogis+ThripsDam+Standardize(GM_TotalLeaf_Area),data=dat2[!is.na(dat2$ThripsDam),])
@@ -551,7 +577,16 @@ summary(fit3)
 fit3<-glmmTMB(Standardize(GM_Fecundity)~treatment,data=dat2)
 fit4<-glmmTMB(Standardize(GM_Fecundity)~1,data=dat2)
 anova(fit3,fit4) #Yes, very much so.
+
+#Interaction (Again)?
+fit3<-glmmTMB(Standardize(GM_Fecundity)~treatment*flav_Conc,data=dat2)
+fit4<-glmmTMB(Standardize(GM_Fecundity)~treatment+flav_Conc,data=dat2)
+anova(fit3,fit4) #Yes, very much so.
 summary(fit3)
+
+#Could just leave it because could detect no flavonoids in the roots. ...
+
+
 
 ```
 
