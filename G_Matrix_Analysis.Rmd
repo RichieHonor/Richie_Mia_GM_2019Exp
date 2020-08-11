@@ -62,7 +62,18 @@ dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
 
 
 #Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
-dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),RGR1=first(RGR1),GM_Leaf_Len_Initial=first(GM_Leaf_Len_Initial),GM_NumberOfLeaves_Initial=first(GM_NumberOfLeaves_Initial))
+dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),RGR1=first(RGR1),GM_Leaf_Len_Initial=first(GM_Leaf_Len_Initial),GM_NumberOfLeaves_Initial=first(GM_NumberOfLeaves_Initial),
+GM_StemHeight_Bolt=first(GM_StemHeight_Bolt),
+GM_Leaf_Number_Bolt=first(GM_Leaf_Number_Bolt),
+Larg_Leaf_Len_Bolt=first(Larg_Leaf_Len_Bolt),
+Larg_Leaf_Wid_Bolt=first(Larg_Leaf_Wid_Bolt),
+Row_Field=first(Row_Field),
+Col_Field=first(Col_Field),
+Maple_Died=first(Maple_Died),
+Maple_TotalLeafArea_End=first(Maple_TotalLeafArea_End),
+GM_Fecundity=first(GM_Fecundity),
+MapleFinalMass=first(MapleFinalMass)
+)
 
 
 #All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
@@ -77,8 +88,10 @@ dat2<-dat2 %>% filter(!comp_number %in% dead_competitors$comp_number)
 dat<-dat %>% filter(!comp_number %in% dead_competitors$comp_number)
 
 
-##Summarizing: Taking the mean value of plants. This tibble contains data at the level of the family means within each treatment. 
-#dat3<-dat2 %>% drop_na(GM_TotalLeaf_Area) %>% group_by(Family,treatment)  %>% summarize_if(is.numeric,mean)
+#Because of how zero inflated white pathogen damage is, i will use a logistic regression to model it.
+dat2$WhiteFungLogis<-NA
+dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-0
+dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-1
 
 
 
@@ -87,12 +100,23 @@ dat2$WhiteFungLogis<-NA
 dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-0
 dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-1
 
-```
+#Creating Survival Data.1 = survived, 0= dead.
+dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"]<-0
+dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt!="Dead"]<-1
 
 
+#Creating Maple Survival Data.1 = survived, 0= dead.
+dat2$Maple_Died<-as.character(dat2$Maple_Died)
+dat2$Maple_Survival[dat2$Maple_Died!="Y"]<-1
+dat2$Maple_Survival[dat2$Maple_Died=="Y"]<-0
+dat2<-dat2 %>% select(-Maple_Died)
 
-#Gmatrix model without growth rate
-```{r}
+#Standardizing leaf area. 
+dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
+
+#Changing bolts that regrew a stem and produced seeds to survived.(1 =survive)
+dat2[which(dat2$GM_Leaf_Number_Bolt=="Dead"&!is.na(dat2$GM_Fecundity)),]$Bolt_Survival<-1
+
 #Standardizing Variables.
 dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
 dat2$flav_ConcS<-Standardize(dat2$flav_Conc)
@@ -100,8 +124,27 @@ dat2$gluc_ConcS<-Standardize(dat2$gluc_Conc)
 dat2$ChlorAS<-Standardize(dat2$ChlorA)
 dat2$RGR1S<-Standardize(dat2$RGR1)
 dat2$GM_Leaf_AreaS<-Standardize(dat2$GM_Leaf_Area)
+dat2$FecundityS<-Standardize(dat2$GM_Fecundity)
 dat2$gh_bench<-as.factor(dat2$gh_bench)
+dat2$Bolt_Survival<-as.factor(dat2$Bolt_Survival)
 
+
+
+
+```
+#Gmatrix model of fecundity
+```{r}
+#First model will look at secondary compounds and fecundity.
+datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment,FecundityS,Bolt_Survival) %>%  pivot_longer(c(GM_TotalLeaf_AreaS,FecundityS))
+
+fit3<-glmmTMB(value ~ -1+name*treatment +(-1+name|Family),REML=T,data=datG) #Too small to fit. I think all genetic correlations of this sort will be too small to fit. 
+
+summary(fit3)
+```
+
+
+#Gmatrix model without growth rate
+```{r}
 
 #Generating data frame for g matrix.
 datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment) %>%  pivot_longer(c(gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
@@ -167,6 +210,9 @@ summary(fit6) #Model too complicated to test a GXE for all.
 0.63^2
 0.87^2
 ```
+
+
+
 
 
 #Genetic correlation with PCA for glucosinolates and chlorA 

@@ -148,7 +148,7 @@ dat2<-dat2 %>% select(-Maple_Died)
 
 
 #Cluster analysis. ... doesnt look great.
-```{r}
+
 
 #Generating pca with values that are controlled for (gh bench, leaf area, initial size... etc. )
 pcaAll<-prcomp(~resiCalc(gluc_Conc~GM_Leaf_Area+gh_bench,data=dat2)+
@@ -177,44 +177,36 @@ ggplot(dat2)+
 
 
 
-```
 
 
 
 
 
 
-#Generating pc1 pc2 values. 
+
+#Generating PCA for Glucosinolate, Flavonoid and Chlorophyll
 ```{r}
-pcaGlucCor<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA),data=dat2,na.action=na.omit)
-
-prediction<-as.data.frame(predict(pcaGlucCor))
-
-df<-tibble::rownames_to_column(prediction, "rownumber")
-
-biplot(pcaGlucCor)
-pcaGlucCor
-summary(pcaGlucCor)
-dat2[df$rownumber,"PC1GC"]<-df$PC1
-dat2[df$rownumber,"PC2GC"]<-df$PC2
-
-#Trying a pca with all three variables. 
+#######
+#Trying a pca with all three variables.
+#########
 pcaGlucCorFlav<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA)+Standardize(flav_Conc),data=dat2,na.action=na.omit)
 biplot(pcaGlucCorFlav)
 pcaGlucCorFlav
 summary(pcaGlucCorFlav)
 pcaGlucCorFlav
-
-pcaCorFlav<-prcomp(~Standardize(ChlorA)+Standardize(flav_Conc),data=dat2,na.action=na.omit)
-biplot(pcaCorFlav)
-summary(pcaCorFlav)
-pcaCorFlav
-prediction2<-as.data.frame(predict(pcaCorFlav))
+#Loading to data frame.
+prediction<-as.data.frame(predict(pcaGlucCorFlav))
 
 
-df2<-tibble::rownames_to_column(prediction2, "rownumber")
-dat2[df2$rownumber,"PC1FC"]<-df2$PC1
-dat2[df2$rownumber,"PC2FC"]<-df2$PC2
+df2<-tibble::rownames_to_column(prediction, "rownumber")
+dat2[df2$rownumber,"PC1AllCGF"]<-df2$PC1
+dat2[df2$rownumber,"PC2All_CF"]<-df2$PC2
+dat2[df2$rownumber,"PC3All_CG"]<-df2$PC3
+
+#PC2 is off diagonal for flav. (Higher values is higher flavonoid:Chlorophyll)
+#PC3 is the off diagonal for glucosinolate.  (Higher values is higher glucosinolate:Chlorophyll)
+
+
 
 ```
 
@@ -383,101 +375,196 @@ Xtract(fit,8.592e-01)
 
 
 
-#Principle component glucosinolate and chlorophyll. 
+
+#Principle component glucosinolate, chlorophyll, flavonoid
 ```{r}
+#########
 #PC1
-fit<-glmmTMB(PC1GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+#########
+fit<-glmmTMB(PC1AllCGF~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
 summary(fit)
 #Is there an effect of GXE? 
-fit2<-glmmTMB(PC1GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
-anova(fit,fit2)#No.
+fit2<-glmmTMB(PC1AllCGF~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2) #No.
 
 #Is there an effect of family? 
-fit3<-glmmTMB(PC1GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+fit3<-glmmTMB(PC1AllCGF~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
 summary(fit3)
 anova(fit2,fit3)#No... not when assessing in this model. 
 
 #Is there an effect of treatment? 
-fit4<-glmmTMB(PC1GC~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
-anova(fit2,fit4)#Yes. 
+fit4<-glmmTMB(PC1AllCGF~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes, very strong. 
 
 summary(fit)
-Xtract(fit,1.38577) #Extremely high environmental effect fot PC1
+Xtract(fit,1.874) #Extremely high environmental effect fot PC1
 
-
-#PC2
-fit<-glmmTMB(PC2GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+#######
+#PC2 This is the flavonoid off diagonal. 
+#########
+fit<-glmmTMB(PC2All_CF~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
 summary(fit)
 #Is there an effect of GXE? 
-fit2<-glmmTMB(PC2GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+fit2<-glmmTMB(PC2All_CF~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
 anova(fit,fit2)#No.
 
 #Is there an effect of family? 
-fit3<-glmmTMB(PC2GC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
-anova(fit2,fit3)#YEs.... extremely high as well. 
+fit3<-glmmTMB(PC2All_CF~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#No. 
 
 #Is there an effect of treatment? 
-fit4<-glmmTMB(PC2GC~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
-anova(fit2,fit4)#Not at all. 
+fit4<-glmmTMB(PC2All_CF~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)# Yes, there is an effect of treatment. This is... interesting. 
+
+Xtract(fit, 0.414090) #Extremely high Genetic effect for PC2
+#Very interesting. 
+
+#########
+#PC3 glucosinolate off diagonal. 
+#########
+fit<-glmmTMB(PC3All_CG~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+#Is there an effect of GXE? 
+fit2<-glmmTMB(PC3All_CG~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(PC3All_CG~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#Yes. Still highly significant effect of family. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(PC3All_CG~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)# No, no effect of treatment at all. 
 
 summary(fit)
-Xtract(fit,2.538e-01) #Extremely high Genetic effect fot PC2
+Xtract(fit,2.453e-01) #Extremely high Genetic effect for PC2
 #Very interesting. 
+
 ```
-#fit<-glmmTMB(gluc_Conc~1+(name|treatment/Family)+(name|Family),data=dat2)
-for gmatrix model 
 
 
-#G,GXE and E for flav pc
+
+#PC1 and PC2 treatment effects... 
 ```{r}
 library(glmmTMB)
-#PC1
-fit<-glmmTMB(PC1FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+#PC1AllCGF
+#Maximum model
+fit<-glmmTMB(PC1AllCGF~treatment+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=dat2)
+fit2<-glmmTMB(PC1AllCGF~treatment+GM_Leaf_Area+(1|Family),data=dat2)
+fit3<-glmmTMB(PC1AllCGF~treatment+GM_Leaf_Area+(1|gh_bench),data=dat2)
+fit3.3<-glmmTMB(PC1AllCGF~treatment+GM_Leaf_Area+(1|Family/treatment),data=dat2)
+
+anova(fit2,fit3.3) #Is a GXE significant? # no. 
+anova(fit,fit2) #Greenhouse bench is not
+anova(fit3,fit) #Family is not  
+
+#Significance of plasticity for glucosinolates 
+fit<-glmmTMB(PC1AllCGF~treatment+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
+fit4<-glmmTMB(PC1AllCGF~Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
+anova(fit,fit4)#Highly significant. 
 summary(fit)
-#Is there an effect of GXE? 
-fit2<-glmmTMB(PC1FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
-anova(fit,fit2)#No.
+confint(fit)
 
-#Is there an effect of family? 
-fit3<-glmmTMB(PC1FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
-anova(fit2,fit3)#No... not when assessing in this model. 
+#Interestingly garlic mustard and maple treatment reduced PC1 by approximately the same ammount. 
 
-#Is there an effect of treatment? 
-fit4<-glmmTMB(PC1FC~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
-anova(fit2,fit4)#Yes. ... very high. 
 
-summary(fit4)
+#PC2All_CF
+fit<-glmmTMB(PC2All_CF~treatment+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=dat2)
+fit2<-glmmTMB(PC2All_CF~treatment+GM_Leaf_Area+(1|Family),data=dat2)
+fit3<-glmmTMB(PC2All_CF~treatment+GM_Leaf_Area+(1|gh_bench),data=dat2)
+fit3.3<-glmmTMB(PC2All_CF~treatment+GM_Leaf_Area+(1|Family/treatment),data=dat2)
+
+anova(fit2,fit3.3) #Is a GXE significant? # no. 
+anova(fit,fit2) #Greenhouse bench is.
+anova(fit3,fit) #Family is not  
+
+#Significance of plasticity for glucosinolates 
+fit<-glmmTMB(PC2All_CF~treatment+Standardize(GM_Leaf_Area)+(1|gh_bench),data=dat2)
+fit4<-glmmTMB(PC2All_CF~Standardize(GM_Leaf_Area)+(1|gh_bench),data=dat2)
+anova(fit,fit4)#very significant. 
 summary(fit)
-Xtract(fit,1.324e+00) #Extremely high environmental effect fot PC1
+confint(fit)
+#Interestingly, PC2... with flavonoids increased quite a bit in the maple treatment. .. This means the maple treatment has a higher flavonoid :Chlorophyll ratio. 
 
 
-#PC2
-fit<-glmmTMB(PC2FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+#PC3All_CG
+fit<-glmmTMB(PC3All_CG~treatment+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=dat2)
+fit2<-glmmTMB(PC3All_CG~treatment+GM_Leaf_Area+(1|Family),data=dat2)
+fit3<-glmmTMB(PC3All_CG~treatment+GM_Leaf_Area+(1|gh_bench),data=dat2)
+fit3.3<-glmmTMB(PC3All_CG~treatment+GM_Leaf_Area+(1|Family/treatment),data=dat2)
+
+anova(fit2,fit3.3) #Is a GXE significant? # no. 
+anova(fit,fit2) #Greenhouse bench is not.
+anova(fit3,fit) #Family is   
+
+#Significance of plasticity for glucosinolates 
+fit<-glmmTMB(PC3All_CG~treatment+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
+fit4<-glmmTMB(PC3All_CG~Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
+anova(fit,fit4)#Not significant. 
 summary(fit)
-#Is there an effect of GXE? 
-fit2<-glmmTMB(PC2FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
-anova(fit,fit2)#No.
+confint(fit)
 
-#Is there an effect of family? 
-fit3<-glmmTMB(PC2FC~GM_Leaf_Area+as.factor(gh_bench)+(1|treatment),data=dat2)
-anova(fit2,fit3)#No....not at all. 
-
-#Is there an effect of treatment? 
-fit4<-glmmTMB(PC2FC~GM_Leaf_Area+as.factor(gh_bench)+(1|Family),data=dat2)
-anova(fit2,fit4)#....Almost. interesting.  
-
-summary(fit)
-Xtract(fit,0.406801) #
 
 ```
 
+#Visualization of PC1 and PC2 treatment means glucosinolate
+```{r}
+source("GGPlot_Themes.R")
+
+fit<-glmmTMB(PC1AllCGF~treatment+Standardize(GM_Leaf_Area)+(1|Family),data=dat2)
+summary(fit)
+confint(fit)
+
+#Visualizing PC1 plasticity
+a<- 0.63831
+gm<-0.63831-0.96451 
+m<-0.63831-0.95331
+Vis<-data.frame(
+  treatment=c("Alone","Garlic Mustard","Maple"),estimate=c(a,gm,m),upper=c(0.9058242,a-0.5619433,a-0.5961106),lower=c(0.37080059,a-1.36708561,a-1.31051768 ))
+
+Vis
+PC1<-ggplot(Vis)+
+  geom_pointrange(aes(x = treatment, y = estimate,ymin=lower,ymax=upper, colour = treatment),size = 1)+
+  scale_x_discrete(name="",labels=c("Alone","Intraspecific","Interspecific"))+
+  scale_y_continuous(expand = c(0.25,0), name = "Leaf Quality (PC1)",breaks=seq(-1,1.5,0.25))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme_simple_multiCol()+theme(
+    axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90),
+  )
+
+```
+#PC2_CF Visualiztion
+```{r}
+source("GGPlot_Themes.R")
+
+fit<-glmmTMB(PC2All_CF~treatment+Standardize(GM_Leaf_Area)+(1|gh_bench),data=dat2)
+summary(fit)
+confint(fit)
+
+#Visualizing PC1 plasticity
+a<- -0.10006
+gm<--0.10006-0.12847 
+m<--0.10006+0.20162
+Vis<-data.frame(
+  treatment=c("Alone","Garlic Mustard","Maple"),estimate=c(a,gm,m),upper=c(0.1613922,a+0.0642846,a+0.3705575),lower=c(-0.36150847 ,a-0.32122553 ,a+0.03268481 ))
 
 
-#For modelling. 
+PC2<-ggplot(Vis)+
+  geom_pointrange(aes(x = treatment, y = estimate,ymin=lower,ymax=upper, colour = treatment),size = 1)+
+  scale_x_discrete(name="",labels=c("Alone","Intraspecific","Interspecific"))+
+  scale_y_continuous(expand = c(0.25,0), name = "Relative Flavonoid Investment (PC2)",breaks=seq(-1,1.5,0.15))+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Garlic Mustard","Maple"))+
+  theme_simple_multiCol()+theme(
+    axis.title.y =  element_text(color = "black", size = 16, face = "bold",margin=margin(3,20,3,0),angle = 90),
+  )
 
 
+tiff("Plasticity_Figures/PC1andPC2Plasticity.tiff", units="in", width=12, height=6, res=300)
+plot_grid(PC1,PC2,labels = c("a","b"),rel_widths = c(1.1,1),label_size=18)
+dev.off()
 
-
+```
+```
 
 
 #Glucosinolate plastsicity

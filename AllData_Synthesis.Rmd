@@ -308,7 +308,7 @@ All_Wide[All_Wide$Tag=="381_1",]<-"c|MSMID1-1-20|G381"
 
 #Merging of clean greenhouse data (initial measurements from the greenhouse) and clean UV data with duplicates averaged.
 ```{r}
-
+0.6/18
 #This full join will keep all data from all individuals, whether or not we have glucosinolate and flavonoid data for them. 
 
 Final<-full_join(All_Wide,dat,by="Tag")
@@ -334,7 +334,11 @@ Final[Final$Tag=="c|CBMCK1-2-80|N|i110"|Final$Tag=="i110_2","treatment"]<-"a"
 write.csv(Final,"DataSynthesis.csv")
 
 
+min(dat2$GM_Fecundity,na.rm=T)
+max(dat2$GM_Fecundity,na.rm=T)
 
+
+exp(7.08)/(1+exp(7.08))
 ```
 
 The output above will be empty if all labels were matched correctly. Else there will be a dataframe containing the samples that were not matched. 

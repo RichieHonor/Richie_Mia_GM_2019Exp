@@ -9,7 +9,6 @@ output: html_document
 ```{r}
 library(ggplot2)
 library(dplyr)
-library(lmerTest)
 library(car)
 library("glmmTMB")
 
@@ -327,7 +326,15 @@ anova(fit4,fit5) #CModel wouldnt fit dont know
 fit5<-glmmTMB(Bolt_Survival~competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),],family="binomial")
 fit6<-glmmTMB(Bolt_Survival~competitor+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),],family="binomial")
 anova(fit5,fit6) #Yes, competitor survival is incredibly important to determien the survival of the focal plant. 
+
+fit5<-glmmTMB(Bolt_Survival~Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),],family="binomial")
 summary(fit5)
+
+table(dat2$Bolt_Survival,dat2$Comp_Survival)
+102/(102+11)*100
+11/(102+11)*100
+11/(42+11)*100
+42/(42+11)*100
 
 
 #Is competitor important? 
