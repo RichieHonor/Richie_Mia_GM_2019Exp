@@ -66,9 +66,10 @@ Col_Field=first(Col_Field),
 Maple_Died=first(Maple_Died),
 Maple_TotalLeafArea_End=first(Maple_TotalLeafArea_End),
 GM_Fecundity=first(GM_Fecundity),
-MapleFinalMass=first(MapleFinalMass)
+MapleFinalMass=first(MapleFinalMass),
+RGR1=first(RGR1)
 )
-
+dat$rgr
 #All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
 dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
 
@@ -302,7 +303,19 @@ anova(fit13,fit12) #Yes it is even more significant than before. p=0.01
 
 summary(fit12) #Weird that fern is associated with increased survival. 
 
+#Bad model for coefficients. 
+fit10<-glmmTMB(Bolt_Survival~Standardize(PC1AllCGF)+treatment*Standardize(PC2All_CF)+Standardize(PC2All_CF)+Standardize(Fern)+Standardize(BlackPathDam)+Standardize(WhiteFungLogis)+Standardize(ThripsDam)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$ThripsDam),],family="binomial")
+summary(fit10)
 
+#Best model
+fit<- glmmTMB(Bolt_Survival ~ treatment + Standardize(PC1AllCGF) + Standardize(PC2All_CF) + Standardize(Fern) +  
+    (1 | Family) + (1 | Row_Field) + treatment:Standardize(PC2All_CF),data=dat2, family="binomial")
+summary(fit)
+
+fitb<-update(fit,~.-Standardize(PC1AllCGF))
+anova(fitb,fit)
+0.4435-0.7435 #GM slope 
+0.4435 -1.0268 #Maple slope 
 ```
 
 #Effect on fecundity update with treatment*PCA interactions.  
@@ -395,9 +408,60 @@ anova(fit10,fit11) #No.
 #The simplest best model is
 
 fit11<-glmmTMB(Standardize(GM_Fecundity)~treatment*Standardize(PC1AllCGF),data=dat2)
+fit11b<-update(fit11,~.-treatment:Standardize(PC1AllCGF))
+anova(fit11,fit11b)
 summary(fit11)
+ -0.1375+0.1682 #GM slope
+ -0.1375+0.6777 #Maple slope
+#The exact same effect was observed for fecundity, which is incredibly wierd and slighly unsettling.
 
-#The exact same effect was observed for fecundity, which is incredibly wierd and slighly unsettling. 
+#Bad model for coefficients. 
+fit10<-glmmTMB(Standardize(GM_Fecundity)~treatment*Standardize(PC1AllCGF)+Standardize(PC3All_CG)+Standardize(PC2All_CF)+Standardize(Fern)+Standardize(BlackPathDam)+Standardize(WhiteFungLogis)+Standardize(ThripsDam),data=dat2[!is.na(dat2$ThripsDam),])
+summary(fit10)
+
+```
+#Correlation with survival and fecundity
+
+```{r}
+
+fit1<-glmmTMB(Bolt_Survival~treatment+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),],family="binomial")
+summary(fit1)
+#Is first year size significant? 
+fit2<-glmmTMB(Bolt_Survival~treatment++Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),],family="binomial")
+anova(fit1,fit2) #No. 
+
+
+#IS growth rate? 
+summary(fit1)
+fit3<-glmmTMB(Bolt_Survival~treatment+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$RGR1),],family="binomial")
+fit4<-glmmTMB(Bolt_Survival~treatment++(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$RGR1),],family="binomial")
+anova(fit3,fit4) #No. 
+
+#Is treatment? 
+fit3<-glmmTMB(Bolt_Survival~treatment+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$RGR1),],family="binomial")
+fit4<-glmmTMB(Bolt_Survival~1+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$RGR1),],family="binomial")
+anova(fit3,fit4) #No. 
+
+fit3<-glmmTMB(Bolt_Survival~Standardize(GM_TotalLeaf_Area)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),],family="binomial")
+fit4<-glmmTMB(Bolt_Survival~1+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),],family="binomial")
+anova(fit3,fit4) #No. 
+
+
+#Fecundity
+fit1<-glmmTMB(Standardize(GM_Fecundity)~Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$PC1BoltSize),])
+summary(fit1)
+fit2<-glmmTMB(Standardize(GM_Fecundity)~Standardize(GM_TotalLeaf_Area)+Standardize(RGR1),data=dat2[!is.na(dat2$PC1BoltSize),])
+anova(fit1,fit2) #Yes bolt size in second year is very important. 
+
+#Is first year size?
+fit1<-glmmTMB(Standardize(GM_Fecundity)~Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
+fit2<-glmmTMB(Standardize(GM_Fecundity)~+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
+anova(fit1,fit2) #No
+
+#IS relative growth rate?
+fit1<-glmmTMB(Standardize(GM_Fecundity)~Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$RGR1),])
+fit2<-glmmTMB(Standardize(GM_Fecundity)~Standardize(PC1BoltSize),data=dat2[!is.na(dat2$RGR1),])
+anova(fit1,fit2) #No
 ```
 
 

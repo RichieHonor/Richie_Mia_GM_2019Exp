@@ -503,7 +503,6 @@ fit9<-glmmTMB(Standardize(MapleFinalMass) ~ PC1Tot   +PC2All_CF+
 summary(fit9) # no. 
 
 
-
 #The best model is. 
 fit9<-glmmTMB(Standardize(MapleFinalMass) ~ Standardize(PC1Tot)  +
    Standardize( GM_TotalLeaf_Area ) ,data=MapleModel[!is.na(MapleModel$GM_TotalLeaf_Area),])
@@ -513,6 +512,7 @@ summary(fit9) # no.
 
 #Bad model for coefficients
 fit<-glmmTMB(Standardize(MapleFinalMass)~Standardize(PC1Tot)+Standardize(PC1AllCGF)+Standardize(PC2All_CF)+Standardize(PC3All_CG)+Standardize(MapleDamage)+Family+Standardize(GM_TotalLeaf_Area)+Standardize(Fern)+Bolt_Survival, data=MapleModel)
+summary(fit)
 
 fit9<-glmmTMB(Standardize(MapleFinalMass) ~ Standardize(PC1Tot)   +  
     Standardize(GM_TotalLeaf_Area) +Standardize(PC1BoltSize) ,data=MapleModel[!is.na(MapleModel$PC1BoltSize),])
