@@ -334,11 +334,7 @@ Final[Final$Tag=="c|CBMCK1-2-80|N|i110"|Final$Tag=="i110_2","treatment"]<-"a"
 write.csv(Final,"DataSynthesis.csv")
 
 
-min(dat2$GM_Fecundity,na.rm=T)
-max(dat2$GM_Fecundity,na.rm=T)
 
-
-exp(7.08)/(1+exp(7.08))
 ```
 
 The output above will be empty if all labels were matched correctly. Else there will be a dataframe containing the samples that were not matched. 
@@ -684,7 +680,7 @@ dat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
 #Fix column names
 colnames(dat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
 
-
+dat
 #Removing first row (Which contains no data).
 dat<-dat[2:length(dat$gh_bench),]
 
@@ -692,7 +688,7 @@ dat<-dat[2:length(dat$gh_bench),]
 dat<-dat[grepl("aple",dat$Tag),]
 
 #Select relevant columns. 
-CntrZero<-dat %>% select(Tag,treatment,maple_leaf_length_0,maple_height_0,maple_leaves_0)
+CntrZero<-dat %>% select(Tag,treatment,maple_leaf_length_0,maple_height_0,maple_leaves_0,gh_bench)
 
 
 #------------------------------
@@ -854,6 +850,7 @@ field<-read.csv("Data_Moities/Bolt_Field_Data_May132020.csv",stringsAsFactors = 
 #Replacing NA's with "Dead"
 field[is.na(field$GM_StemHeight_Bolt),c("Larg_Leaf_Len_Bolt","Larg_Leaf_Wid_Bolt","GM_StemHeight_Bolt","GM_Leaf_Number_Bolt")]<-"Dead"
 
+field
 
 #Reading in Dat
 dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
@@ -881,7 +878,7 @@ dat %>% filter(ID %in% Multi) %>% select(ID,Family)
 field %>% filter(ID %in% Multi) %>% select(ID,Family)
   
 
-#First fix -> 160 is recorded in field data as both Jar and Smith. There should hav ebeen an i in front of smith. This will be fixed. .. 
+#First fix -> 160 is recorded in field data as both Jar and Smith. There should have been an i in front of smith. This will be fixed. .. 
 dat %>% filter(ID == "i160") %>% select(ID,Family)
 
 field[field$ID==160 & field$Family=="smi","ID"]<-"i160"
@@ -961,6 +958,20 @@ anti_join(field,dat,by="ID") #there are two genotypes that didnt make it in. vrp
 
 #vrp250 is really vrp 520. This can be changed. 
 field[field$ID==250,"ID"]<-"520"
+
+
+anti_join(field,dat,by="ID") #Now there is just one ID in the field data without a match in the greenhouse data. 
+
+#How many in the greenhouse did not get matched to those in the field? 
+anti_join(dat,field,by="ID") %>% filter(treatment!="mcnt" & !grepl("i",ID))
+
+#There are some that i know did not die in the greenhouse but are not in the field data. 
+#and there are those that died in the greenhouse because they lack data taken at the end of the experiment such as total leaf area. 
+
+#After removing those that were from north america, 13 individuals died in the greenhouse
+
+
+field[!grepl("i",field$ID),]
 
 
 #Joining data frames....Those that are not identified are considered to have died in the greenhouse experiment and were not brought out to the field. 

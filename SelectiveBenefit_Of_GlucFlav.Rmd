@@ -14,12 +14,13 @@ The second purpose is to determine if glucosinolates and flavonoids influence su
 #Read in and prep data
 ```{r}
 library(ggplot2)
-#library(tidyr)
+
 library(glmmTMB)
 library(cowplot)
 library(grid)
 library(gridExtra)
 library(dplyr)
+library(tidyr)
 source("GGPlot_Themes.R")
 
 #read in data
@@ -27,10 +28,10 @@ rm(list=ls())
 dat<-read.csv("DataSynthesis.csv")
 
 #Remove maple controls data from the data set.
-dat<-dat %>% filter(treatment!="mcnt") %>% droplevels()
+#dat<-dat %>% filter(treatment!="mcnt") %>% droplevels()
 
 #remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
-dat<-dat[!grepl("i",dat$Sample,fixed=T),]
+dat<-dat[!grepl("i",dat$ID,fixed=T),] #Changed this from Sample to ID to get more specific.
 
 #Initializing columns to avoid constant error messages. 
 dat$WhiteFungLogis<-NA
@@ -40,14 +41,9 @@ dat$BlackFungLogis<-NA
 
 #Generating data frames with summarized leaf data (dat2) and summarized genotype data (dat3)
 ```{r}
-hist(dat$gluc_Conc)
-hist(dat$flav_Conc)
-#Both concentrations are above zero. 
-min(dat$gluc_Conc,na.rm=T)
-min(dat$flav_Conc,na.rm=T)
-
 
 #Logging data
+dat$FernClean<-dat$Fern
 dat$Fern<-log(dat$Fern+1)
 dat$gluc_Conc<-log(dat$gluc_Conc)
 dat$flav_Conc<-log(dat$flav_Conc)
@@ -62,24 +58,62 @@ dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
 
 
 #Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
-dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),RGR1=first(RGR1))
-dat
+dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),RGR1=first(RGR1),FernClean=first(FernClean),ID=first(ID),MapleFinalMass=first(MapleFinalMass),Maple_TotalLeafArea_End=first(Maple_TotalLeafArea_End))
 
 #All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
 dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
 
+deadID<-dead %>% filter(treatment!="mcnt",Tag!="e|JBCHY1-1-50|Q|240") #Here there are 12 putative dead competitors because  ("e|JBCHY1-1-50|Q|240") did not die. 
+#out of a total of 
+dat2 %>% filter(treatment!="mcnt") #508 rows
+
+#What are the frequencies in each treatment?
+
+#Assinging those that died. 
+deadID
+dat2$FirstYearDeath<-c()
+dat2$FirstYearDeath[dat2$Tag %in% deadID$Tag]<-"Died"
+dat2$FirstYearDeath[is.na(dat2$FirstYearDeath)]<-"Alive"
+
+#Making a table to determine the frequencies..
+table(dat2$FirstYearDeath,dat2$treatment)
+table(dat2$FirstYearDeath[dat2$treatment!="mcnt"])
+
+
+
+
+#Determining which are absent from the main experiment.. 
+
 #Removing those with dead competitors from the garlic mustard treatment. ("e|JBCHY1-1-50|Q|240") did not die, we are simply missing the final measurement for it.
 
 dead_competitors<-dead %>% filter(treatment=="gm",Tag!="e|JBCHY1-1-50|Q|240") %>% select(comp_number)
+dead_competitors
 
-#Removing those with dead competitors from the analysis. 
+#Removing those with dead a petiolata competitors from the analysis. 
 dat2<-dat2 %>% filter(!comp_number %in% dead_competitors$comp_number)
 dat<-dat %>% filter(!comp_number %in% dead_competitors$comp_number)
 
+#Removing dead individuals from the analysis. 
+dat2<-dat2[dat2$FirstYearDeath=="Alive",]
 
-##Summarizing: Taking the mean value of plants. This tibble contains data at the level of the family means within each treatment. 
-#dat3<-dat2 %>% drop_na(GM_TotalLeaf_Area) %>% group_by(Family,treatment)  %>% summarize_if(is.numeric,mean)
 
+#Making maple survival collumn. 
+dat2$Maple_SurvivalY2<-c()
+dat2$Maple_SurvivalY2[is.na(dat2$MapleFinalMass)]<-0 #Converting all those without a final measurement to dead.
+dat2$Maple_SurvivalY2[!is.na(dat2$MapleFinalMass)]<-1 #Anything that is not NA (i.e. has a final measurment, is alive)
+dat2$Maple_SurvivalY2[dat2$Maple_TotalLeafArea_End==0]<-NA#anything that died in the first year is now NA 
+
+#Making a maple survival Y1 collumn
+dat2$Maple_SurvivalY1<-c()
+dat2$Maple_SurvivalY1[dat2$Maple_TotalLeafArea_End==0]<-0 #anything with a value of 0 is dead
+dat2$Maple_SurvivalY1[is.na(dat2$Maple_TotalLeafArea_End)]<-NA #anything with NA is unknown
+dat2$Maple_SurvivalY1[dat2$Maple_SurvivalY2==1]<-1 #Those with an NA will be overwritted if i have a record of their size in year two. 
+dat2$Maple_SurvivalY1[dat2$Maple_TotalLeafArea_End>0]<-1 #anything with a value greater than zero is alive
+
+
+
+#Removing those with dead maples from the analysis
+dat2<-dat2[dat2$Maple_SurvivalY1==1 | is.na(dat2$Maple_SurvivalY1),]
 
 
 #Because of how zero inflated white pathogen damage is, i will use a logistic regression to model it.
@@ -96,7 +130,27 @@ Standardize<-function(x){
 #Standardizing leaf area. 
 dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 
+dat2 %>% filter(treatment=="mcnt")
+
+#Ratio of dead in treatment are... Alone: 0.0176
+3/170
+
+#Ratio of dead in treatment are... Alone: 0.0176, GM=0.037, 0.0119
+3/170*100
+7/187*100
+2/167*100
+2/32*100
 ```
+
+#Descriptive statistics... to be used without the logged data. 
+```{r}
+tapply(dat2$gluc_Conc,dat2$treatment,mean,na.rm=T)
+tapply(dat2$flav_Conc,dat2$treatment,mean,na.rm=T)
+tapply(dat2$ChlorA,dat2$treatment,mean,na.rm=T)
+
+```
+
+
 
 
 #Generating PCA for Glucosinolate, Flavonoid and Chlorophyll
@@ -129,13 +183,13 @@ dat2[df2$rownumber,"PC3All_CG"]<-df2$PC3
 #What influences performance (update with PCA model selection)? 
 ```{r}
 #Modelling random effects.
-fitfull<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
+fitfull<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+RGR1+(1|Family)+(1|gh_bench), data=dat2)
 
-fitfull1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2)
+fitfull1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+RGR1+(1|gh_bench), data=dat2)
 
-fitfull2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+(1|Family), data=dat2)
+fitfull2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+RGR1+(1|Family), data=dat2)
 
-
+summary(fitfull)
 #Is family important? 
 anova(fitfull,fitfull1) #Marginal
 #Is gh bench important? 
@@ -183,9 +237,16 @@ fit11<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPat
 fit12<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPathDam +  WhiteFungLogis  + Standardize(GM_Leaf_Area) +  (1 | Family) + (1 | gh_bench) + treatment:PC1AllCGF,data=dat2[!is.na(dat2$ThripsDam),])
 anova(fit11,fit12) #No it is not. (0.08537)
 
+#IS RGR1 significant?
+fit12<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPathDam +  WhiteFungLogis  + Standardize(GM_Leaf_Area) + RGR1+  (1 | Family) + (1 | gh_bench) + treatment:PC1AllCGF,data=dat2[!is.na(dat2$RGR1),])
+fit13<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPathDam +  WhiteFungLogis  + Standardize(GM_Leaf_Area) +  (1 | Family) + (1 | gh_bench) + treatment:PC1AllCGF,data=dat2[!is.na(dat2$RGR1),])
+anova(fit13,fit12) #No it is not.
+summary(fit12)
+
 #IS the interaction between treatment and PC1AllCGF significant?
-fit13<-update(fit12,~.-treatment:PC1AllCGF)
-anova(fit13,fit12) #Yes it is significant after thrips was removed. ... 0.0487
+fit13<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPathDam +  WhiteFungLogis  + Standardize(GM_Leaf_Area) +  (1 | Family) + (1 | gh_bench) + treatment:PC1AllCGF,data=dat2)
+fit14<-update(fit13,~.-treatment:PC1AllCGF)
+anova(fit13,fit14) #Yes it is significant after thrips was removed. ... 0.04067
 
 
 #Is  White Path dam significant
@@ -201,33 +262,37 @@ anova(fit6,fit8) #Yes
 #Is interaction significant?. 
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
 fit6b<-update(fit6,~.-treatment:Standardize(PC1AllCGF))
-anova(fit6,fit6b)
+anova(fit6,fit6b) #yes
 
 #IS RGR Significant?
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+Standardize(RGR1)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$RGR1),])
 fit6b<-update(fit6,~.-Standardize(RGR1))
-anova(fit6,fit6b)
+anova(fit6,fit6b) #no
 
 
 #Final model with standardized coefficients. 
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
-fit6b<-update(fit6,~.-treatment:Standardize(PC1AllCGF))
-anova(fit6,fit6b)
 
-
-#Testing again 
 
 summary(fit6)
 
 #Bad Model Thrips for non-significant effect.
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(PC2All_CF)+Standardize(PC3All_CG)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+Standardize(RGR1)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
 summary(fit6)
+
 summary(fit)
 
 #Final Model
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
 
+#Treatment effect 
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+(1|Family)+(1|gh_bench), data=dat2)
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+WhiteFungLogis+(1|Family)+(1|gh_bench), data=dat2)
+anova(fit6,fit7)
+
 summary(fit6)
+
+
 ```
 
 
@@ -279,6 +344,157 @@ TLATiff<-ggplot(dat2)+
 #dev.off()
 
 ```
+
+
+
+
+
+#Modelling: Effect of Fern on GM
+```{r}
+#Because there are two garlic mustard individuals per pot, and the unit we are looking at is only replicable at the pot level (fern abundance in a pot) duplicates within the same pot in the garlic mustard treatment need to be removed and averaged to remove pseudoreplication. 
+
+#What i will do is make the competition number the tag for those in the GM treatment. This will have the effect of maintaining the leaf variation, but averaging it over each pot. 
+
+# I will need to use dat2, summarized at the individual level, because we have a single observation at the pot level, not at the leaf level. 
+datFern<-dat2
+datFern$Tag<-as.character(datFern$Tag)
+for(i in 1:length(datFern$Tag)){
+  if(!is.na(datFern$comp_number[i])){
+    datFern$Tag[i]<-datFern$comp_number[i]
+  }
+}
+
+#Averaging pot values in the GM treatment.
+datFernGM<-datFern %>% group_by(Tag) %>% filter(treatment=="gm") %>% summarize_all(~mean(.))
+datFernGM$treatment<-"gm"
+
+#Binding collumns back together. Family should not be used as those in the GM treatment represent the average of two families. 
+datFern2<-rbind(datFernGM,datFern[datFern$treatment!="gm",])
+
+
+
+
+########
+#Modelling fern effect. 
+fit_full<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+ThripsDam+(1|gh_bench),data=datFern2)
+summary(fit_full) #Thrips dam not significant.
+
+#What is the effect of ferns?
+fit_full1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
+fit_full2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
+anova(fit_full1,fit_full2) #Fern highly significant
+
+summary(fit_full1)
+
+#Treatment effect 
+fit_full1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Fern+(1|gh_bench),data=datFern2)
+fit_full2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+WhiteFungLogis+Fern+(1|gh_bench),data=datFern2)
+anova(fit_full1,fit_full2) #Treatment highly significant
+
+
+#Modelling to get coefficients
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
+
+summary(fit)
+
+#With standardized coefficients
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
+summary(fit)
+
+confint(fit)
+
+```
+
+
+
+#Modelling: Fern Negative Binomial
+```{r}
+#Because there are two garlic mustard individuals per pot, and the unit we are looking at is only replicable at the pot level (fern abundance in a pot) duplicates within the same pot in the garlic mustard treatment need to be removed and averaged to remove pseudoreplication. 
+
+#What i will do is make the competition number the tag for those in the GM treatment. This will have the effect of maintaining the leaf variation, but averaging it over each pot. 
+
+# I will need to use dat2, summarized at the individual level, because we have a single observation at the pot level, not at the leaf level. 
+datFern<-dat2
+datFern$Tag<-as.character(datFern$Tag)
+for(i in 1:length(datFern$Tag)){
+  if(!is.na(datFern$comp_number[i])){
+    datFern$Tag[i]<-datFern$comp_number[i]
+  }
+}
+library(dplyr)
+#Averaging pot values in the GM treatment.
+datFernGM<-datFern %>% group_by(Tag) %>% filter(treatment=="gm") %>% summarize_all(~mean(.))
+datFernGM$treatment<-"gm"
+
+#Binding collumns back together. Family should not be used as those in the GM treatment represent the average of two families. 
+datFern2<-rbind(datFernGM,datFern[datFern$treatment!="gm",])
+
+
+#Modelling random effects 
+fit_full<-glmmTMB(FernClean~treatment+PC1AllCGF+PC2All_CF+PC3All_CG+(1|gh_bench),family=nbinom2,data=datFern2)
+
+fit_full_0.1<-glmmTMB(FernClean~treatment+PC1AllCGF+PC2All_CF+PC3All_CG,family=nbinom2,data=datFern2)
+
+anova(fit_full,fit_full_0.1)#Bench is an extremely important predictor. 
+
+
+#Is PC3 important?
+fit2<-update(fit_full,~.-PC3All_CG)
+anova(fit_full,fit2) #No
+
+#Is PC2 important?
+fit3<-update(fit2,~.-PC2All_CF)
+anova(fit2,fit3) #Yes, PC2 Is important predictor. 
+
+#Is PC1 important?
+fit3<-update(fit2,~.-PC1AllCGF)
+anova(fit2,fit3) #No, 
+
+#s treatment important?
+fit4<-update(fit3,~.-treatment)
+anova(fit4,fit3) #No, 
+
+summary(fit4)
+#Reassessing with full sample set. 
+
+fit_t<-glmmTMB(FernClean~treatment,family=nbinom2,data=datFern2)
+fit_t2<-update(fit_t,~.-treatment)
+
+anova(fit_t,fit_t2) #Yes, with the maple control treatment is extremely important.
+
+summary(fit_t)
+
+fit3<-glmmTMB(FernClean~Standardize(PC2All_CF)+(1|gh_bench),family=nbinom2,data=datFern2)
+
+summary(fit3)
+exp(-0.579)
+exp(0.579)
+
+datFern2
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+####Old Analyses Below
+
 
 
 
@@ -357,7 +573,7 @@ plot(residuals(fit,type="pearson",fitted(fit)))
 qqnorm(residuals(fit))
 ```
 
-
+#Coefficients Grabbing for figures
 ```{r}
 
 #Coefficients for glucosinolate table 
@@ -386,7 +602,7 @@ summary(fit)
 
 ```
 
-Graphs of effects With Chlrophyll included.
+#Graphs of effects With Chlrophyll included.
 ```{r}
 fit<-glmmTMB(GM_TotalLeaf_Area~treatment*Standardize(ChlorA)+treatment*gluc_Conc+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(ThripsDam)+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2)
 summary(fit)
@@ -629,59 +845,6 @@ dev.off()
 
 
 
-#Modelling: Negative Binomial- Fern abundance
-```{r}
-#Because there are two garlic mustard individuals per pot, and the unit we are looking at is only replicable at the pot level (fern abundance in a pot) duplicates within the same pot in the garlic mustard treatment need to be removed and averaged to remove pseudoreplication. 
-
-#What i will do is make the competition number the tag for those in the GM treatment. This will have the effect of maintaining the leaf variation, but averaging it over each pot. 
-
-# I will need to use dat2, summarized at the individual level, because we have a single observation at the pot level, not at the leaf level. 
-datFern<-dat2
-datFern$Tag<-as.character(datFern$Tag)
-for(i in 1:length(datFern$Tag)){
-  if(!is.na(datFern$comp_number[i])){
-    datFern$Tag[i]<-datFern$comp_number[i]
-  }
-}
-library(dplyr)
-#Averaging pot values in the GM treatment.
-datFernGM<-datFern %>% group_by(Tag) %>% filter(treatment=="gm") %>% summarize_all(~mean(.))
-datFernGM$treatment<-"gm"
-
-#Binding collumns back together. Family should not be used as those in the GM treatment represent the average of two families. 
-datFern2<-rbind(datFernGM,datFern[datFern$treatment!="gm",])
-
-
-#Modelling fern effect. 
-fit_full<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+ThripsDam+(1|gh_bench),data=datFern2)
-summary(fit_full) #Thrips dam not significant.
-
-#What is the effect of ferns?
-fit_full1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
-fit_full2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
-anova(fit_full1,fit_full2) #Fern highly significant
-
-summary(fit_full1)
-
-#Treatment effect 
-fit_full1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Fern+(1|gh_bench),data=datFern2)
-fit_full2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+WhiteFungLogis+Fern+(1|gh_bench),data=datFern2)
-anova(fit_full1,fit_full2) #Treatment highly significant
-
-
-#Modelling to get coefficients
-fit<-glmmTMB(GM_TotalLeaf_Area~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
-
-summary(fit)
-
-#With standardized coefficients
-fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
-summary(fit)
-
-confint(fit)
-
-```
-
 
 
 #Visualizing -- effect of treatment
@@ -810,7 +973,8 @@ table(dat$Family,dat$Longitude,dat$Latitude,dat$Altitude)
 GenotypeLocation<-dat %>% group_by(Family) %>% summarize(Longitude=first(Longitude),Latitude=first(Latitude),Altitude=first(Altitude))
 
 # Before Sample Loss. 
-repTable<-dat2 %>% group_by(Family,treatment) %>% summarize(SampleSize=n())
+repTable<-dat2 %>% filter(treatment != "mcnt") %>% group_by(Family,treatment) %>% summarize(SampleSize=n())
+
 
 #Making the table into a wide format
 repTableWide<-repTable %>% pivot_wider(names_from = treatment,values_from = SampleSize)
@@ -820,10 +984,11 @@ repTableWide$Total<-repTableWide$a+repTableWide$gm+repTableWide$m
 
 ##Ordering the data set.  
 repTableWide<-repTableWide[order(repTableWide$Total,decreasing = T),]
+repTableWide
 
 apply(repTableWide[,2:5],2,sum)
 ##Printing table. 
-#write.csv(repTableWide,"SampleSize.csv")
+write.csv(repTableWide,"SampleSizeUpdate.csv")
 #write.csv(GenotypeLocation,"GenotypeLocation.csv")
 
 ```

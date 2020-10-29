@@ -61,6 +61,10 @@ dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB
                                           GM_Fecundity=first(GM_Fecundity),
 MapleFinalMass=first(MapleFinalMass),
 GM_StemHeight_Bolt=first(GM_StemHeight_Bolt),
+GM_Leaf_Number_Bolt=first(GM_Leaf_Number_Bolt),
+Larg_Leaf_Len_Bolt=first(Larg_Leaf_Len_Bolt),
+Larg_Leaf_Wid_Bolt=first(Larg_Leaf_Wid_Bolt),
+Row_Field=first(Row_Field),
 Maple_Died=first(Maple_Died))
 
 
@@ -138,6 +142,9 @@ return(Standardize(newDF[,2]))
 dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"]<-0
 dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt!="Dead"]<-1
 
+#Changing those i thought had died to alive. 
+dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"&!is.na(dat2$GM_Fecundity)]<-1
+
 
 #Creating Maple Survival Data.1 = survived, 0= dead.
 dat2$Maple_Died<-as.character(dat2$Maple_Died)
@@ -210,59 +217,116 @@ dat2[df2$rownumber,"PC3All_CG"]<-df2$PC3
 
 ```
 
-#I dont think another pca is the way to go. 
+
+
+
+#PCA of GM SIZE in the second year. 
 ```{r}
+#Removing dead individuals with zeros. 
+dat2$GM_StemHeight_Bolt[which(dat2$GM_StemHeight_Bolt=="Dead")]<-0
+dat2$GM_Leaf_Number_Bolt[which(dat2$GM_Leaf_Number_Bolt=="Dead")]<-0
+dat2$Larg_Leaf_Len_Bolt[which(dat2$Larg_Leaf_Len_Bolt=="Dead")]<-0
+dat2$Larg_Leaf_Wid_Bolt[which(dat2$Larg_Leaf_Wid_Bolt=="Dead")]<-0
+
+#Making data numeric
+dat2$GM_StemHeight_Bolt<-as.numeric(dat2$GM_StemHeight_Bolt)
+dat2$GM_Leaf_Number_Bolt<-as.numeric(dat2$GM_Leaf_Number_Bolt)
+dat2$Larg_Leaf_Len_Bolt<-as.numeric(dat2$Larg_Leaf_Len_Bolt)
+dat2$Larg_Leaf_Wid_Bolt<-as.numeric(dat2$Larg_Leaf_Wid_Bolt)
+
+
+pca<-prcomp(~GM_StemHeight_Bolt+GM_Leaf_Number_Bolt+Larg_Leaf_Len_Bolt+Larg_Leaf_Wid_Bolt,data=dat2,scale.=T,na.action=na.omit)
+summary(pca)
+pca
+
+prediction<-as.data.frame(predict(pca))
+
+df<-tibble::rownames_to_column(prediction, "rownumber")
+
+dat2[df$rownumber,"PC1BoltSize"]<-df$PC1
+
+hist(dat2$PC1BoltSize) #The data is very zero inflated because of the mortality. This isnt great but what can you do. 
+```
+
+
+#I dont think another pca is the way to go. 
+
 pcaAll<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA)+(Standardize(RGR1)+Standardize(GM_TotalLeaf_Area)+Standardize(flav_Conc)),data=dat2,na.action=na.omit)
 summary(pcaAll)
 biplot(pcaAll)
 pcaAll
-```
 
-#Fitness variance partition analysis
+
+#Fitness and bolt size variance partition analysis 
 ```{r}
 #Fecundity
-fit<-glmmTMB(GM_Fecundity~as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+fit<-glmmTMB(GM_Fecundity~1+(1|treatment/Family)+(1|Family),data=dat2)
 summary(fit)
 #Is there an effect of GXE? 
-fit2<-glmmTMB(GM_Fecundity~as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+fit2<-glmmTMB(GM_Fecundity~1+(1|treatment)+(1|Family),data=dat2)
 anova(fit,fit2)#No.
 
 #Is there an effect of family? 
-fit3<-glmmTMB(GM_Fecundity~as.factor(gh_bench)+(1|treatment),data=dat2)
+fit3<-glmmTMB(GM_Fecundity~1+(1|treatment),data=dat2)
 anova(fit2,fit3)#No. 
 
 #Is there an effect of treatment? 
-fit4<-glmmTMB(GM_Fecundity~as.factor(gh_bench)+(1|Family),data=dat2)
+fit4<-glmmTMB(GM_Fecundity~1+(1|Family),data=dat2)
 anova(fit2,fit4)#Yes. 
 
 summary(fit)
-Xtract(fit,5.492e+00) #Large effect of treatment on the values fecundity. 
+Xtract(fit,5.611e+00) #Large effect of treatment on the values fecundity. 
 
 
 #Survival 
 #some genotypes that were recorded as dead actually grew again from the root to produce a bolt and seeds. I am replacing these with a 1 to designate that they are alive. 
-dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"&!is.na(dat2$GM_Fecundity)]<-1
 
 
 #Conducting analysis on Survival
-fit<-glmmTMB(Bolt_Survival~as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2,family="binomial")
+fit<-glmmTMB(Bolt_Survival~as.factor(Row_Field)+(1|treatment/Family)+(1|Family),data=dat2,family="binomial")
 summary(fit)
 #Is there an effect of GXE? 
-fit2<-glmmTMB(Bolt_Survival~as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2,family="binomial")
+fit2<-glmmTMB(Bolt_Survival~as.factor(Row_Field)+(1|treatment)+(1|Family),data=dat2,family="binomial")
 anova(fit,fit2)#No.
 
 #Is there an effect of family? 
-fit3<-glmmTMB(Bolt_Survival~as.factor(gh_bench)+(1|treatment),data=dat2,family="binomial")
+fit3<-glmmTMB(Bolt_Survival~as.factor(Row_Field)+(1|treatment),data=dat2,family="binomial")
 anova(fit2,fit3)#Yes, very strong effect. 
 
 #Is there an effect of treatment? 
-fit4<-glmmTMB(Bolt_Survival~as.factor(gh_bench)+(1|Family),data=dat2,family="binomial")
+fit4<-glmmTMB(Bolt_Survival~as.factor(Row_Field)+(1|Family),data=dat2,family="binomial")
 anova(fit2,fit4)#No, Not at all. 
 
 summary(fit)
 Xtract(fit,pi^2/3) #Large effect of treatment on the values fecundity. 
 df.residual(fit)
 pi^2/3
+
+
+#Bolt Size
+
+#Is there an effect of row? 
+fit0.1<-glmmTMB(PC1BoltSize~1+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+fit<-glmmTMB(PC1BoltSize~as.factor(Row_Field)+(1|treatment/Family)+(1|Family),data=dat2)
+anova(fit,fit0.1) #Yes there is
+
+#Is there an effect of GXE? 
+fit2<-glmmTMB(PC1BoltSize~as.factor(Row_Field)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(PC1BoltSize~as.factor(Row_Field)+(1|treatment),data=dat2)
+anova(fit2,fit3)#Yes 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(PC1BoltSize~as.factor(Row_Field)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. 
+
+summary(fit)
+Xtract(fit,3.163e+00 ) 
+
+
 ```
 
 
@@ -312,6 +376,29 @@ Xtract(fit,7.751e-02)
 
 #Total leaf area RGR and Chlor A
 ```{r}
+#looking at effect with and without black path dam
+#Total leaf area. 
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
+summary(fit)
+
+#Is there an effect of GXE? 
+fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~as.factor(gh_bench)+(1|treatment)+(1|Family),data=dat2)
+anova(fit,fit2)#No.
+
+#Is there an effect of family? 
+fit3<-glmmTMB(Standardize(GM_TotalLeaf_Area)~as.factor(gh_bench)+(1|treatment),data=dat2)
+anova(fit2,fit3)#Yes. 
+
+#Is there an effect of treatment? 
+fit4<-glmmTMB(Standardize(GM_TotalLeaf_Area)~as.factor(gh_bench)+(1|Family),data=dat2)
+anova(fit2,fit4)#Yes. 
+
+summary(fit)
+Xtract(fit,0.5898)
+
+
+#Looking at effect with black path dam.
+
 #Total leaf area. 
 fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+as.factor(gh_bench)+(1|treatment/Family)+(1|Family),data=dat2)
 summary(fit)
@@ -444,7 +531,7 @@ Xtract(fit,2.453e-01) #Extremely high Genetic effect for PC2
 
 
 
-#PC1 and PC2 treatment effects... 
+#PC1 and PC2 treatment as a fixed effect... 
 ```{r}
 library(glmmTMB)
 #PC1AllCGF
@@ -478,14 +565,13 @@ anova(fit2,fit3.3) #Is a GXE significant? # no.
 anova(fit,fit2) #Greenhouse bench is.
 anova(fit3,fit) #Family is not  
 
-#Significance of plasticity for glucosinolates 
+#Significance of plasticity for RFI 
 fit<-glmmTMB(PC2All_CF~treatment+Standardize(GM_Leaf_Area)+(1|gh_bench),data=dat2)
 fit4<-glmmTMB(PC2All_CF~Standardize(GM_Leaf_Area)+(1|gh_bench),data=dat2)
 anova(fit,fit4)#very significant. 
 summary(fit)
 confint(fit)
 #Interestingly, PC2... with flavonoids increased quite a bit in the maple treatment. .. This means the maple treatment has a higher flavonoid :Chlorophyll ratio. 
-
 
 #PC3All_CG
 fit<-glmmTMB(PC3All_CG~treatment+GM_Leaf_Area+(1|Family)+(1|gh_bench),data=dat2)

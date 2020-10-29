@@ -243,6 +243,19 @@ summary(fit7)
 
 ```
 
+#Chlorophyll stats
+```{r}
+dat2
+tapply(dat2$ChlorA,dat2$Fert,mean)
+tapply(dat2$ChlorA,dat2$Fert,var)
+
+exp(0.119)/exp(-1.2)
+
+0.146/0.459
+0.459/0.146
+
+```
+
 
 #Modelling Fitness  
 ```{r}

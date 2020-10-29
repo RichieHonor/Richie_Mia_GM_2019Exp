@@ -51,23 +51,79 @@ dat$GM_Leaf_Area<-dat$GM_Leaf_Wid*dat$GM_Leaf_Len
 dat2<-dat %>% select(-X) %>% group_by(Tag) %>%  summarize(gh_col=first(gh_col),gh_bench=first(gh_bench),treatment=first(treatment),GA3=first(GA3),Family=first(Family),Maple_StemHeight_End=mean(Maple_StemHeight_End),Maple_LeafNum_End=mean(Maple_LeafNum_End),maple_leaf_length_0=mean(maple_leaf_length_0),maple_leaves_0=mean(maple_leaves_0),Maple_TotalLeafArea_End=mean(Maple_TotalLeafArea_End),MapleDamage=mean(Maple_Damage_End),Fern=first(Fern),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),maple_height_0=mean(maple_height_0),ChlorA=mean(ChlorA),RGR1=first(RGR1), GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),ThripsDam=mean(ThripsDam),BlackPathDam=mean(BlackPathDam),WhiteFungDam=mean(WhiteFungDam),comp_number=first(comp_number),GM_Leaf_Area=mean(GM_Leaf_Area),MapleFinalMass=first(MapleFinalMass),GM_Fecundity=first(GM_Fecundity),GM_StemHeight_Bolt=first(GM_StemHeight_Bolt),
                                                           GM_Leaf_Number_Bolt=first(GM_Leaf_Number_Bolt),
 Larg_Leaf_Len_Bolt=first(Larg_Leaf_Len_Bolt),
+Col_Field=first(Col_Field),
+Row_Field=first(Row_Field),
 Larg_Leaf_Wid_Bolt=first(Larg_Leaf_Wid_Bolt))
-
 
 
 #Converting white fungal damage to logistic. 
 dat2$WhiteFungLogis<-NA
-dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-"Yes"
-dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-"No"
+dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-1
+dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-0
 
 
 #Creating Survival Data.1 = survived, 0= dead.
+dat2$Bolt_Survival<-c()
 dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"]<-0
 dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt!="Dead"]<-1
+dat2$Bolt_Survival[is.na(dat2$GM_StemHeight_Bolt)]<-0 # I am going to be consistent and call those without a value dead because i missed these ones. 
+dat2$Bolt_Survival[dat2$GM_Fecundity>0]<-1 #Those with fecundity data are also alive... 
+dat2$Bolt_Survival[dat2$treatment=="mcnt"]<-NA #those that dies in year 1 are NA
+dat2$Bolt_Survival[dat2$treatment=="mcnt"]<-NA #Maple controls are NA
 
 
-#Changing bolts that regrew a stem and produced seeds to survived.(1 =survive)
-dat2[which(dat2$GM_Leaf_Number_Bolt=="Dead"&!is.na(dat2$GM_Fecundity)),]$Bolt_Survival<-1
+
+dat2$Maple_SurvivalY2<-c()
+dat2$Maple_SurvivalY2[is.na(dat2$MapleFinalMass)]<-0 #Converting all those without a final measurement to dead.
+dat2$Maple_SurvivalY2[!is.na(dat2$MapleFinalMass)]<-1 #Anything that is not NA (i.e. has a final measurment, is alive)
+dat2$Maple_SurvivalY2[dat2$Maple_TotalLeafArea_End==0]<-NA #anything that died in the first year is overwritten as NA 
+dat2$Maple_SurvivalY2[!dat2$treatment %in% c("mcnt","m")]<-NA
+
+
+#Making a maple survival Y1 collumn
+dat2$Maple_SurvivalY1<-c()
+dat2$Maple_SurvivalY1[dat2$Maple_TotalLeafArea_End==0]<-0 #anything with a value of 0 is dead
+dat2$Maple_SurvivalY1[is.na(dat2$Maple_TotalLeafArea_End)]<-NA #anything with NA is unknown
+dat2$Maple_SurvivalY1[dat2$Maple_SurvivalY2==1]<-1 #Those with an NA will be overwritted if i have a record of their size in year two. 
+dat2$Maple_SurvivalY1[dat2$Maple_TotalLeafArea_End>0]<-1 #anything with a value greater than zero is alive
+
+#This Genotype was NA for maple total leaf area, but we know that it is dead. 
+dat2$Maple_SurvivalY1[dat2$Tag=="e|CBMCK1-1-0|N|49"]<-0
+
+
+#Removing those with dead maples in year 1 from the analysis
+dat2<-dat2[dat2$Maple_SurvivalY1==1 | is.na(dat2$Maple_SurvivalY1),]
+
+
+
+#All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
+dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
+
+deadID<-dead %>% filter(treatment!="mcnt",Tag!="e|JBCHY1-1-50|Q|240") #Here there are 12 putative dead competitors because  ("e|JBCHY1-1-50|Q|240") did not die. 
+
+
+#Removing those with dead competitors from the garlic mustard treatment. ("e|JBCHY1-1-50|Q|240") did not die, we are simply missing the final measurement for it.
+dead_competitors<-dead %>% filter(treatment=="gm",Tag!="e|JBCHY1-1-50|Q|240") %>% select(comp_number)
+
+#Removing those with dead competitors from the analysis. 
+dat2<-dat2 %>% filter(!comp_number %in% dead_competitors$comp_number)
+dat<-dat %>% filter(!comp_number %in% dead_competitors$comp_number)
+
+
+#What are the frequencies in each treatment?
+#Assinging those that died. 
+dat2$GreenhouseSurvival<-c()
+dat2$GreenhouseSurvival[dat2$Tag %in% deadID$Tag]<-0
+dat2$GreenhouseSurvival[is.na(dat2$GreenhouseSurvival)]<-1
+
+#Removing dead individuals from the analysis. 
+dat2<-dat2[dat2$GreenhouseSurvival==1,]
+
+
+#Removing those with dead maples from the analysis
+dat2<-dat2[dat2$Maple_SurvivalY1==1 | is.na(dat2$Maple_SurvivalY1),]
+
+
 
 ```
 
@@ -132,7 +188,6 @@ dat2[df2$rownumber,"PC3All_CG"]<-df2$PC3
 #Creating a maple data frame
 Maple<-dat2[dat2$treatment=="m"|dat2$treatment=="mcnt",]
 
-
 Maple[is.na(Maple$Maple_StemHeight_End),]
 
 #b|EFCC2-4-80|Q|144 and f|JBCHY1-1-50|Q|247,e|CBMCK1-1-0|N|49, e|JWBOY-2-80|Q|264 are simply not in the datafile. Nothing to do there - they will be deleted from the analyis. These genotypes are either dead, or we missed them when conducting the sampling.
@@ -149,8 +204,13 @@ min(Maple$maple_height_0)
 max(Maple$maple_height_0)
 hist(Maple$maple_height_0,breaks = 20)
 
+#how many maples are there?
+Maple %>% filter(Family=="maple") #Only 29..... did two die?
+dat %>% filter(Family=="maple") #Also 29... what the heck. 
 
+192/194
 
+Maple
 ```
 
 #Maple PCA 
@@ -171,20 +231,10 @@ PCAMaple<-data.frame(apply(PCAMaple,2,Standardize))
 #Model with everything
 pcaModelTotal<-prcomp(PCAMaple)
 
-pcaModelEnd<-prcomp(PCAMaple %>% select(Maple_StemHeight_End,Maple_LeafNum_End,Maple_TotalLeafArea_End))
-pcaModelZero<-prcomp(PCAMaple %>% select(maple_height_0,maple_leaf_length_0,maple_leaves_0))
-
-
-#All variables go in the same direction.
-biplot(pcaModelTotal)
-biplot(pcaModelZero)
-biplot(pcaModelEnd)
-
 
 #40% of the variation in the data is explained in the first PCA. 
 summary(pcaModelTotal)
-summary(pcaModelEnd)
-summary(pcaModelZero)
+pcaModelTotal
 
 #All variables are correlated with the PC1 loading. 
 plot(predict(pcaModelTotal)[,1]~PCAMaple$Maple_TotalLeafArea_End)
@@ -201,91 +251,73 @@ MapleModel<-Maple %>% filter(treatment=="m")
 
 ```
 
-#Getting residuals of simple correlation between final leaf area and initial size
-
-fit<-lm(Maple_TotalLeafArea_End~PC1Tot,data=MapleModel)
-residual<-as.data.frame(resid(fit))
-
-summary(fit)
-
-resi<-tibble::rownames_to_column(residual, "rownumber")
-
-#Adding in residuals to data frame. 
-MapleModel[resi$rownumber,"MapleLeafAreaResidual"]<-resi$'resid(fit)'
-
-MapleModel$MapleLeafAreaResidualS<-Standardize(MapleModel$MapleLeafAreaResidual)
 
 
 
+```{r}
+
+ConfidenceInt<-function(x){
+  x<-x[!is.na(x)]#remove NA
+  N<-length(x)
+  SE<-sd(x)/sqrt(N) #get Standard Error
+  Conf<-SE*qt(0.975,N-1)# Get confidence intercal
+  return(Conf)
+}
+
+TreatmentMortality<-function(data,Survival=F){
+num<-tapply(data,dat2$treatment,sum,na.rm=T) #numerator
+x<-tapply(data,dat2$treatment,mean,na.rm=T) #Survival rate
+denom=num/x #Denominator
+
+#Now mortality rate
+
+NewNum<-denom-num
+Mortality<-(1-x)*100
+
+if(Survival==T){
+  return(list(num,denom,x*100))
+}
+else return(list(NewNum,denom,Mortality))
+}
+
+#Maple Data
+tapply(Maple$PC1Tot,Maple$treatment,function(x) c(mean(x,na.rm = T), ConfidenceInt(x)))
+
+tapply(Maple$Maple_TotalLeafArea_End,Maple$treatment,function(x) c(mean(x,na.rm = T), ConfidenceInt(x)))
+
+tapply(Maple$MapleFinalMass,Maple$treatment,function(x) c(mean(x,na.rm = T), ConfidenceInt(x)))
+
+tapply(Maple$MapleDamage,Maple$treatment,function(x) c(mean(x,na.rm = T), ConfidenceInt(x)))
+
+#GM Data
+tapply(dat2$RGR1,dat2$treatment,function(x) c(mean(x,na.rm = T)*1000000, ConfidenceInt(x)*1000000))
+
+tapply(dat2$GM_TotalLeaf_Area,dat2$treatment,function(x) c(mean(x,na.rm = T), ConfidenceInt(x)))
+
+tapply(dat2$GM_Fecundity,dat2$treatment,function(x) c(mean(x,na.rm = T), ConfidenceInt(x)))
+
+tapply(dat2$BlackPathDam,dat2$treatment,function(x) c(mean(x,na.rm = T), ConfidenceInt(x)))
+
+tapply(dat2$ThripsDam,dat2$treatment,function(x) c(mean(x,na.rm = T), ConfidenceInt(x)))
 
 
-#Genetic correlation with PCA for glucosinolates and chlorA 
+tapply(dat2$WhiteFungLogis,dat2$treatment,mean,na.rm=T)
+dat2$WhiteFungLogis
 
-#Standardizing Variables.
-MapleModel$GM_TotalLeaf_AreaS<-Standardize(MapleModel$GM_TotalLeaf_Area)
-MapleModel$flav_ConcS<-Standardize(MapleModel$flav_Conc)
-MapleModel$gluc_ConcS<-Standardize(MapleModel$gluc_Conc)
-MapleModel$MapleDamageS<-Standardize(MapleModel$MapleDamage)
-MapleModel$ChlorAS<-Standardize(MapleModel$ChlorA)
-MapleModel$RGR1S<-Standardize(MapleModel$RGR1)
-MapleModel$GM_Leaf_AreaS<-Standardize(MapleModel$GM_Leaf_Area)
-MapleModel$gh_bench<-as.factor(MapleModel$gh_bench)
-MapleModel$PC1TotS<-Standardize(MapleModel$PC1Tot)
-MapleModel$MapleDamageS<-Standardize(MapleModel$MapleDamage)
-MapleModel$Maple_TotalLeafArea_EndS<-Standardize(MapleModel$Maple_TotalLeafArea_End)
+TreatmentMortality(dat2$WhiteFungLogis,Survival=T)
 
-
-pcaGlucCor<-prcomp(~gluc_ConcS+ChlorAS,data=MapleModel,na.action=na.omit)
-
-prediction<-as.data.frame(predict(pcaGlucCor))
-
-df<-tibble::rownames_to_column(prediction, "rownumber")
-
-biplot(pcaGlucCor)
-
-MapleModel[df$rownumber,"PC1GC"]<-df$PC1
-MapleModel[df$rownumber,"PC2GC"]<-df$PC2
-
-
-MapleModel$PC1GC<-MapleModel$PC1GC*-1
-plot(MapleModel$PC1GC~MapleModel$PC2GC)
-
-datG<-MapleModel %>% select(Tag,Family,gluc_ConcS,ChlorAS,flav_ConcS,GM_TotalLeaf_AreaS,gh_bench,treatment,RGR1S,GM_Leaf_AreaS,PC1GC,PC2GC) %>%  pivot_longer(c(PC1GC,GM_TotalLeaf_AreaS))
-
-hist(MapleModel$PC1GC)
-#This fit fine. 
-#Model convergence issue again. 
-fit5<-glmmTMB(value ~ name*gh_bench+(-1+name|Family),REML=T,data=datG)
-summary(fit5)
-vignette('troubleshooting')
-datG
-
-
-
-#Determining if glucosinolate or chlorophyll causes reduction in maple performance. 
-
-
-#Shifting data wide
-datG<-MapleModel %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench,MapleDamageS,PC1TotS,Maple_TotalLeafArea_EndS,Maple_TotalLeafArea_End,PC1GC,PC2GC,MapleLeafAreaResidualS) %>%  pivot_longer(c(MapleLeafAreaResidualS,PC2GC))
-
-plot(MapleLeafAreaResidualS~PC2GC,data=MapleModel)
-#try with pc1 and pc2. can not do pc2 if no genetic variation. 
-
-#Genetic variation for all traits #Still no fit using the residuals from the model
-fit1<-glmmTMB(value ~ name+(-1+name|Family),REML=T,data=datG)
-#Would not converge. Removing damage interaction as it has a small effect. ... why would damage be expected to effect garlic mustard traits? 
-summary(fit1)
-#Model without total leaf area. 
-fit2<-glmmTMB(value ~ gh_bench+(-1+name|Family),REML=T,data=datG)
-#Still no fit. 
-
-
-
+dat$ini
+```
 
 
 #Visuallization: maple treatments -- initial maple size controlled.. 
 ```{r}
 #Modelling
+
+#Is Bench significant?
+fit1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern+MapleDamage+(1|gh_bench),data=Maple)
+fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
+anova(fit1,fit2) #NO
 
 #Is Damage significant?
 fit1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
@@ -293,8 +325,8 @@ fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern,data=Maple)
 anova(fit1,fit2) #Yes
 summary(fit1)
 #Is Fern significant?
-fit1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
-fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+MapleDamage,data=Maple)
+fit1<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+treatment+Standardize(Fern)+Standardize(MapleDamage),data=Maple)
+fit2<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+treatment+Standardize(MapleDamage),data=Maple)
 anova(fit1,fit2) #Yes
 
 #Is treatment significant?
@@ -306,6 +338,45 @@ anova(fit1,fit2) #Yes
 fit1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
 fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot*treatment+Fern+MapleDamage,data=Maple)
 anova(fit1,fit2) #no, not at all when other variables are accounted for.
+
+#Best model is: 
+fit1<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+treatment+Standardize(Fern)+Standardize(MapleDamage),data=Maple)
+summary(fit1)
+
+```
+
+#Year 2
+```{r}
+#Feild row and collumn could not be assessed here because the maple controls are missing those data. 
+
+#Is Bench significant?
+fit1<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+treatment+Fern+MapleDamage+(1|gh_bench),data=Maple)
+fit2<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
+anova(fit1,fit2) #NO
+
+#Is Damage significant?
+fit1<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
+fit2<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+treatment+Fern,data=Maple)
+anova(fit1,fit2) #No
+
+summary(fit1)
+#Is Fern significant?
+fit1<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
+fit2<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+treatment+MapleDamage,data=Maple)
+anova(fit1,fit2) #No
+#no
+summary(fit1)
+
+#Is treatment significant?
+fit1<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot,data=Maple)
+fit2<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+treatment,data=Maple)
+anova(fit1,fit2) #Yes
+
+#Is PC1Tot significant?
+fit1<-glmmTMB(Standardize(MapleFinalMass)~treatment+PC1Tot,data=Maple)
+fit2<-glmmTMB(Standardize(MapleFinalMass)~treatment,data=Maple)
+anova(fit1,fit2) #Yes
+
 
 
 #Year two treatment effects. 
@@ -332,7 +403,10 @@ xComp<-seq(min(Comp),max(Comp),length.out = 194)
 Cont<-Maple$PC1Tot[Maple$treatment=="mcnt"]
 xCont<-seq(min(Cont),max(Cont),length.out = 194)
 
+```
 
+#Visualizing maple treatment effects Year 1. 
+```{r}
 
 source("GGPlot_Themes.R")
 
@@ -361,8 +435,9 @@ confint(fitTreat)
 ```
 
 
-#Modelling: what effects maple performance? -- Update with PCA values for secondary compounds
+#Modelling: what effects maple performance year 1? -- Update with PCA values for secondary compounds
 ```{r}
+
 #Is bench important? 
 fit<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+PC1AllCGF+PC2All_CF+PC3All_CG+(1|gh_bench), data=MapleModel)
 fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+PC1AllCGF+PC2All_CF+PC3All_CG, data=MapleModel)
@@ -444,6 +519,17 @@ fit<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+PC1AllCGF+PC2All_CF+PC3All_CG+(1
 fit2<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+PC1AllCGF+PC2All_CF+PC3All_CG, data=MapleModel)
 anova(fit,fit2) #No it is not.
 
+#Is col field important? 
+fit<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+PC1AllCGF+PC2All_CF+PC3All_CG+(1|Col_Field), data=MapleModel[!is.na(MapleModel$Col_Field),])
+fit2<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+PC1AllCGF+PC2All_CF+PC3All_CG, data=MapleModel[!is.na(MapleModel$Col_Field),])
+anova(fit,fit2) #No it is not.
+
+#Is row field important? 
+fit<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+PC1AllCGF+PC2All_CF+PC3All_CG+(1|Row_Field), data=MapleModel[!is.na(MapleModel$Row_Field),])
+fit2<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+PC1AllCGF+PC2All_CF+PC3All_CG, data=MapleModel[!is.na(MapleModel$Row_Field),])
+anova(fit,fit2) #No it is not.... but it is close. 
+
+
 #Modelling fixed effects. 
 fit<-glmmTMB(Standardize(MapleFinalMass)~PC1Tot+PC1AllCGF+PC2All_CF+PC3All_CG+MapleDamage+Family+GM_TotalLeaf_Area+Fern+Bolt_Survival, data=MapleModel)
 summary(fit) 
@@ -503,12 +589,23 @@ fit9<-glmmTMB(Standardize(MapleFinalMass) ~ PC1Tot   +PC2All_CF+
 summary(fit9) # no. 
 
 
-#The best model is. 
+
+
+#Is gm size first year significant?  
 fit9<-glmmTMB(Standardize(MapleFinalMass) ~ Standardize(PC1Tot)  +
    Standardize( GM_TotalLeaf_Area ) ,data=MapleModel[!is.na(MapleModel$GM_TotalLeaf_Area),])
 fit10<-update(fit9, ~.-Standardize( GM_TotalLeaf_Area ))
 anova(fit9,fit10)
-summary(fit9) # no. 
+summary(fit9) # Yes. 
+
+#Is maple initial size significant?
+fit9<-glmmTMB(Standardize(MapleFinalMass) ~ Standardize(PC1Tot)  +
+   Standardize( GM_TotalLeaf_Area ) ,data=MapleModel[!is.na(MapleModel$PC1Tot),])
+fit10<-update(fit9, ~.-Standardize( PC1Tot ))
+anova(fit9,fit10) #Yes.
+
+#Best model is
+
 
 #Bad model for coefficients
 fit<-glmmTMB(Standardize(MapleFinalMass)~Standardize(PC1Tot)+Standardize(PC1AllCGF)+Standardize(PC2All_CF)+Standardize(PC3All_CG)+Standardize(MapleDamage)+Family+Standardize(GM_TotalLeaf_Area)+Standardize(Fern)+Bolt_Survival, data=MapleModel)
@@ -516,6 +613,12 @@ summary(fit)
 
 fit9<-glmmTMB(Standardize(MapleFinalMass) ~ Standardize(PC1Tot)   +  
     Standardize(GM_TotalLeaf_Area) +Standardize(PC1BoltSize) ,data=MapleModel[!is.na(MapleModel$PC1BoltSize),])
+summary(fit9)
+
+#Best model is
+
+fit9<-glmmTMB(Standardize(MapleFinalMass) ~ Standardize(PC1Tot)  +
+   Standardize( GM_TotalLeaf_Area ) ,data=MapleModel[!is.na(MapleModel$PC1Tot),])
 summary(fit9)
 ```
 

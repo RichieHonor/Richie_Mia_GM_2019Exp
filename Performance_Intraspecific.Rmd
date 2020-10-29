@@ -174,22 +174,18 @@ else{
 dat2
 dat2$GM_Leaf_Number_Bolt
 ```
-
-
-
-
-#What predicts performance in the intraspecific treatment? - no weighed pathogen data
+#New assessment performance in intraspecific.
 ```{r}
 #Modelling random effects 
-
-fit<-glmmTMB(GM_TotalLeaf_Area~Fern+BlackPathDam+WhiteFungLogis+(1|Family)+(1|gh_bench),data=dat2)
-
-fit2<-glmmTMB(GM_TotalLeaf_Area~Fern+BlackPathDam+WhiteFungLogis+(1|gh_bench),data=dat2)
-
-fit3<-glmmTMB(GM_TotalLeaf_Area~Fern+BlackPathDam+WhiteFungLogis+(1|Family),data=dat2)
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(Fern)+Standardize(BlackPathDam)*WhiteFungLogis*Standardize(ThripsDam)+competitor+comp_Size+(1|Family)+(1|gh_bench),data=dat2)
+summary(fit)
+fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(Fern)+Standardize(BlackPathDam)*WhiteFungLogis*Standardize(ThripsDam)+competitor+comp_Size+(1|gh_bench),data=dat2)
+summary(fit)
+fit3<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(Fern)+Standardize(BlackPathDam)*WhiteFungLogis*Standardize(ThripsDam)+competitor+comp_Size+(1|Family),data=dat2)
+summary(fit)
 
 #Is bench important?
-anova(fit,fit3) #no it is not.
+anova(fit,fit3) #Yes, very. 
 
 #Is family important? 
 anova(fit,fit2) #Yes it is. 
@@ -197,120 +193,68 @@ anova(fit,fit2) #Yes it is.
 
 #Modelling fixed effects 
 
-fit<-glmmTMB(GM_TotalLeaf_Area~Fern+ThripsDam+BlackPathDam+WhiteFungLogis+competitor+comp_Size+(1|Family),data=dat2)
-
-fit2<-update(fit,~.-competitor)
-anova(fit,fit2) #competitor not significant predictor. 
-summary(fit2)
-
-fit3<-update(fit2,~.-WhiteFungLogis)
-anova(fit3,fit2) #White fungal damage not singificant.
-summary(fit3)
-
-fit4<-update(fit3,~.-Fern)
-anova(fit4,fit3) #Fern not significant
-summary(fit4)
-
-#All else is significant. IS gluc_Conc also significant? 
-
-fit5<-glmmTMB(GM_TotalLeaf_Area~ThripsDam+BlackPathDam+comp_Size+comp_Gluc+(1|Family),data=dat2)
-summary(fit5) #Glucosinolate is not significant. Therefore, size is significant. is family significant if the effect of size is removed? 
+dat2$BlackPathDam<-Standardize(dat2$BlackPathDam)
+dat2$ThripsDam<-Standardize(dat2$ThripsDam)
+dat2$Fern<-Standardize(dat2$Fern)
 
 
-fit5<-glmmTMB(GM_TotalLeaf_Area~ThripsDam+BlackPathDam+competitor+(1|Family),data=dat2)
-fit6<-glmmTMB(GM_TotalLeaf_Area~ThripsDam+BlackPathDam+(1|Family),data=dat2)
-anova(fit5,fit6) #Even without size included, id of neighbor is not singificant. This is likley because of a lack of sample sie available only in this treament. 
+fit0.1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Fern+BlackPathDam*WhiteFungLogis*ThripsDam+competitor+comp_Size+(1|Family)+(1|gh_bench),data=dat2)
+
+fit2<-update(fit0.1,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
+anova(fit0.1,fit2) #Yes... a significant three way interaction.
+
+#Is fern importnat? 
+fit1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Fern+BlackPathDam*WhiteFungLogis*ThripsDam+competitor+comp_Size+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$Fern),])
+fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~BlackPathDam*WhiteFungLogis*ThripsDam+competitor+comp_Size+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$Fern),])
+anova(fit1,fit2)#Yes, extremely. 
+summary(fit1)
+
+#Is competitor family important? 
+fit1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Fern+BlackPathDam*WhiteFungLogis*ThripsDam+competitor+comp_Size+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$Fern),])
+fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Fern+BlackPathDam*WhiteFungLogis*ThripsDam+comp_Size+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$Fern),])
+anova(fit1,fit2) #No it is not. 
+
+#Is the three way interaction significant? 
+
+fit3<-update(fit2,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
+anova(fit3,fit2) #Yes... still significant. 
 
 
-#Best model
-fit<-glmmTMB(GM_TotalLeaf_Area~Standardize(comp_Size)+Standardize(ThripsDam)+Standardize(BlackPathDam)+(1|Family),data=dat2[!is.na(dat2$comp_Size),])
+#Is competitor size important?
 
-fit2<-glmmTMB(GM_TotalLeaf_Area~+Standardize(ThripsDam)+Standardize(BlackPathDam)+(1|Family),data=dat2[!is.na(dat2$comp_Size),])
-anova(fit,fit2)
-summary(fit)
+fit1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Fern+BlackPathDam*WhiteFungLogis*ThripsDam+comp_Size+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$comp_Size),])
+fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Fern+BlackPathDam*WhiteFungLogis*ThripsDam+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$comp_Size),])
+anova(fit1,fit2) #Yes, extremely
 
-plot(residuals(fit))
-qqnorm(residuals(fit))
-plot(residuals(fit,type="pearson"))
-plot(residuals(fit,type="pearson")~fitted(fit))
-
-
-#Coefficients for results
-fit<-glmmTMB(Standardize(GM_TotalLeaf_Area,set.sd=T,3549.252)~Standardize(comp_Size)+Standardize(ThripsDam)+Standardize(BlackPathDam)+(1|Family),data=dat2[!is.na(dat2$comp_Size),])
-summary(fit)
-
-#-0.31502 effect on SD per SD unit. (GM on GM)
-
-GMonGM<-Standardize(dat2$comp_Size)
-GMonGM
-#write.csv(GMonGM,"GM_SD_OnGM.csv")
+#Best model is. 
+fit1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Fern+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(comp_Size)+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$comp_Size),])
+summary(fit1)
 ```
 
-
-
-#Is there evidence that there is a cost of glucosinolates or flavonoid production in this treatment? 
-```{r}
-#I must control for leaf size, because there are less glucosinolates with larger leaf sizes. 
-fit7<-lmer(GM_TotalLeaf_Area~ BlackPathDam+ WhiteFungLogis+gluc_Conc+GM_Leaf_Area+(1|Family),data=dat2)
-summary(fit7) #Not for glucosinolates... significantly positive correlation.
-
-fit7<-lmer(GM_TotalLeaf_Area~BlackPathDam + WhiteFungLogis+flav_Conc+GM_Leaf_Area+(1|Family),data=dat2)
-summary(fit7) #Not for flavonoids (Significant postive correlation. )
-
-```
-
-
-
-#Calculating genetic correlation between gluc, chlor and total size. 
-```{r}
-
-#Standardizing variables
-dat2$gluc_ConcS<-Standardize(dat2$gluc_Conc)
-dat2$ChlorAS<-Standardize(dat2$ChlorA)
-dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
-
-dat2$Family<-as.character(dat2$Family)
-
-
-
-datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench) %>%  pivot_longer(c(gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
-
-datG<-dat2 %>% select(Tag,Family,gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS,gh_bench) %>%  pivot_longer(c(gluc_ConcS,ChlorAS,GM_TotalLeaf_AreaS))
-
-
-glmmTMB(value ~ -1+name*gh_bench+(-1+name|Family),REML=T,data=datG)
-#did not converge... removing bench interaction.
-
-glmmTMB(value ~ -1+name+gh_bench+(-1+name|Family),REML=T,data=datG)
-#Did not converge, removing bench. 
-glmmTMB(value ~ -1+(-1+name|Family),REML=T,data=datG)
-#Still did not converge. 
-
-```
 
 
 #GM survival
 ```{r}
 dat2$Comp_Survival<-as.factor(dat2$Comp_Survival)
-fit<-glmmTMB(Bolt_Survival~Fern+BlackPathDam+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+Standardize(GM_TotalLeaf_Area)+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),],family="binomial")
 
-fit1<-glmmTMB(Bolt_Survival~Fern+WhiteFungLogis+competitor+comp_Size+Comp_Survival+Standardize(GM_TotalLeaf_Area)+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),],family="binomial")
+
+
+fit<-glmmTMB(Bolt_Survival~Fern+BlackPathDam+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),],family="binomial")
+
+fit1<-glmmTMB(Bolt_Survival~Fern+WhiteFungLogis+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),],family="binomial")
 anova(fit,fit1) #Model wouldnt fit... dont know 
 
-fit1<-glmmTMB(Bolt_Survival~Fern+WhiteFungLogis+competitor+Standardize(GM_TotalLeaf_Area)+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),],family="binomial")
-fit2<-glmmTMB(Bolt_Survival~Fern+competitor+Standardize(GM_TotalLeaf_Area)+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),],family="binomial")
+fit1<-glmmTMB(Bolt_Survival~Fern+WhiteFungLogis+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),],family="binomial")
+fit2<-glmmTMB(Bolt_Survival~Fern+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),],family="binomial")
 anova(fit2,fit1) #Model wouldnt fit... dont know 
 
 #IS Fern important?
-fit2<-glmmTMB(Bolt_Survival~Fern+competitor+Standardize(GM_TotalLeaf_Area)+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),],family="binomial")
-fit3<-glmmTMB(Bolt_Survival~competitor+Standardize(GM_TotalLeaf_Area)+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),],family="binomial")
+fit2<-glmmTMB(Bolt_Survival~Fern+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),],family="binomial")
+fit3<-glmmTMB(Bolt_Survival~competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),],family="binomial")
 
 anova(fit2,fit3) #Model wouldnt fit, dont know
 
-#Is SIze important?
-fit3<-glmmTMB(Bolt_Survival~competitor+Standardize(GM_TotalLeaf_Area)+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),],family="binomial")
-fit4<-glmmTMB(Bolt_Survival~competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),],family="binomial")
-anova(fit3,fit4) #Model wouldnt fit, dont know
+
 
 #Is competitor important? 
 fit4<-glmmTMB(Bolt_Survival~competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$competitor),],family="binomial")
@@ -322,6 +266,13 @@ fit4<-glmmTMB(Bolt_Survival~competitor+comp_Size+Comp_Survival+(1|Family),data=d
 fit5<-glmmTMB(Bolt_Survival~competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$comp_Size),],family="binomial")
 anova(fit4,fit5) #CModel wouldnt fit dont know 
 
+```
+
+
+
+
+#This is where the model starts to converge for bolt survival in the intraspecific treatment. 
+```{r}
 #IS comp survival important? 
 fit5<-glmmTMB(Bolt_Survival~competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),],family="binomial")
 fit6<-glmmTMB(Bolt_Survival~competitor+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),],family="binomial")
@@ -348,55 +299,127 @@ fit6<-glmmTMB(Bolt_Survival~Comp_Survival+Standardize(comp_Size)+(1|Family),fami
 
 fit7<-glmmTMB(Bolt_Survival~Comp_Survival+(1|Family),family="binomial",data=dat2[!is.na(dat2$comp_Size),])
 anova(fit6,fit7) #No competitor size is not important. 
-summary(fit6)
+
+#Is familly importnat as a random effect? 
+fit7<-glmmTMB(Bolt_Survival~Comp_Survival+(1|Family),family="binomial",data=dat2[!is.na(dat2$comp_Size),])
+fit6<-glmmTMB(Bolt_Survival~Comp_Survival,family="binomial",data=dat2[!is.na(dat2$comp_Size),])
+anova(fit6,fit7) #No, but it is close. 
+summary(fit7)
 
 
-#Is size important? 
-fit6<-glmmTMB(Bolt_Survival~Comp_Survival+Standardize(GM_TotalLeaf_Area)+(1|Family),family="binomial",data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
+#Best model
+fit5<-glmmTMB(Bolt_Survival~competitor+Comp_Survival+(1|Family),family="binomial",data=dat2)
+summary(fit5)
 
-fit7<-glmmTMB(Bolt_Survival~Comp_Survival+(1|Family),family="binomial",data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
 
-anova(fit6,fit7) #Yes, initial size is important. 
+#Is familly importnat as a random effect? 
+fit7<-glmmTMB(Bolt_Survival~Comp_Survival+competitor,family="binomial",data=dat2[!is.na(dat2$comp_Size),])
+fit6<-glmmTMB(Bolt_Survival~Comp_Survival,family="binomial",data=dat2[!is.na(dat2$comp_Size),])
+anova(fit6,fit7) #No, but it is close. 
+summary(fit7)
 
-summary(fit6) #The larger you are, the more likely you are to die. 
-#IF your competitor survives, you are more likely to as well. This is like kin selection..
+
 
 ```
 
 
 Do analysis on fecundity and add in fern and gluc conc and flav conc to previous analyses. 
 
+#Survival data redone. 
+```{r}
+#Is familly importnat as a random effect? #Comp size, gh_bench would not fit. 
+fit<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+BlackPathDam*ThripsDam*WhiteFungLogis+(1|Family),family="binomial",data=dat2)
+
+fit2<-update(fit,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
+anova(fit,fit2) #Not a significant three way interaction.
+
+fit3<-update(fit2,~.-BlackPathDam:WhiteFungLogis)
+anova(fit3,fit2) #There is not a significant two way interaction.
+
+fit4<-update(fit3,~.-BlackPathDam:ThripsDam)
+anova(fit4,fit3)
+#There is no significant interaction between black path dam and thrips dam
+
+fit5<-update(fit4,~.-WhiteFungLogis:ThripsDam)
+anova(fit5,fit4) #There is not significant white path and thripsdamage interaction.
+
+summary(fit5)
+
+#White fung dam? 
+fit<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+BlackPathDam+ThripsDam+WhiteFungLogis+(1|Family),family="binomial",data=dat2[!is.na(dat2$WhiteFungLogis),])
+fit2<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+BlackPathDam+ThripsDam+(1|Family),family="binomial",data=dat2[!is.na(dat2$WhiteFungLogis),])
+anova(fit,fit2) #no
+
+#Thrips  dam? 
+fit<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+BlackPathDam+ThripsDam+(1|Family),family="binomial",data=dat2[!is.na(dat2$ThripsDam),])
+fit2<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+BlackPathDam+(1|Family),family="binomial",data=dat2[!is.na(dat2$ThripsDam),])
+anova(fit,fit2) #no
+
+
+#Black PAth dam? 
+fit<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+BlackPathDam+(1|Family),family="binomial",data=dat2[!is.na(dat2$BlackPathDam),])
+fit2<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+(1|Family),family="binomial",data=dat2[!is.na(dat2$BlackPathDam),])
+anova(fit,fit2) #no
+
+#adding in random effects/assessing significance? (no fit gh_bench, Row Field, Col Field. )
+fit1<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+(1|Family)+(1|Col_Field),family="binomial",data=dat2)
+fit2<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+(1|Family),family="binomial",data=dat2)
+anova(fit1,fit2) #No fit. 
+
+#Assessing comp size
+fit1<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+Standardize(comp_Size)+(1|Family),family="binomial",data=dat2[!is.na(dat2$comp_Size),])
+fit2<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+(1|Family),family="binomial",data=dat2[!is.na(dat2$comp_Size),])
+anova(fit1,fit2) #Comp size is significant here. 
+
+#Assessing competitor?
+fit1<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+Standardize(comp_Size)+(1|Family),family="binomial",data=dat2[!is.na(dat2$comp_Size),])
+fit2<-glmmTMB(Bolt_Survival~Comp_Survival+Standardize(comp_Size)+(1|Family),family="binomial",data=dat2[!is.na(dat2$comp_Size),])
+anova(fit1,fit2) #Competitor is also significant. 
+
+#Assessing Survival.
+
+fit1<-glmmTMB(Bolt_Survival~Comp_Survival+competitor+Standardize(comp_Size)+(1|Family),family="binomial",data=dat2[!is.na(dat2$Comp_Survival),])
+fit2<-glmmTMB(Bolt_Survival~competitor+Standardize(comp_Size)+(1|Family),family="binomial",data=dat2[!is.na(dat2$Comp_Survival),])
+anova(fit1,fit2) #Competitor is highly significant. 
+
+summary(fit1)
+
+```
+
+#Redoing gm fecundity. 
+```{r}
+fit<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),])
+
+```
 
 
 #GM Fecundity
 ```{r}
 dat2$Comp_Survival<-as.factor(dat2$Comp_Survival)
+
+#Full model. 
+
+
 #IS Family Important
-fit<-glmmTMB(GM_Fecundity~Fern+BlackPathDam+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+Standardize(GM_TotalLeaf_Area)+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),])
-fit1<-glmmTMB(GM_Fecundity~Fern+BlackPathDam+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+Standardize(GM_TotalLeaf_Area),data=dat2[!is.na(dat2$BlackPathDam),])
+fit<-glmmTMB(GM_Fecundity~Fern+BlackPathDam+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),])
+fit1<-glmmTMB(GM_Fecundity~Fern+BlackPathDam+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival,data=dat2[!is.na(dat2$BlackPathDam),])
 anova(fit,fit1) #Family is important in the GM treatment for fecundity. 
 
 #IS black path dam important?
-fit<-glmmTMB(GM_Fecundity~Fern+BlackPathDam+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+Standardize(GM_TotalLeaf_Area)+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),])
-fit1<-glmmTMB(GM_Fecundity~Fern+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+Standardize(GM_TotalLeaf_Area)+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),])
+fit<-glmmTMB(GM_Fecundity~Fern+BlackPathDam+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),])
+fit1<-glmmTMB(GM_Fecundity~Fern+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),])
 anova(fit,fit1) #No
 
 
 #Is white fung dam?
-fit1<-glmmTMB(GM_Fecundity~Fern+WhiteFungLogis+competitor+Standardize(GM_TotalLeaf_Area)+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),])
-fit2<-glmmTMB(GM_Fecundity~Fern+competitor+Standardize(GM_TotalLeaf_Area)+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),])
+fit1<-glmmTMB(GM_Fecundity~Fern+WhiteFungLogis+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),])
+fit2<-glmmTMB(GM_Fecundity~Fern+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),])
 anova(fit2,fit1) #No
 
 #IS Fern important?
-fit2<-glmmTMB(GM_Fecundity~Fern+competitor+Standardize(GM_TotalLeaf_Area)+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),])
-fit3<-glmmTMB(GM_Fecundity~competitor+Standardize(GM_TotalLeaf_Area)+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),])
-
+fit2<-glmmTMB(GM_Fecundity~Fern+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),])
+fit3<-glmmTMB(GM_Fecundity~competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),])
 anova(fit2,fit3) #Yes Fern influenced fecundity. 
-
-#Is Size important?
-fit3<-glmmTMB(GM_Fecundity~Fern+competitor+Standardize(GM_TotalLeaf_Area)+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
-fit4<-glmmTMB(GM_Fecundity~Fern+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
-anova(fit3,fit4) #No Size is not important
 
 #Is competitor important? 
 fit4<-glmmTMB(GM_Fecundity~Fern+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$competitor),])
@@ -407,42 +430,63 @@ anova(fit4,fit5) #Yes the competitor does influence fecundity.
 #Is competitor size (First year) important? 
 fit4<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$comp_Size),])
 fit5<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$comp_Size),])
-anova(fit4,fit5) #No competitor size in the first year is not significant (on the edge)
+anova(fit4,fit5) #Yes competitor size in the first year is significant (on the edge)
 summary(fit4)
 
 #IS comp survival important? 
-fit5<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),])
-fit6<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),])
+fit5<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),])
+fit6<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Standardize(comp_Size)+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),])
 anova(fit5,fit6) #Yes, competitor survival is incredibly important to determien the survival of the focal plant. 
 summary(fit5)
 
-#Is comp size importnat? 
-fit5<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Comp_Survival+CompSizeBolt+(1|Family),data=dat2[!is.na(dat2$CompSizeBolt),])
-fit6<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$CompSizeBolt),])
-anova(fit5,fit6) #Yes, competitor size is also important. 
-
+#Is comp size important (Second year)? 
+fit5<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Standardize(comp_Size)+Comp_Survival+CompSizeBolt+(1|Family),data=dat2[!is.na(dat2$CompSizeBolt),])
+fit6<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$CompSizeBolt),])
+anova(fit5,fit6) #No, competitor size in second year is not important. 
+summary(fit5)
 # Reassessing IS comp survival important? 
-fit5<-glmmTMB(GM_Fecundity~competitor+Standardize(Fern)+Comp_Survival+CompSizeBolt+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),])
-fit6<-glmmTMB(GM_Fecundity~competitor+Standardize(Fern)+CompSizeBolt+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),])
-anova(fit5,fit6) #Using size removes the significance of comp survival. Unsurprising due to how zero inflated it is. I will have to pick and choose one... i chose survival. 
+fit5<-glmmTMB(GM_Fecundity~competitor+Standardize(Fern)+Comp_Survival+CompSizeBolt+Standardize(comp_Size)+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),])
+fit6<-glmmTMB(GM_Fecundity~competitor+Standardize(Fern)+CompSizeBolt+Standardize(comp_Size)+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),])
+anova(fit5,fit6) #Yes competitor survival is still important even with bolt size in the analysis.  
 
 # Reassessing IS comp size important? 
-fit5<-glmmTMB(Standardize(GM_Fecundity)~competitor+Standardize(CompSizeBolt)+(1|Family),data=dat2[!is.na(dat2$CompSizeBolt),])
-fit6<-glmmTMB(Standardize(GM_Fecundity)~competitor+(1|Family),data=dat2[!is.na(dat2$CompSizeBolt),])
-anova(fit5,fit6) 
+fit5<-glmmTMB(Standardize(GM_Fecundity)~competitor+Standardize(CompSizeBolt)+Standardize(comp_Size)+(1|Family),data=dat2[!is.na(dat2$CompSizeBolt),])
+fit6<-glmmTMB(Standardize(GM_Fecundity)~competitor+Standardize(comp_Size)+(1|Family),data=dat2[!is.na(dat2$CompSizeBolt),])
+anova(fit5,fit6) #Yes, without survival competitor is still important, but not with it. I will not include it as significant because it is likely largely just driven by the zeros in the data. 
 summary(fit5)
 
 summary(fit5) #
 #IF your competitor survives, you are more likely to as well. This is like kin selection..
 
 #Reassessing Fern
-fit2<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),])
-fit3<-glmmTMB(Standardize(GM_Fecundity)~competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),])
-anova(fit2,fit3) 
+fit2<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),])
+fit3<-glmmTMB(Standardize(GM_Fecundity)~competitor+Comp_Survival+Standardize(comp_Size)+(1|Family),data=dat2[!is.na(dat2$Fern),])
+anova(fit2,fit3) #Fern is significant. 
+
+#Best model is thus: 
+fit2<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),])
+summary(fit2)
 
 ```
 
 
+#Extra stuff to calculate Standardized SD's. 
+
+plot(residuals(fit))
+qqnorm(residuals(fit))
+plot(residuals(fit,type="pearson"))
+plot(residuals(fit,type="pearson")~fitted(fit))
+
+
+#Coefficients for results
+fit<-glmmTMB(Standardize(GM_TotalLeaf_Area,set.sd=T,3549.252)~Standardize(comp_Size)+Standardize(ThripsDam)+Standardize(BlackPathDam)+(1|Family),data=dat2[!is.na(dat2$comp_Size),])
+summary(fit)
+
+#-0.31502 effect on SD per SD unit. (GM on GM)
+
+GMonGM<-Standardize(dat2$comp_Size)
+GMonGM
+#write.csv(GMonGM,"GM_SD_OnGM.csv")
 
 
 

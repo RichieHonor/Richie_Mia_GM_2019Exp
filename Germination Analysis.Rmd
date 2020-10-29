@@ -1,0 +1,544 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+#Playing around with the genotypes in my project. 
+```{r}
+germ<-read.csv("genotypes_in_my_project.csv")
+head(germ)
+str(germ)
+levels(germ$Date.incubated)
+
+#If i were to put a control up in the greenhouse to control for the effect of the GH, I would only have it on one soil type. 
+
+library(dplyr)
+
+germ %>% filter(Genotype %in% c("MHNAT1-2-0","DSGAR1-3-60", "VSGARO1-1-0", "JWBOY1-1-5", "VRPET2-3-20", "CRSOSO-3-40", "SMITH1-3-80") )
+
+#Based on this graph, I would say that biomass may be a good estimate of fitness, if i could get the dates that the plots were harvested, I could assign fitness values to the genotypes using body mass and the linear regression to seed output. 
+
+plot(germ$seedmass..bag~germ$biomass...bag)
+
+
+```
+
+
+
+#Tidying up the original germination worksheet
+```{r}
+dat<-read.csv("Updated_Germination_Data.csv")
+
+#make character
+dat$Petri.Dish<-as.character(dat$Petri.Dish)
+head(dat)
+
+#make all petridish labels in the same format. plate|genotype|first letter common garden
+
+#abreviate the lables in all labels to contain first letter of common garden.  
+dat$Petri.Dish<-sub("QUBS", "Q", dat$Petri.Dish)
+dat$Petri.Dish<-sub("Vancover", "V",dat$Petri.Dish)
+dat$Petri.Dish<-sub("NorthAm", "N", dat$Petri.Dish)
+dat
+
+ 
+#remove "sequenced?" information (y/n)
+pc<-c()
+for (i in 1:length(dat$Petri.Dish)){
+if(grepl("/",dat$Petri.Dish)[[i]]){
+a<-strsplit(dat$Petri.Dish, "/" )[[i]][1]
+b<-strsplit(dat$Petri.Dish, "/" )[[i]][2]
+c<-strsplit(dat$Petri.Dish, "/" )[[i]][4]
+e<-paste(a,b,c,sep ="|")}
+
+else if(grepl("\\|2",dat$Petri.Dish)[[i]]){
+a<-strsplit(dat$Petri.Dish, "\\|" )[[i]][1]
+b<-strsplit(dat$Petri.Dish, "\\|" )[[i]][2]
+c<-strsplit(dat$Petri.Dish, "\\|" )[[i]][3]
+e<-paste(a,b,c,sep ="|")}
+
+else e<-dat$Petri.Dish[i]
+    pc[i]<-e
+}
+dat$Petri.Dish<-pc
+
+
+#Remove empty spaces
+dat<-filter(dat, !dat$Petri.Dish=="")
+
+#Remove unneeded columns
+dat2<-select(dat,Petri.Dish ,Date.moved, Number.of.seeds.germinated,Number.of.seeds.with.hypocotyl,GA3,notes,Second.Third.Transplant.Date,X..transplanted,X..with.hypocotyl )
+
+
+#rearrange data alphabeticaly by genotype name 
+pd<-c()
+for(i in 1:length(dat$Petri.Dish)){
+a<-strsplit(dat2$Petri.Dish, "|",fixed = T)[[i]][2]
+b<-strsplit(dat2$Petri.Dish, "|",fixed = T)[[i]][3]
+pd[i]<-paste(a,b,sep="|")
+}
+pd
+dat2$alpha<-pd
+
+dat2<-dat2[order(dat2$alpha),]
+
+dat2<-select(dat2,Petri.Dish,Date.moved,Number.of.seeds.germinated,Number.of.seeds.with.hypocotyl,GA3,notes,Second.Third.Transplant.Date,X..transplanted ,X..with.hypocotyl )
+
+#write.csv(dat2, "clean_germination_data.csv")
+
+#going to further clean the data sheet in excel by merging repeats. I will use the following as an index
+
+
+```
+
+
+
+
+
+
+
+
+#Determining number of Available seedlings, accounting for transplant mortality. 
+```{r}
+library(dplyr)
+dat2<-read.csv("Data_Moities/clean_germination_data_2.csv")
+
+#make character
+dat2$Petri.Dish<-as.character(dat2$Petri.Dish)
+
+#isolate genotype in Petridish label
+pc<-c()
+for (i in 1:length(dat2$Petri.Dish)){
+ a<- strsplit(dat2$Petri.Dish, "\\|" )[[i]][2]
+pc[i]<-a
+}
+
+#make genotype a column
+dat2$pc<-as.factor(pc)
+
+#Make a column for total number of seeds moved
+pd<-c()
+for(i in 1:length(dat2$Petri.Dish)){
+  a<-dat2$Total_Transplant_1[i]
+  b<-dat2$Total_Transplant_2[i]
+  c<-dat2$Total_Transplant_3[i]
+  d<-sum(a,b,c,na.rm=T)
+  pd[i]<-d
+}
+
+dat2$total_transplanted<-pd
+
+
+#Accounting for transplant mortality
+ef<-c()
+for( i in 1:length(dat2$total_transplanted)){
+  if(is.na(dat2$mortality[i])){
+    z<-dat2$total_transplanted[i]
+  }
+ else z<-dat2$total_transplanted[i]-dat2$mortality[i]
+  ef[i]<-z
+}
+dat2$total_transplanted<-ef
+
+
+dat2
+
+#determining number germinated seeds so far per genotype
+a<-tapply(dat2$total_transplanted,dat2$pc,sum, simplify = T)
+a
+
+
+#new dataframe with names (n) and seed number (s)
+n<-c()
+s<-c()
+for (i in 1:length(a)){
+  b<-names(a)[i]
+  c<-a[i][[1]]
+  n[i]<-b
+  s[i]<-c
+}
+
+#Making data frame
+total_seed<-data.frame(as.factor(n),s)
+
+total_seed
+#Changing column names
+colnames(total_seed)<-c("Genotype", "Available_Seedlings")
+
+#Adding a new column to specifify the population.  This will allow me to quantify how many of each genotype i have for a potential QST FST analysis. 
+pe<-c()
+for( i in 1:length(total_seed$Genotype)){
+  a<-strsplit(as.character(total_seed$Genotype), "-")[[i]][1]
+  pe[i]<-a
+}
+total_seed$Population<-pe
+total_seed$Population<-gsub("[0-9]+", "", total_seed$Population)
+total_seed$Population<-gsub("KVEDGX", "KVEDG", total_seed$Population)
+total_seed$Population<-as.factor(total_seed$Population)
+
+#Total number of seedlings germinated
+sum(total_seed$Available_Seedlings)
+total_seed$Population
+length(table(total_seed$Population))
+
+#visualizing genotypes with more than 10 seedlings. #potentially 27 populations and 53 genotypes. That is pretty good. 
+above10<-total_seed %>% filter(Available_Seedlings>=10)
+above10<-droplevels(above10)
+
+below10<-total_seed %>% filter(Available_Seedlings<10)
+below10<-droplevels(below10)
+
+
+#Visualizing genotypes with more than 25 seedlings. #12 populations and 19 genotypes.
+above25<-total_seed %>% filter(Available_Seedlings>25)
+above25<-droplevels(above25)
+
+
+#visualizing
+#plot(above10$Available_Seedlings~above10$Genotype)
+#plot(above25$Available_Seedlings~above25$Genotype)
+
+
+#if I have 40 genotypes... that is. 
+
+x=5; y= 25
+
+(x*2*y) + (x*y)+ ( x * 2 * y) + (30)
+#inter   #intra   #Comp cont   #maple control
+
+#I think that I will just fit, if i dont replicate within population. But then what do I do with the extra genotypes? 
+
+```
+
+
+
+
+#Treatment layout using the genotypes WITHOUT pooling genotype.
+```{R}
+#Contructing genotype treatments in which i will have a hole punch control for temporal plasticity. 
+#genotypes with hole punch temporal plasticity control
+above25
+hptcntr<-above25[-c(2,6,10,11,14,15,17,18),]
+
+#removing populations in the hptr control from those I can use in the experiment
+genouse<-filter(above10,!Population %in% above25$Population)
+
+#removing replicated genotypes from genonew 
+genouse2<-genouse[-c(3,6,8),]
+
+
+#merge datasets for total plant i will use. 
+genouse3<-rbind(genouse2,hptcntr)
+#set treatment number and sample size (for the hole punch control)
+genouse3$plant_per_treat<-floor(genouse3$Available_Seedlings/3)
+
+
+remaining<-filter(total_seed,!Genotype %in% genouse3$Genotype)
+
+#Because i am now leaving all individuals until the last year, I do not need to pair the samples between first and second year....? No I should... atleast for those with control because the comparison of gluc in second year with hole punch and gluc in second year without hole punch will be against different competitors. -> but this will only matter in the control treatment. That is the only place i need to do this control treatment to see the effect of holepunching. 
+
+#21 populations; 9 with hole punch control; 
+
+
+
+#determine remainder to transfer (for experiment set-up)
+ggg<-read.csv("intra_treat_design.csv")
+
+ggg$foc<-as.character(ggg$foc)
+genouse3
+filter(genouse3, !Genotype %in% ggg$foc)
+
+```
+
+
+#compete against differnt genotype.
+```{r}
+
+#--------constructing sample data frame and treatment data frame to build on
+#prob
+
+#initiate<-function(genouse3,Genotype,plant_per_treat){
+genouse3$prob<-genouse3$plant_per_treat/sum(genouse3$plant_per_treat)
+#reorder dataframe
+genouse3<-genouse3[order(genouse3$plant_per_treat, decreasing =T),]
+
+#make treat
+samp<-sample(filter(genouse3,!Genotype %in% genouse3$Genotype[1] )$Genotype,genouse3$plant_per_treat[1],replace = F,prob=filter(genouse3,!Genotype %in% genouse3$Genotype[1])$prob)
+#non-random
+#samp<-genouse3$Genotype[2:(genouse3$plant_per_treat[1]+1)]
+
+foc<-rep(genouse3$Genotype[1],genouse3$plant_per_treat[1])
+treat<-data.frame(samp,foc)
+
+#restructuring sample data frame 
+#removing first sample from sample data frame
+
+#(decending order and new names)
+newframe<-genouse3
+newframe$Freq<-newframe$plant_per_treat
+newframe$d<-newframe$Genotype
+
+# Vector to remove one available plant from those that were sampled
+z<-filter(newframe, d %in% samp)
+z$Freq<-z$Freq-1
+
+#vector for those not sampled
+e<-filter(newframe, !d %in% samp)
+
+#reconstruct the original data frame
+newframe<-rbind(e,z)
+
+#making focal sample zero remaining.
+newframe$Freq[1]<-0
+
+#redefine probabilities, such that probabilities with zeros will never be chosen, and
+newframe$prob<-newframe$Freq/sum(newframe$Freq)
+
+#reorder dataframe
+newframe<-newframe[order(newframe$Freq, decreasing =T),]
+
+list(newframe,treat)
+#}
+
+############-------------------Function from scratch---------------------------
+treatmentsamples<-function(newframe){
+  while(sum(newframe$Freq)>1){
+  
+#Vector of Samples from  data frame, but without the focal
+samp<-sample(filter(newframe,!newframe$d %in% newframe$d[1])$d,newframe$Freq[1], replace=F, prob=filter(newframe,!newframe$d %in% newframe$d[1])$prob)
+
+#non-random
+#samp<-newframe$d[2:(newframe$Freq[1]+1)]
+
+
+#Vector of focal genotype
+foc<-rep(newframe$d[1],newframe$Freq[1])
+
+#make new dataframe with the treatment
+d.f<-data.frame(samp,foc)
+
+#build onto previous sample dataframe
+treat<-rbind(treat,d.f)
+
+#making focal sample zero remaining.
+newframe$Freq[1]<-0
+
+# Vector to remove one available plant from those that were sampled
+z<-filter(newframe, d %in% samp)
+z$Freq<-z$Freq-1
+
+#vector for those not sampled
+e<-filter(newframe, !d %in% samp)
+
+#reconstruct the original data frame
+newframe<-rbind(e,z)
+
+#redefine probabilities, such that probabilities with zeros will never be chosen, and
+newframe$prob<-newframe$Freq/sum(newframe$Freq)
+
+#reorder dataframe
+newframe<-newframe[order(newframe$Freq, decreasing =T),]
+  
+#if(sum(newframe$Freq)<1){break}
+  }
+  list(treat,newframe)
+}
+
+#repeating the sampling function untill success
+for(i in 1:100){
+errorcheck<-try({treatmentsamples(newframe)})
+if(is(errorcheck,"try-error")){next}
+else{break}
+errorcheck
+}
+
+
+#number of pots i will need
+#~141 plants.
+sum(genouse3$plant_per_treat)*2+92
+#458 pots for this experiment. 
+
+sum(genouse3$plant_per_treat)+15
+#198 sugar maples ... aim for 400 maybe. 
+intratreatdesign<-errorcheck[1]
+
+intratreatdesign<-as.data.frame(intratreatdesign)
+intratreatdesign$samp<-as.character(intratreatdesign$samp)
+intratreatdesign$foc<-as.character(intratreatdesign$foc)
+
+#intratreatdesign[92,1]<-"?BWPEM1-9-0"
+#intratreatdesign[92,2]<-"VSGARO1-1-0"
+
+#write.csv(intratreatdesign,"intra_treat_design.csv")
+
+
+
+
+
+
+#KVEDG, SMITH, MSMID for the causation experiment.Doesnt matter if they are competing in the experiment because the replicates are the same. (nutrient addition and non-nutrient addition).
+
+
+```
+
+
+
+#Barcode Code for the treatments
+```{r}
+
+
+#make lables for those with the plants to be used in the treatment. 
+#isolating populations used. 
+datdish<-dat2 %>% filter(pc %in% genouse3$Genotype) %>% select(Petri.Dish,total_transplanted,pc,GA3)
+
+datdish<-datdish[order(datdish$pc),]
+
+#making the barcodes
+ad<-c()
+for(i in 1:length(datdish$Petri.Dish)){
+  
+  if(i==1){
+  a<-rep(datdish$Petri.Dish[i],datdish$total_transplanted[i])
+  beg<-1
+  end<-datdish$total_transplanted[i]
+  ad[beg:end]<-a
+  }
+  
+  else{
+  a<-rep(datdish$Petri.Dish[i],datdish$total_transplanted[i])
+  beg<-sum(datdish$total_transplanted[1:i-1]) + 1
+  end<-beg + datdish$total_transplanted[i] 
+  ad[beg:end]<-a
+  }
+}
+
+#need to add in individual lable
+genotype_lables<-ad
+genotype_lables<-paste(genotype_lables,1:length(genotype_lables),sep = "|")
+
+
+genouse3
+#write.csv(genotype_lables,"Final_genotype_lables_GH.csv")
+
+
+```
+
+
+```{r}
+
+#intra treatment designation
+intratreatlables<-rep(1:100,each=2)
+
+intertreatlables2<-rep("inter", 200)
+
+treatmentlables<-c(intratreatlables,intertreatlables2)
+
+#write.csv(treatmentlables,"treatmentlables.csv")
+
+```
+
+
+```{r}
+#----------------------------------NUTRIENT SIDE EXPERIMENT------------------
+#making the nutrient addition barcodes. 
+datdish2<-dat2 %>% filter(pc %in% c("KVEDG1-8-60","MSMID1-2-0","SMITH1-3-80")) %>% select(Petri.Dish,total_transplanted,pc,GA3)
+
+datdish2<-datdish2[order(datdish2$pc),]
+datdish2<-filter(datdish2, total_transplanted>0)
+
+#making the barcodes
+ad<-c()
+for(i in 1:length(datdish2$Petri.Dish)){
+  
+  if(i==1){
+  a<-rep(datdish2$Petri.Dish[i],datdish2$total_transplanted[i])
+  beg<-1
+  end<-datdish2$total_transplanted[i]
+  ad[beg:end]<-a
+  }
+  
+  else{
+  a<-rep(datdish2$Petri.Dish[i],datdish2$total_transplanted[i])
+  beg<-sum(datdish2$total_transplanted[1:i-1]) + 1
+  end<-beg + datdish2$total_transplanted[i] 
+  ad[beg:end]<-a
+  }
+}
+nutriside<-ad
+
+
+
+#----------------------------------ADDITIONAL GENOTYPES TO BE GROWN ALONE-----
+
+#making additional alone treatments for those needed to be grown alone
+
+datdish3prime<-filter(remaining,Available_Seedlings<10)
+datdish3prime<-filter(datdish3prime,Available_Seedlings>1)
+datdish3prime$Population<-as.character(datdish3prime$Population)
+
+#Making dat dish3
+datdish3<-dat2 %>% filter(pc %in% datdish3prime$Genotype) %>% select(Petri.Dish,total_transplanted,pc,GA3)
+
+datdish3<-datdish3 %>% filter(total_transplanted>0)
+
+
+
+#barcode generation
+ad<-c()
+for(i in 1:length(datdish3$Petri.Dish)){
+  
+  if(i==1){
+  a<-rep(datdish3$Petri.Dish[i],datdish3$total_transplanted[i])
+  beg<-1
+  end<-datdish3$total_transplanted[i]
+  ad[beg:end]<-a
+  }
+  
+  else{
+  a<-rep(datdish3$Petri.Dish[i],datdish3$total_transplanted[i])
+  beg<-sum(datdish3$total_transplanted[1:i-1]) + 1
+  end<-beg + datdish3$total_transplanted[i] 
+  ad[beg:end]<-a
+  }
+}
+remaincnt<-ad
+
+
+#-----------------merging these two for barcode generation
+
+additional_barcode<-c(nutriside,remaincnt)
+
+additional_barcode<-paste(additional_barcode,rep("i",length(additional_barcode)),sep="|")
+additional_barcode<-paste(additional_barcode,1:length(additional_barcode),sep="")
+
+#write.csv(additional_barcode,"additional_barcode_GH.csv")
+
+#still must generate lables for the nutrient treatment. 
+
+sum(datdish3prime$Available_Seedlings)-sum(datdish3prime$Available_Seedlings[c(1,3,4,6:10)])
+
+datdish3prime
+```
+
+
+#Generating remaining genotypes.
+```{r}
+datdish
+datdish2
+datdish3
+remaining2<-total_seed %>% filter(!Genotype %in% datdish$pc) %>% filter(!Genotype %in% datdish2$pc) %>% filter(!Genotype %in% datdish3$pc) %>% filter(Available_Seedlings>0)
+
+
+remaining2$Population<-droplevels(remaining2$Population)
+remaining2$Genotype<-droplevels(remaining2$Genotype)
+
+str(remaining2)
+remaining2
+```
+
+
+
+
+
+
+
