@@ -1,0 +1,211 @@
+---
+title: "S1vsS2"
+output: html_document
+---
+
+
+
+#Read in and prep data
+```{r}
+library(ggplot2)
+
+library(glmmTMB)
+library(cowplot)
+library(grid)
+library(gridExtra)
+library(dplyr)
+library(tidyr)
+source("GGPlot_Themes.R")
+
+#read in data
+rm(list=ls())
+dat<-read.csv("DataSynthesis.csv")
+
+#Remove maple controls data from the data set.
+#dat<-dat %>% filter(treatment!="mcnt") %>% droplevels()
+
+#remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
+dat<-dat[!grepl("i",dat$ID,fixed=T),] #Changed this from Sample to ID to get more specific.
+
+
+#Initializing columns to avoid constant error messages. 
+dat$WhiteFungLogis<-NA
+dat$BlackFungLogis<-NA
+```
+
+
+#Generating data frames with summarized leaf data (dat2) and summarized genotype data (dat3)
+```{r}
+
+#Logging data
+dat$FernClean<-dat$Fern
+dat$Fern<-log(dat$Fern+1)
+dat$gluc_Conc<-log(dat$gluc_Conc)
+dat$flav_Conc<-log(dat$flav_Conc)
+dat$ChlorA<-log(dat$ChlorA)
+dat$ThripsDam<-log(dat$ThripsDam+1)
+dat$BlackPathDam<-log(dat$BlackPathDam+1)
+
+
+
+#Creating leaf area vector 
+dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
+
+
+#Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
+dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),RGR1=first(RGR1),FernClean=first(FernClean),ID=first(ID),MapleFinalMass=first(MapleFinalMass),Maple_TotalLeafArea_End=first(Maple_TotalLeafArea_End),
+GM_Fecundity   = first(GM_Fecundity)                                 )
+
+#All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
+dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
+
+deadID<-dead %>% filter(treatment!="mcnt",Tag!="e|JBCHY1-1-50|Q|240") #Here there are 12 putative dead competitors because  ("e|JBCHY1-1-50|Q|240") did not die. 
+#out of a total of 
+dat2 %>% filter(treatment!="mcnt") #508 rows
+
+#What are the frequencies in each treatment?
+
+#Assinging those that died. 
+deadID
+dat2$FirstYearDeath<-c()
+dat2$FirstYearDeath[dat2$Tag %in% deadID$Tag]<-"Died"
+dat2$FirstYearDeath[is.na(dat2$FirstYearDeath)]<-"Alive"
+
+#Making a table to determine the frequencies..
+table(dat2$FirstYearDeath,dat2$treatment)
+table(dat2$FirstYearDeath[dat2$treatment!="mcnt"])
+
+
+
+
+#Determining which are absent from the main experiment.. 
+
+#Removing those with dead competitors from the garlic mustard treatment. ("e|JBCHY1-1-50|Q|240") did not die, we are simply missing the final measurement for it.
+
+dead_competitors<-dead %>% filter(treatment=="gm",Tag!="e|JBCHY1-1-50|Q|240") %>% select(comp_number)
+dead_competitors
+
+#Removing those with dead a petiolata competitors from the analysis. 
+dat2<-dat2 %>% filter(!comp_number %in% dead_competitors$comp_number)
+dat<-dat %>% filter(!comp_number %in% dead_competitors$comp_number)
+
+#Removing dead individuals from the analysis. 
+dat2<-dat2[dat2$FirstYearDeath=="Alive",]
+
+
+#Making maple survival collumn. 
+dat2$Maple_SurvivalY2<-c()
+dat2$Maple_SurvivalY2[is.na(dat2$MapleFinalMass)]<-0 #Converting all those without a final measurement to dead.
+dat2$Maple_SurvivalY2[!is.na(dat2$MapleFinalMass)]<-1 #Anything that is not NA (i.e. has a final measurment, is alive)
+dat2$Maple_SurvivalY2[dat2$Maple_TotalLeafArea_End==0]<-NA#anything that died in the first year is now NA 
+
+#Making a maple survival Y1 collumn
+dat2$Maple_SurvivalY1<-c()
+dat2$Maple_SurvivalY1[dat2$Maple_TotalLeafArea_End==0]<-0 #anything with a value of 0 is dead
+dat2$Maple_SurvivalY1[is.na(dat2$Maple_TotalLeafArea_End)]<-NA #anything with NA is unknown
+dat2$Maple_SurvivalY1[dat2$Maple_SurvivalY2==1]<-1 #Those with an NA will be overwritted if i have a record of their size in year two. 
+dat2$Maple_SurvivalY1[dat2$Maple_TotalLeafArea_End>0]<-1 #anything with a value greater than zero is alive
+
+
+
+#Removing those with dead maples from the analysis
+dat2<-dat2[dat2$Maple_SurvivalY1==1 | is.na(dat2$Maple_SurvivalY1),]
+
+
+#Because of how zero inflated white pathogen damage is, i will use a logistic regression to model it.
+dat2$WhiteFungLogis<-NA
+dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-0
+dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-1
+
+
+  #Function to standardize variables. 
+Standardize<-function(x){
+  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
+}
+
+#Standardizing leaf area. 
+dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
+
+dat2 %>% filter(treatment=="mcnt")
+
+```
+
+
+
+
+#Generating PCA for Glucosinolate, Flavonoid and Chlorophyll
+```{r}
+#######
+#Trying a pca with all three variables.
+#########
+pcaGlucCorFlav<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA)+Standardize(flav_Conc),data=dat2,na.action=na.omit)
+biplot(pcaGlucCorFlav)
+pcaGlucCorFlav
+summary(pcaGlucCorFlav)
+pcaGlucCorFlav
+#Loading to data frame.
+prediction<-as.data.frame(predict(pcaGlucCorFlav))
+
+
+df2<-tibble::rownames_to_column(prediction, "rownumber")
+dat2[df2$rownumber,"PC1AllCGF"]<-df2$PC1
+dat2[df2$rownumber,"PC2All_CF"]<-df2$PC2
+dat2[df2$rownumber,"PC3All_CG"]<-df2$PC3
+
+#PC2 is off diagonal for flav. (Higher values is higher flavonoid:Chlorophyll)
+#PC3 is the off diagonal for glucosinolate.  (Higher values is higher glucosinolate:Chlorophyll)
+
+
+
+```
+
+```{r}
+dat2$CommonG<-c()
+dat2$CommonG[grepl("|N|",dat2$Tag,fixed=T)]<-"S1"
+dat2$CommonG[grepl("|Q|",dat2$Tag,fixed=T)]<-"S2"
+dat2$CommonG[grepl("|V|",dat2$Tag,fixed=T)]<-"V"
+
+# NFamily<-dat2 %>% filter(CommonG=="N") %>% select(Family)
+# 
+# dat2Q<-dat2 %>% filter(CommonG=="Q")
+# 
+# dat2N<-dat2 %>% filter(CommonG=="N")
+# 
+# dat2Q[dat2Q$Family %in% dat2N$Family,]
+# dat2N
+# dat2$PC3All_CG
+
+dat2<-dat2[!is.na(dat2$CommonG),]
+
+
+
+ggplot(dat2)+
+  geom_point(aes(y=PC1AllCGF,x=PC3All_CG,colour=CommonG))+
+plot(dat2$gluc_Conc,dat2$ChlorA)+
+  theme_classic()
+
+ggplot(dat2)+
+  geom_point(aes(y=PC1AllCGF,x=PC2All_CF,colour=CommonG))+
+plot(dat2$gluc_Conc,dat2$ChlorA)+
+  theme_classic()
+
+
+ggplot(dat2)+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=PC1AllCGF,colour=CommonG))+
+plot(dat2$gluc_Conc,dat2$ChlorA)+
+  theme_classic()
+
+
+ggplot(dat2)+
+  geom_point(aes(y=GM_TotalLeaf_Area,x=PC1AllCGF,colour=Maple_TotalLeafArea_End))+
+plot(dat2$gluc_Conc,dat2$ChlorA)+
+  theme_classic()
+
+dat2$Maple_TotalLeafArea_End
+
+fit<-glm(Standardize(GM_TotalLeaf_Area)~PC1AllCGF+Standardize(Maple_TotalLeafArea_End)+BlackPathDam,data=dat2[dat2$treatment=="m",])
+summary(fit)
+```
+
+
+

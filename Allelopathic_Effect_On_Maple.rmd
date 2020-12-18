@@ -498,6 +498,10 @@ summary(fit3)
 #The best model is 
 fit3<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+Standardize(PC1AllCGF)+Standardize(PC3All_CG)+Standardize(MapleDamage), data=MapleModel)
 summary(fit3)
+
+
+
+
 length(residuals(fit3))
 
 plot(residuals(fit3,type="pearson"),fitted(fit3))
@@ -509,6 +513,87 @@ qqnorm(residuals(fit3,type="pearson"))
 
 ```
 
+#Testing raw values
+```{r}
+
+fit3<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+Standardize(ChlorA)+Standardize(MapleDamage), data=MapleModel)
+summary(fit3)
+
+fit3<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+Standardize(gluc_Conc)+Standardize(MapleDamage), data=MapleModel)
+summary(fit3)
+
+fit3<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+Standardize(flav_Conc)+Standardize(MapleDamage), data=MapleModel)
+summary(fit3)
+
+
+source("GGPlot_Themes.R")
+
+glucSlope<-function(x){
+  y=-0.12388  *x+0.01303 #Non significant slope
+  return(y)
+}
+minG<-min(Standardize(MapleModel$gluc_Conc),na.rm = T)
+maxG<-max(Standardize(MapleModel$gluc_Conc),na.rm = T)
+
+chlorSlope<-function(x){
+  y= -0.225025  *x+0.001912   #Non significant slope
+  return(y)
+}
+ 
+minC<-min(Standardize(MapleModel$ChlorA),na.rm = T)
+maxC<-max(Standardize(MapleModel$ChlorA),na.rm = T)
+
+flavSlope<-function(x){
+  y= -0.12052  *x+0.03029   #Non significant slope
+  return(y)
+}
+
+minF<-min(Standardize(MapleModel$flav_Conc),na.rm = T)
+maxF<-max(Standardize(MapleModel$flav_Conc),na.rm = T)
+
+
+
+
+
+a<-ggplot(MapleModel)+
+  geom_point(aes(y=Standardize(Maple_TotalLeafArea_End),x=Standardize(gluc_Conc)),colour="#E69F00")+
+    geom_segment(x=minG,xend=maxG,y=glucSlope(minG),yend=glucSlope(maxG),colour="black",size=1.5)+
+  scale_y_continuous(breaks=seq(-3,5,1))+
+   scale_x_continuous(breaks=seq(-3,3.5,1))+
+  theme_simple_multiCol_First()+
+  ylab(bquote(bold("Total Leaf Area "*(mm^2))))+
+  xlab(bquote(bold("[Total Glucosinolate] (log" (mg/ml)*")")))
+
+
+b<-ggplot(MapleModel)+
+  geom_point(aes(y=Standardize(Maple_TotalLeafArea_End),x=Standardize(flav_Conc)),colour="#E69F00")+
+  geom_segment(x=minC,xend=maxC,y=flavSlope(minF),yend=flavSlope(maxF),colour="black",size=1.5)+
+  scale_y_continuous(breaks=seq(-3,5,1))+
+ scale_x_continuous(breaks=seq(-3,3.5,1))+
+  theme_simple_multiCol()+
+  ylab(bquote(bold("Total Leaf Area "~(mm^2))))+
+  xlab(bquote(bold("[Total Flavonoid] (log"(μg/ml)*")")))
+
+
+c<-ggplot(MapleModel)+
+  geom_point(aes(y=Standardize(Maple_TotalLeafArea_End),x=Standardize(ChlorA)),colour="#E69F00")+
+  geom_segment(x=minC,xend=maxC,y=chlorSlope(minC),yend=chlorSlope(maxC),colour="black",size=1.5)+
+  scale_y_continuous(breaks=seq(-3,5,1))+
+ scale_x_continuous(breaks=seq(-3,3.5,1))+
+  theme_simple_multiCol()+
+  ylab(bquote(bold("Total Leaf Area "~(mm^2))))+
+  xlab(bquote(bold("[Chlorophyll A] (log"(μg/ml)*")")))
+
+plots <- align_plots(a, b,c,align="hv")
+
+
+
+tiff("Maple_Figures/Maple_Inhibition_gluc_flav_Chlor.tiff", units="in", width=15, height=6, res=300)
+plot_grid(plots[[1]],plots[[2]],plots[[3]],ncol=3,rel_widths=c(1,1,1),rel_heights = c(1,1,1),labels = c("a","b","c"),label_fontfamily = "Arial",label_size = 18)
+dev.off()
+
+
+```
 
 #What affects maple performance (Year two)?
 ```{r}
@@ -625,7 +710,7 @@ summary(fit9)
 
 
 
-#Visualizing effect of PC1 nd PC3 on maple performance. 
+#Visualizing effect of PC1 and PC3 on maple performance. 
 ```{r}
 source("GGPlot_Themes.R")
 fit3<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+Standardize(PC1AllCGF)+Standardize(PC3All_CG)+Standardize(MapleDamage), data=MapleModel)
@@ -806,6 +891,15 @@ b<-ggplot(MapleModel)+
   ylab(bquote(bold("Total Leaf Area "~(mm^2))))+
   xlab(bquote(bold("[Chlorophyll A] (log"(μg/ml)*")")))
 
+b<-ggplot(MapleModel)+
+  geom_point(aes(y=Maple_TotalLeafArea_End,x=ChlorA),colour="#E69F00")+
+  geom_segment(x=minC,xend=maxC,y=chlorSlope(minC),yend=chlorSlope(maxC),colour="black",size=1.5)+
+  scale_y_continuous(breaks=seq(0,20000,2500))+
+ scale_x_continuous(breaks=seq(-3,0,0.5))+
+  theme_simple_multiCol()+
+  ylab(bquote(bold("Total Leaf Area "~(mm^2))))+
+  xlab(bquote(bold("[Chlorophyll A] (log"(μg/ml)*")")))
+
 plots <- align_plots(a, b,align="hv")
 
 
@@ -967,6 +1061,11 @@ qqnorm(residuals(fit7)) #looks good.
 
 #Modelling with standardized data to get coefficients.
 fit7<-lmer(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)  +  
+    Standardize(Fern) + Standardize(BlackPathDam) +(1 | Family)+(1|gh_bench)  ,data= MapleModel)
+summary(fit7)
+
+
+fit7<-lmer(Standardize(GM_TotalLeaf_Area) ~ Standardize(Maple_TotalLeafArea_End)  + Standardize(gluc_Conc)  
     Standardize(Fern) + Standardize(BlackPathDam ) +(1 | Family)+(1|gh_bench)  ,data= MapleModel)
 summary(fit7)
 
@@ -989,10 +1088,21 @@ write.csv(MaponGM,"Map_SD_OnGM.csv")
 ```{r}
 
 #Cost of glucosinolates ?
-fit7<-glmmTMB(GM_TotalLeaf_Area ~ Standardize(Maple_TotalLeafArea_End)   +  
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ Standardize(Maple_TotalLeafArea_End)   +  
     ThripsDam + BlackPathDam + (1 | Family) +  
     (1 | gh_bench) + Standardize(GM_Leaf_Area)+gluc_Conc,data=MapleModel)
-summary(fit7) #Gluc conc is significantly positive. 
+AIC(fit7) #Gluc conc is significantly positive. 
+
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ Standardize(Maple_TotalLeafArea_End)   +  
+    ThripsDam + BlackPathDam + (1 | Family) +  
+    (1 | gh_bench) + Standardize(GM_Leaf_Area)+flav_Conc,data=MapleModel)
+AIC(fit7) #Gluc conc is significantly positive. 
+
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ Standardize(Maple_TotalLeafArea_End)   +  
+    ThripsDam + BlackPathDam + (1 | Family) +  
+    (1 | gh_bench) + Standardize(GM_Leaf_Area)+ChlorA,data=MapleModel)
+AIC(fit7) #Gluc conc is significantly positive. 
+
 
 
 #Cost of Flavonoids ?

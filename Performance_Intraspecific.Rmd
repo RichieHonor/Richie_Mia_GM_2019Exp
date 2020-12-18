@@ -232,94 +232,12 @@ summary(fit1)
 ```
 
 
-
-#GM survival
 ```{r}
-dat2$Comp_Survival<-as.factor(dat2$Comp_Survival)
+table(dat2$Comp_Survival,dat2$Bolt_Survival)
 
-
-
-fit<-glmmTMB(Bolt_Survival~Fern+BlackPathDam+WhiteFungLogis+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),],family="binomial")
-
-fit1<-glmmTMB(Bolt_Survival~Fern+WhiteFungLogis+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),],family="binomial")
-anova(fit,fit1) #Model wouldnt fit... dont know 
-
-fit1<-glmmTMB(Bolt_Survival~Fern+WhiteFungLogis+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),],family="binomial")
-fit2<-glmmTMB(Bolt_Survival~Fern+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$WhiteFungLogis),],family="binomial")
-anova(fit2,fit1) #Model wouldnt fit... dont know 
-
-#IS Fern important?
-fit2<-glmmTMB(Bolt_Survival~Fern+competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),],family="binomial")
-fit3<-glmmTMB(Bolt_Survival~competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Fern),],family="binomial")
-
-anova(fit2,fit3) #Model wouldnt fit, dont know
-
-
-
-#Is competitor important? 
-fit4<-glmmTMB(Bolt_Survival~competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$competitor),],family="binomial")
-fit5<-glmmTMB(Bolt_Survival~comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$competitor),],family="binomial")
-anova(fit4,fit5) #Model wouldnt fit dont know.
-
-#Is competitor size important? 
-fit4<-glmmTMB(Bolt_Survival~competitor+comp_Size+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$comp_Size),],family="binomial")
-fit5<-glmmTMB(Bolt_Survival~competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$comp_Size),],family="binomial")
-anova(fit4,fit5) #CModel wouldnt fit dont know 
-
-```
-
-
-
-
-#This is where the model starts to converge for bolt survival in the intraspecific treatment. 
-```{r}
-#IS comp survival important? 
-fit5<-glmmTMB(Bolt_Survival~competitor+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),],family="binomial")
-fit6<-glmmTMB(Bolt_Survival~competitor+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),],family="binomial")
-anova(fit5,fit6) #Yes, competitor survival is incredibly important to determien the survival of the focal plant. 
-
-fit5<-glmmTMB(Bolt_Survival~Comp_Survival+(1|Family),data=dat2[!is.na(dat2$Comp_Survival),],family="binomial")
-summary(fit5)
-
-table(dat2$Bolt_Survival,dat2$Comp_Survival)
-102/(102+11)*100
-11/(102+11)*100
-11/(42+11)*100
-42/(42+11)*100
-
-
-#Is competitor important? 
-fit5<-glmmTMB(Bolt_Survival~competitor+Comp_Survival+(1|Family),family="binomial",data=dat2)
-fit6<-glmmTMB(Bolt_Survival~Comp_Survival+(1|Family),family="binomial",data=dat2)
-anova(fit5,fit6) #No competitor is not important, but it is on the edge of significance. (0.053)
-
-#Is competitor size important? 
-
-fit6<-glmmTMB(Bolt_Survival~Comp_Survival+Standardize(comp_Size)+(1|Family),family="binomial",data=dat2[!is.na(dat2$comp_Size),])
-
-fit7<-glmmTMB(Bolt_Survival~Comp_Survival+(1|Family),family="binomial",data=dat2[!is.na(dat2$comp_Size),])
-anova(fit6,fit7) #No competitor size is not important. 
-
-#Is familly importnat as a random effect? 
-fit7<-glmmTMB(Bolt_Survival~Comp_Survival+(1|Family),family="binomial",data=dat2[!is.na(dat2$comp_Size),])
-fit6<-glmmTMB(Bolt_Survival~Comp_Survival,family="binomial",data=dat2[!is.na(dat2$comp_Size),])
-anova(fit6,fit7) #No, but it is close. 
-summary(fit7)
-
-
-#Best model
-fit5<-glmmTMB(Bolt_Survival~competitor+Comp_Survival+(1|Family),family="binomial",data=dat2)
-summary(fit5)
-
-
-#Is familly importnat as a random effect? 
-fit7<-glmmTMB(Bolt_Survival~Comp_Survival+competitor,family="binomial",data=dat2[!is.na(dat2$comp_Size),])
-fit6<-glmmTMB(Bolt_Survival~Comp_Survival,family="binomial",data=dat2[!is.na(dat2$comp_Size),])
-anova(fit6,fit7) #No, but it is close. 
-summary(fit7)
-
-
-
+102/(11+102)*100
+11/(11+102)*100
+42/(42+11)
 ```
 
 
@@ -383,12 +301,6 @@ fit2<-glmmTMB(Bolt_Survival~competitor+Standardize(comp_Size)+(1|Family),family=
 anova(fit1,fit2) #Competitor is highly significant. 
 
 summary(fit1)
-
-```
-
-#Redoing gm fecundity. 
-```{r}
-fit<-glmmTMB(Standardize(GM_Fecundity)~Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam+competitor+Standardize(comp_Size)+Comp_Survival+(1|Family),data=dat2[!is.na(dat2$BlackPathDam),])
 
 ```
 

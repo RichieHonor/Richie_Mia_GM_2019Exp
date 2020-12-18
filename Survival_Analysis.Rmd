@@ -37,12 +37,12 @@ dat %>% filter(Tag=="b|PDVRT1-20|Q|406")
 #Generating data frames with summarized leaf data (dat2) and summarized genotype data (dat3)
 ```{r}
 
-#Logging data
-dat$Fern<-log(dat$Fern+1)
-dat$gluc_Conc<-log(dat$gluc_Conc)
-dat$flav_Conc<-log(dat$flav_Conc)
-dat$ChlorA<-log(dat$ChlorA)
-dat$ThripsDam<-log(dat$ThripsDam+1)
+ #Logging data
+  dat$Fern<-log(dat$Fern+1)
+  dat$gluc_Conc<-log(dat$gluc_Conc)
+  dat$flav_Conc<-log(dat$flav_Conc)
+  dat$ChlorA<-log(dat$ChlorA)
+ dat$ThripsDam<-log(dat$ThripsDam+1)
 dat$BlackPathDam<-log(dat$BlackPathDam+1)
 
 
@@ -62,7 +62,8 @@ Maple_Died=first(Maple_Died),
 Maple_TotalLeafArea_End=first(Maple_TotalLeafArea_End),
 GM_Fecundity=first(GM_Fecundity),
 MapleFinalMass=first(MapleFinalMass),
-RGR1=first(RGR1)
+RGR1=first(RGR1),
+NumberOfSamples=n()
 )
 
 
@@ -187,14 +188,22 @@ Standardize<-function(x){
 
 
 #Standardizing leaf area. 
-dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
+#dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 
 dat2 %>% filter(treatment!="mcnt")
 ```
 
 
-#Descriptive statistics of year two with competitiors removed. 
-```{r}
+#Descriptive statistics of year 1 with competitiors removed. 
+#```{r}
+
+ConfidenceInt<-function(x){
+  x<-x[!is.na(x)]#remove NA
+  N<-length(x)
+  SE<-sd(x)/sqrt(N) #get Standard Error
+  Conf<-SE*qt(0.975,N-1)# Get confidence intercal
+  return(Conf)
+}
 
 #alliaria year 1
 TreatmentMortality(dat2$Bolt_Survival)
@@ -206,11 +215,42 @@ tapply(dat2$RGR1,dat2$treatment,mean,na.rm=T)*1000000
 tapply(dat2$GM_TotalLeaf_Area,dat2$treatment,mean,na.rm=T)
 tapply(dat2$GM_Fecundity,dat2$treatment,mean,na.rm=T)
 
+tapply(dat2$BlackPathDam,dat2$treatment,mean,na.rm=T)
+tapply(dat2$BlackPathDam,dat2$treatment,ConfidenceInt)
+
+tapply(dat2$ThripsDam,dat2$treatment,mean,na.rm=T)
+tapply(dat2$ThripsDam,dat2$treatment,ConfidenceInt)
+
+tapply(dat2$gluc_Conc,dat2$treatment,mean,na.rm=T)
+tapply(dat2$gluc_Conc,dat2$treatment,ConfidenceInt)
+
+tapply(dat2$flav_Conc,dat2$treatment,mean,na.rm=T)
+tapply(dat2$flav_Conc,dat2$treatment,ConfidenceInt)
+
+tapply(dat2$ChlorA,dat2$treatment,mean,na.rm=T)
+tapply(dat2$ChlorA,dat2$treatment,ConfidenceInt)
+
+tapply(dat2$GM_Leaf_Area,dat2$treatment,mean,na.rm=T)
+tapply(dat2$GM_Leaf_Area,dat2$treatment,ConfidenceInt)
 
 
+tapply(dat2$PC1BoltSize,dat2$treatment,mean,na.rm=T)
+
+length(table(dat$Tag)[table(dat$Tag)>1])
+
+length(table(dat$Tag)[table(dat$Tag)==1])
+dat
+
+length(table(dat$Tag[is.na(dat$Sample)&dat$treatment!="mcnt"])) #number of plants with no samples. 
+
+dat2NoMaple<-dat2 %>% filter(treatment!="mcnt")
+
+dat2NoMaple[is.na(dat2NoMaple$ChlorB),]
+dat2NoMaple[!is.na(dat2NoMaple$ChlorB)&dat2NoMaple$NumberOfSamples==1,]
+dat2NoMaple[!is.na(dat2NoMaple$ChlorB)&dat2NoMaple$NumberOfSamples>1,]
 
 
-```
+#```
 
 
 
@@ -293,11 +333,6 @@ sum(dat2$Bolt_Survival,na.rm = T)/length(dat2$Bolt_Survival[!is.na(dat2$Bolt_Sur
 1-sum(dat2$Bolt_Survival,na.rm = T)/length(dat2$Bolt_Survival[!is.na(dat2$Bolt_Survival)])
 
 
-table(dat2$Bolt_Survival,dat2$treatment)
-table(dat2$FirstYearDeath,dat2$treatment)
-108/(108+57)*100 #Died in alone treatment 65.45
-117/(117+56)*100 #Died in GM treatment 67.63
-120/(120+44)*100 #Died in maple treatment 73.17
 
 table(dat2$Maple_SurvivalY1,dat2$treatment)
 table(dat2$Maple_SurvivalY2,dat2$treatment)
@@ -313,6 +348,8 @@ table(paste(dat2$Row_Field, dat2$Col_Field))
 
 2/165*100
 
+table(dat2$Col_Field,dat2$Row_Field)
+
 ```
 
 
@@ -321,8 +358,6 @@ table(paste(dat2$Row_Field, dat2$Col_Field))
 
 #Survival analysis Updated to include PCA values. (also updated with correlations)
 ```{r}
-
-
 #Maximum model ... is interaction significant?
 fit<-glmmTMB(Bolt_Survival~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Col_Field),data=dat2[!is.na(dat2$Col_Field),],family="binomial")
 
@@ -347,10 +382,6 @@ anova(fit3,fit4) #No.
 anova(fit5,fit2) #Yes
 
 ###Modelling fixed effects 
-#Is leaf area significant?
-fit0.1<-glmmTMB(Bolt_Survival~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+GM_Leaf_Area+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$GM_Leaf_Area),],family="binomial")
-fit1<-glmmTMB(Bolt_Survival~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$GM_Leaf_Area),],family="binomial")
-anova(fit0.1,fit1)# no.
 
 #IS Total Leaf area (first year) significant? 
 
@@ -446,6 +477,12 @@ fit<- glmmTMB(Bolt_Survival ~ treatment + Standardize(PC2All_CF) + Standardize(F
     (1 | Family) + (1 | Row_Field) + treatment:Standardize(PC2All_CF),data=dat2, family="binomial")
 summary(fit)
 
+#Without efcc
+fit<- glmmTMB(Bolt_Survival ~ treatment + Standardize(PC2All_CF) + Standardize(Fern) +  
+    (1 | Family) + (1 | Row_Field) + treatment:Standardize(PC2All_CF),data=dat2[!dat2$Family=="EFCC2",], family="binomial")
+summary(fit)
+
+
 
 #treatment effect: 
 fit<- glmmTMB(Bolt_Survival ~ treatment  + Standardize(Fern) +  
@@ -457,7 +494,7 @@ summary(fit)
 
 exp(0.41)
 
-#b|PDVRT1-20|Q|406 mystery, no column in the field but we hav ebolt survival data on it.
+#b|PDVRT1-20|Q|406 mystery, no column in the field but we have bolt survival data on it.
 ```
 
 
@@ -489,15 +526,23 @@ summary(fitTest)
 
 #probability = 1/3
 
-log(0.5) #-0.693 = log odds
-
-exp(-0.693)/(exp(-0.693)+1)#= probability
-
-1-exp(-0.3)/(exp(-0.3)+1)
-
-1-exp(-0.5)/(exp(-0.5)+1)
 
 
+1-exp(-0.82)/(exp(-0.82)+1)# % reduction in probability
+
+exp(0.3)/(exp(0.3)+1)
+
+exp(0.5)/(exp(0.5)+1)
+
+1-exp(1.1)/(exp(1.1)+1)
+
+exp(1)
+
+
+exp(1.1)/(exp(1.1)+1)
+
+exp(8.54)/(exp(8.54)+1)
+exp(0.36)/(exp(0.36)+1)
 4*0.1
 
 4-4*0.9
@@ -621,14 +666,14 @@ anova(fit10,fit11) #No.
 #The simplest best model is
 
 fit11<-glmmTMB(Standardize(GM_Fecundity)~treatment*Standardize(PC1AllCGF)+Standardize(PC1BoltSize),data=dat2)
-fit11b<-update(fit11,~.-treatment:Standardize(PC1AllCGF))
-anova(fit11,fit11b)
+summary(fit11)
+
+#without efcc
+fit11<-glmmTMB(Standardize(GM_Fecundity)~treatment*Standardize(PC1AllCGF)+Standardize(PC1BoltSize),data=dat2[!dat2$Family=="EFCC2",])
 summary(fit11)
 
 
-  -0.38306+0.37643 #GM slope
- -0.38306+0.72000 #Maple slope
-#The exact same effect was observed for fecundity, which is incredibly wierd and slighly unsettling.
+dat2[!dat2$Family=="EFCC2",]
 
 #treatment effect 
 fit11<-glmmTMB(Standardize(GM_Fecundity)~treatment,data=dat2)
@@ -637,11 +682,22 @@ anova(fit11,fit12)
 summary(fit11)
 
 
-#Bad model for coefficients. 
-fit10<-glmmTMB(Standardize(GM_Fecundity)~treatment*Standardize(PC1AllCGF)+Standardize(PC3All_CG)+Standardize(PC2All_CF)+Standardize(Fern)+Standardize(BlackPathDam)+Standardize(WhiteFungLogis)+Standardize(ThripsDam),data=dat2[!is.na(dat2$ThripsDam),])
-summary(fit10)
+```
+
+#Checking the results of AIC selection
+```{r}
+
+fit11<-glmmTMB(Standardize(GM_Fecundity)~treatment*Standardize(flav_Conc)+Standardize(PC1BoltSize),data=dat2)
+AIC(fit11)
+fit11<-glmmTMB(Standardize(GM_Fecundity)~treatment*Standardize(gluc_Conc)+Standardize(PC1BoltSize),data=dat2)
+AIC(fit11)
+fit11<-glmmTMB(Standardize(GM_Fecundity)~treatment*Standardize(ChlorA)+Standardize(PC1BoltSize),data=dat2)
+AIC(fit11)
 
 ```
+
+
+
 
 
 #Visualization -- The conditional benefit of PC1 (allelopathy)
@@ -650,16 +706,18 @@ source("GGPlot_Themes.R")
 #Is the cost dependent on the treatment? 
 
 aloneSlope<-function(x){
-  y=-0.38306 *x+ -0.35445
+ # y=-0.38505 *x+ -0.35393
+  y=0*x+ -0.35393
   return(y)
 }
 mapleSlope<-function(x){
-  y=(-0.38306 +0.72000)*x-0.35445 -0.19098
+  y=(-0.38505 +0.73142)*x-0.35393 -0.17813
   return(y)
 }
 
 mustardSlope<-function(x){
-  y=(-0.38306 +0.37643)*x-0.35445-0.65962
+  #y=(-0.38505 +0.37816)*x-0.35393-0.65820
+  y=0*x-0.35393-0.65820
   return(y)
 }
 
@@ -675,10 +733,11 @@ maxA<-max(dat2$PC1AllCGFS[dat2$treatment=="a"& !is.na(dat2$GM_Fecundity)],na.rm 
 minG<-min(dat2$PC1AllCGFS[dat2$treatment=="gm"& !is.na(dat2$GM_Fecundity)],na.rm = T)
 maxG<-max(dat2$PC1AllCGFS[dat2$treatment=="gm"& !is.na(dat2$GM_Fecundity)],na.rm = T)
 
-
+datVis<-dat2[dat2$treatment!="mcnt",]
+datVis$GM_TotalLeaf_AreaS<-Standardize(datVis$GM_TotalLeaf_Area)
 #tiff("Selection_Figures/LeafQualityOnFecundity.tiff", units="in", width=8, height=6, res=300)
-FecTiff<-ggplot(dat2)+
-  geom_point(aes(y=Standardize(GM_Fecundity),x=PC1AllCGFS,colour=treatment),size=2)+
+FecTiff<-ggplot(datVis)+
+  geom_point(aes(y=Standardize(GM_Fecundity),x=PC1AllCGFS,colour=treatment,shape=treatment),size=2)+
   geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
     geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
   geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple_multiCol_First()+
@@ -687,15 +746,15 @@ FecTiff<-ggplot(dat2)+
   scale_x_continuous(breaks=seq(-5,5,by=1))+
   scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
 
-Leg<-ggplot(dat2)+
-  geom_point(aes(y=Standardize(GM_Fecundity),x=PC1AllCGFS,colour=treatment),size=2)+
-  geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
-    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
-  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple()+
-  ylab(bquote(bold("Fecundity (σ)")))+xlab("Leaf Quality (σ)")+
-  #scale_y_continuous(breaks=seq(-2,3,by=0.5))+
-  #scale_x_continuous(breaks=seq(-5,5,by=1))+
-  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
+# #Leg<-ggplot(dat2)+
+#   geom_point(aes(y=Standardize(GM_Fecundity),x=PC1AllCGFS,colour=treatment),size=2)+
+#   geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
+#     geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
+#   geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple()+
+#   ylab(bquote(bold("Fecundity (σ)")))+xlab("Leaf Quality (σ)")+
+#   #scale_y_continuous(breaks=seq(-2,3,by=0.5))+
+#   #scale_x_continuous(breaks=seq(-5,5,by=1))+
+#   scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
 
 #dev.off()
 
@@ -704,15 +763,17 @@ FecTiff
 TLATiff
 
 
-
-d<-get_legend(Leg)
+#d<-get_legend(Leg)
 
 plots <- align_plots(TLATiff,FecTiff,align="hv")
+plots
 
 top<-plot_grid(plots[[1]],plots[[2]],ncol=2,rel_widths=c(1,1),rel_heights = c(1,1),labels = c("a","b"),label_fontfamily = "Arial",label_size = 18)
 
-tiff("Selection_Figures/PC1SelectionMulti.tiff", units="in", width=14, height=8, res=300)
-plot_grid(d,top,ncol=1,rel_heights = c(1,3.5))
+top
+
+tiff("Selection_Figures/PC1SelectionMultiNoLegend_NullHyp.tiff", units="in", width=14, height=7, res=300)
+top
 dev.off()
 
 ```
@@ -738,27 +799,12 @@ datFern2<-rbind(datFernGM,datFern[datFern$treatment!="gm",])
 
 datFern2$Bolt_Survival<-as.integer(datFern2$Bolt_Survival)
 
+dat2$Row_Field
 #What is the effect of ferns?
-fit_full1<-glmmTMB(Bolt_Survival~treatment+Standardize(Fern),data=datFern2,family="binomial")
+fit_full1<-glmmTMB(Bolt_Survival~treatment+Standardize(Fern)+Standardize(PC1BoltSize)+(1|Family)+(1|Row_Field),data=datFern2,family="binomial")
 
-fit_full2<-glmmTMB(Bolt_Survival~treatment,data=datFern2,family="binomial")
-anova(fit_full1,fit_full2) #Fern highly significant
-
-#Is treatment significant? 
-fit_full1<-glmmTMB(Bolt_Survival~treatment+Standardize(Fern),data=datFern2,family="binomial")
-
-fit_full2<-glmmTMB(Bolt_Survival~Standardize(Fern),data=datFern2,family="binomial")
-anova(fit_full1,fit_full2) #No. What about if i remove Fern?
-
-#Is treatment significant? 
-fit_full1<-glmmTMB(Bolt_Survival~treatment,data=datFern2,family="binomial")
-
-fit_full2<-glmmTMB(Bolt_Survival~1,data=datFern2,family="binomial")
-anova(fit_full1,fit_full2) #Treatment is less significant if i remove fern from the analysis. Interestingly, fern is a very big predictor of survival. 
-
-
-fit_full2<-glmmTMB(Bolt_Survival~Standardize(Fern),data=datFern2,family="binomial")
-
+fit_full2<-glmmTMB(Bolt_Survival~treatment+Standardize(PC1BoltSize)+(1|Family)++(1|Row_Field),data=datFern2,family="binomial")
+anova(fit_full1,fit_full2) #Fern just significant
 
 #Effect of fern on fecundity
 
@@ -768,16 +814,132 @@ fit_full1<-glmmTMB(Standardize(GM_Fecundity)~treatment+Standardize(Fern),data=da
 fit_full2<-glmmTMB(Standardize(GM_Fecundity)~treatment,data=datFern2)
 anova(fit_full1,fit_full2) 
 
-#What is the effect of Treatment? 
-fit_full2<-glmmTMB(Standardize(GM_Fecundity)~treatment,data=datFern2)
-fit_full3<-glmmTMB(Standardize(GM_Fecundity)~1,data=datFern2)
-anova(fit_full2,fit_full3)
 
-summary(fit_full1)
-summary(fit_full2)
-#Fern not significant here. 
 ```
 
+#Effect on fecundity update with treatment*PCA interactions - Retaining family in analysis.  
+```{r}
+
+dat2$WhiteFungLogis<-as.factor(dat2$WhiteFungLogis)
+#Model selection
+#Maximum model ... is interaction significant?
+fit<-glmmTMB(Standardize(GM_Fecundity)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Family)+(1|Col_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+fit2<-glmmTMB(Standardize(GM_Fecundity)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+fit3<-glmmTMB(Standardize(GM_Fecundity)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+fit4<-glmmTMB(Standardize(GM_Fecundity)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Family),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+fit5<-glmmTMB(Standardize(GM_Fecundity)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Row_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+#IS column in field significant?
+anova(fit,fit4) # No
+
+#IS row in field significant?
+anova(fit2,fit4) #No
+
+#IS gh_bench  significant?
+anova(fit3,fit4) #No.
+
+#IS family  significant?
+anova(fit5,fit2) #No.. fairly close however. 0.057.. GOING TO KEEP IT
+
+###Modeling fixed effects 
+
+#Is Total leaf area (year 1) significant?
+fit0.1<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(RGR1)+Standardize(GM_TotalLeaf_Area)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
+fit1<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
+anova(fit1,fit0.1)# no
+
+#Is RGR significant?
+fit0.1<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$RGR1),])
+fit1<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$RGR1),])
+anova(fit1,fit0.1)# no
+
+#Is Bolt Size?
+fit0.1<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$PC1BoltSize),])
+fit1<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+Standardize(Fern)+BlackPathDam*WhiteFungLogis*ThripsDam,data=dat2[!is.na(dat2$PC1BoltSize),])
+anova(fit1,fit0.1)# Yes.... extremely.
+
+
+fit2<-update(fit0.1,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
+anova(fit0.1,fit2) #Not a significant three way interaction.
+
+fit3<-update(fit2,~.-BlackPathDam:WhiteFungLogis)
+anova(fit3,fit2) #There is a significant two way interaction. Black Path Dam and white fung logis. 
+
+fit4<-update(fit3,~.-BlackPathDam:ThripsDam)
+anova(fit4,fit3)
+#There is not a significant interaction between black path dam and thrips dam. 
+
+fit5<-update(fit4,~.-WhiteFungLogis:ThripsDam)
+anova(fit5,fit4) #There is not a significant whitefung dam and thrips dam interaction. 
+
+#IS the interaction between treatment and PC3All_CG significant?
+fit6<-update(fit5,~.-treatment:PC3All_CG)
+anova(fit6,fit5) #No. 
+
+#IS the interaction between treatment and PC2All_CF significant?
+fit7<-update(fit6,~.-treatment:PC2All_CF)
+anova(fit7,fit6) #No. 
+
+#IS PC3All_CG significant? 
+fit8<-update(fit7,~.-PC3All_CG)
+anova(fit8,fit7) #No 
+
+#IS the interaction between treatment and PC1AllCGF significant?
+fit9<-update(fit8,~.-treatment:PC1AllCGF)
+anova(fit9,fit8) #Yes, the interaction between PC1AllCGF and treatment is significant. p=0.005.. more significant than before. 
+
+#IS  PC2_CFAllCG significant at all?
+fit9<-update(fit8,~.-PC2All_CF)
+anova(fit9,fit8) #No, not it is not significant at all. 
+
+#IS thrips dam significant?
+fit10<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+Standardize(Fern)+BlackPathDam+WhiteFungLogis+ThripsDam,data=dat2[!is.na(dat2$ThripsDam),])
+fit11<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+Standardize(Fern)+BlackPathDam+WhiteFungLogis,data=dat2[!is.na(dat2$ThripsDam),])
+anova(fit10,fit11) #No.
+
+#Is The interaction significant?
+fit11.b<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+Standardize(Fern)+Standardize(BlackPathDam)*WhiteFungLogis,data=dat2[!is.na(dat2$ThripsDam),])
+anova(fit11,fit11.b) #Yes...
+
+
+
+#IS Fern significant?
+fit10<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+Standardize(Fern)+BlackPathDam*WhiteFungLogis,data=dat2[!is.na(dat2$Fern),])
+fit11<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+BlackPathDam*WhiteFungLogis,data=dat2[!is.na(dat2$Fern),])
+anova(fit10,fit11) #No.
+
+#IS interaction significant?
+fit10<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+Standardize(Fern)+BlackPathDam*WhiteFungLogis,data=dat2[!is.na(dat2$Fern),])
+fit11<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*PC1AllCGF+Standardize(Fern)+BlackPathDam+WhiteFungLogis,data=dat2[!is.na(dat2$Fern),])
+anova(fit10,fit11) #Yes
+
+#The simplest best model is
+
+fit11<-glmmTMB(Standardize(GM_Fecundity)~(1|Family)+treatment*Standardize(PC1AllCGF)+Standardize(PC1BoltSize)+Standardize(BlackPathDam)+WhiteFungLogis,data=dat2)
+summary(fit11)
+
+
+
+  -0.38306+0.37643 #GM slope
+ -0.38306+0.72000 #Maple slope
+#The exact same effect was observed for fecundity, which is incredibly wierd and slighly unsettling.
+
+#treatment effect 
+fit11<-glmmTMB(Standardize(GM_Fecundity)~treatment,data=dat2)
+fit12<-glmmTMB(Standardize(GM_Fecundity)~1,data=dat2)
+anova(fit11,fit12)
+summary(fit11)
+
+
+#Bad model for coefficients. 
+fit10<-glmmTMB(Standardize(GM_Fecundity)~treatment*Standardize(PC1AllCGF)+Standardize(PC3All_CG)+Standardize(PC2All_CF)+Standardize(Fern)+Standardize(BlackPathDam)+Standardize(WhiteFungLogis)+Standardize(ThripsDam),data=dat2[!is.na(dat2$ThripsDam),])
+summary(fit10)
+
+```
 #Redoing survival in maple treatment
 ```{r}
 datM<-dat2 %>% filter(treatment=="m")

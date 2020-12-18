@@ -132,14 +132,7 @@ dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
 
 dat2 %>% filter(treatment=="mcnt")
 
-#Ratio of dead in treatment are... Alone: 0.0176
-3/170
 
-#Ratio of dead in treatment are... Alone: 0.0176, GM=0.037, 0.0119
-3/170*100
-7/187*100
-2/167*100
-2/32*100
 ```
 
 #Descriptive statistics... to be used without the logged data. 
@@ -178,6 +171,265 @@ dat2[df2$rownumber,"PC3All_CG"]<-df2$PC3
 
 
 ```
+
+
+
+
+
+```{r}
+table(dat2$Tag)
+
+
+```
+
+#What influences performance (update with PCA model selection) (Redoing estimate without family)? 
+```{r}
+dat2$WhiteFungLogis<-as.factor(dat2$WhiteFungLogis)
+#Modelling random effects.
+fitfull<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+Standardize(Fern)+RGR1+(1|Family)+(1|gh_bench), data=dat2)
+
+fitfull1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+Standardize(Fern)+RGR1+(1|gh_bench), data=dat2)
+
+fitfull2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+Standardize(Fern)+RGR1+(1|Family), data=dat2)
+
+summary(fitfull)
+#Is family important? 
+anova(fitfull,fitfull1) #Marginal
+#Is gh bench important? 
+anova(fitfull,fitfull2) #Yes, gh_bench predicts performance. 
+
+#Modelling fixed effects. 
+
+#IS fern important? 
+  fitfull1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+Standardize(Fern)+RGR1+(1|gh_bench), data=dat2)
+  fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(GM_Leaf_Area)+RGR1+(1|gh_bench), data=dat2)
+  anova(fitfull1,fit2) #No
+
+fit2<-update(fitfull1,~.-ThripsDam:BlackPathDam:WhiteFungLogis)
+anova(fitfull1,fit2) #Not a significant three way interaction.
+
+fit3<-update(fit2,~.-BlackPathDam:WhiteFungLogis)
+anova(fit3,fit2) #There is not a significant two way interaction, 
+
+fit4<-update(fit3,~.-BlackPathDam:ThripsDam)
+anova(fit4,fit3)
+#There is not a significant interaction between black path dam and thrips dam. 
+
+fit5<-update(fit4,~.-WhiteFungLogis:ThripsDam)
+anova(fit5,fit4) #There is not a significant whitefung dam and thrips dam interaction. 
+
+#IS the interaction between treatment and PC3All_CG significant?
+fit6<-update(fit5,~.-treatment:PC3All_CG)
+anova(fit6,fit5) #No. 
+
+#IS the interaction between treatment and PC2All_CF significant?
+fit7<-update(fit6,~.-treatment:PC2All_CF)
+anova(fit7,fit6) #No. 
+
+
+#IS PC3All_CG significant? 
+fit8<-update(fit7,~.-PC3All_CG)
+anova(fit8,fit7) #No. 
+
+#IS PC2All_CF significant? 
+fit9<-update(fit8,~.-PC2All_CF)
+anova(fit9,fit8) #No. 
+
+
+#IS the interaction between treatment and PC1AllCGF significant?
+fit10<-update(fit9,~.-treatment:PC1AllCGF)
+anova(fit10,fit9) #No... but it is marginal. (p=0.054)
+
+#IS thrips dam significant?
+fit11<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPathDam +  WhiteFungLogis + ThripsDam + Standardize(GM_Leaf_Area)  + (1 | gh_bench) + treatment:PC1AllCGF,data=dat2[!is.na(dat2$ThripsDam),])
+fit12<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPathDam +  WhiteFungLogis  + Standardize(GM_Leaf_Area) + (1 | gh_bench) + treatment:PC1AllCGF,data=dat2[!is.na(dat2$ThripsDam),])
+anova(fit11,fit12) #No it is not. (0.08537)
+
+#IS RGR1 significant?
+fit12<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPathDam +  WhiteFungLogis  + Standardize(GM_Leaf_Area) + RGR1 + (1 | gh_bench) + treatment:PC1AllCGF,data=dat2[!is.na(dat2$RGR1),])
+fit13<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPathDam +  WhiteFungLogis  + Standardize(GM_Leaf_Area) + (1 | gh_bench) + treatment:PC1AllCGF,data=dat2[!is.na(dat2$RGR1),])
+anova(fit13,fit12) #No it is not.
+summary(fit12)
+
+#IS the interaction between treatment and PC1AllCGF significant?
+fit13<-glmmTMB(Standardize(GM_TotalLeaf_Area) ~ treatment + PC1AllCGF + BlackPathDam +  WhiteFungLogis  + Standardize(GM_Leaf_Area)  + (1 | gh_bench) + treatment:PC1AllCGF,data=dat2)
+fit14<-update(fit13,~.-treatment:PC1AllCGF)
+anova(fit13,fit14) #Yes it is significant after thrips was removed. ... 0.037067
+
+
+#Is  White Path dam significant
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+BlackPathDam+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$WhiteFungLogis),])
+fit8<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+BlackPathDam+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$WhiteFungLogis),])
+anova(fit6,fit8) #Yes
+
+#Is  Black Path dam significant
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+BlackPathDam+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
+fit8<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
+anova(fit6,fit8) #Yes
+
+#Is interaction significant?. 
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
+fit6b<-update(fit6,~.-treatment:Standardize(PC1AllCGF))
+anova(fit6,fit6b) #yes
+
+#IS RGR Significant?
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+Standardize(RGR1)+(1|gh_bench), data=dat2[!is.na(dat2$RGR1),])
+fit6b<-update(fit6,~.-Standardize(RGR1))
+anova(fit6,fit6b) #no
+
+
+#Is GM_leaf area significant?
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+anova(fit6,fit7)
+
+
+#Is greenhouse significant?
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+anova(fit6,fit7)
+
+
+#Final Model
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!dat2$Family=="EFCC2",])
+summary(fit6)
+dat2[!dat2$Family=="EFCC2",]
+unique(dat2$Family)
+
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(ChlorA)+treatment*Standardize(gluc_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$flav_Conc),])
+
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(ChlorA)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$flav_Conc),])
+anova(fit6,fit7)
+
+fit8<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(gluc_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$flav_Conc),])
+
+fit9<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(flav_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$flav_Conc),])
+anova(fit6,fit8,fit9)
+
+AIC(fit7,fit8)
+
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(ChlorA)+treatment*Standardize(gluc_Conc)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
+
+#Just depends which one i remove from the model first, that one is the significant one because the effect is shared between chlor A and gluc_Conc. 
+
+summary(fit6)
+
+
+
+
+#Treatment effect 
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+(1|Family)+(1|gh_bench), data=dat2)
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+WhiteFungLogis+(1|Family)+(1|gh_bench), data=dat2)
+anova(fit6,fit7)
+
+
+
+```
+
+
+
+
+#Visualization -- The conditional benefit of PC1 (allelopathy)
+```{r}
+source("GGPlot_Themes.R")
+#Is the cost dependent on the treatment? 
+
+aloneSlope<-function(x){
+  #y= 0.07142*x+ 0.34161
+    y= 0*x+ 0.34161
+  return(y)
+}
+mapleSlope<-function(x){
+  y=( 0.07142+0.22952 )*x+0.34161 -0.23701
+  return(y)
+}
+
+mustardSlope<-function(x){
+  #y=( 0.07142+0.03584)*x+0.34161-0.61888#Non significant slope
+    y=0*x+0.34161-0.61888#Non significant slope
+  return(y)
+}
+
+#Standardizing variables.
+dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
+dat2$PC1AllCGFS<-Standardize(dat2$PC1AllCGF)
+
+minM<-min(dat2$PC1AllCGFS[dat2$treatment=="m"],na.rm = T)
+maxM<-max(dat2$PC1AllCGFS[dat2$treatment=="m"],na.rm = T)
+
+minA<-min(dat2$PC1AllCGFS[dat2$treatment=="a"],na.rm = T)
+maxA<-max(dat2$PC1AllCGFS[dat2$treatment=="a"],na.rm = T)
+
+minG<-min(dat2$PC1AllCGFS[dat2$treatment=="gm"],na.rm = T)
+maxG<-max(dat2$PC1AllCGFS[dat2$treatment=="gm"],na.rm = T)
+
+datVis<-dat2[dat2$treatment!="mcnt",]
+TLATiff<-ggplot(datVis)+
+  geom_point(aes(y=GM_TotalLeaf_AreaS,x=PC1AllCGFS,colour=treatment,shape=treatment),size=2)+
+  geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
+    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
+  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple_multiCol_First()+
+  ylab(bquote(bold("Rosette Size (σ)")))+xlab("Leaf Quality (σ)")+
+  scale_y_continuous(breaks=seq(-2,3,by=0.5))+
+  scale_x_continuous(breaks=seq(-5,5,by=1))+
+
+  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
+
+
+TLATiff
+
+
+```
+
+
+
+
+
+#Modelling: Effect of Fern on GM
+```{r}
+#Because there are two garlic mustard individuals per pot, and the unit we are looking at is only replicable at the pot level (fern abundance in a pot) duplicates within the same pot in the garlic mustard treatment need to be removed and averaged to remove pseudoreplication. 
+
+#What i will do is make the competition number the tag for those in the GM treatment. This will have the effect of maintaining the leaf variation, but averaging it over each pot. 
+
+# I will need to use dat2, summarized at the individual level, because we have a single observation at the pot level, not at the leaf level. 
+datFern<-dat2
+datFern$Tag<-as.character(datFern$Tag)
+for(i in 1:length(datFern$Tag)){
+  if(!is.na(datFern$comp_number[i])){
+    datFern$Tag[i]<-datFern$comp_number[i]
+  }
+}
+
+#Averaging pot values in the GM treatment.
+datFernGM<-datFern %>% group_by(Tag) %>% filter(treatment=="gm") %>% summarize_all(~mean(.))
+datFernGM$treatment<-"gm"
+
+#Binding collumns back together. Family should not be used as those in the GM treatment represent the average of two families. 
+datFern2<-rbind(datFernGM,datFern[datFern$treatment!="gm",])
+
+#From Old Model -- all that is important.
+fit_full1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(Fern)+(1|gh_bench),data=datFern2)
+
+summary(fit_full1)
+
+```
+#Fern Statistics 
+```{r}
+
+ConfidenceInt<-function(x){
+  x<-x[!is.na(x)]#remove NA
+  N<-length(x)
+  SE<-sd(x)/sqrt(N) #get Standard Error
+  Conf<-SE*qt(0.975,N-1)# Get confidence intercal
+  return(Conf)
+}
+
+
+tapply(datFern2$FernClean,datFern2$treatment,mean)
+tapply(datFern2$FernClean,datFern2$treatment,ConfidenceInt)
+
+```
+
 
 
 #What influences performance (update with PCA model selection)? 
@@ -270,142 +522,39 @@ fit6b<-update(fit6,~.-Standardize(RGR1))
 anova(fit6,fit6b) #no
 
 
-#Final model with standardized coefficients. 
-fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
+#Is GM_leaf area significant?
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+anova(fit6,fit7)
 
+#Is Family significant?
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|gh_bench), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+anova(fit6,fit7)
 
-summary(fit6)
+#Is greenhouse significant?
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family), data=dat2[!is.na(dat2$GM_Leaf_Area),])
+anova(fit6,fit7)
 
-#Bad Model Thrips for non-significant effect.
-fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(PC2All_CF)+Standardize(PC3All_CG)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+Standardize(RGR1)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
-summary(fit6)
-
-summary(fit)
 
 #Final Model
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+WhiteFungLogis+Standardize(GM_Leaf_Area)+(1|Family)+(1|gh_bench), data=dat2[!is.na(dat2$BlackPathDam),])
+
+
+summary(fit6)
+
+
+
 
 #Treatment effect 
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+(1|Family)+(1|gh_bench), data=dat2)
 fit7<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+WhiteFungLogis+(1|Family)+(1|gh_bench), data=dat2)
 anova(fit6,fit7)
 
-summary(fit6)
 
 
 ```
-
-
-
-#Visualization -- The conditional benefit of PC1 (allelopathy)
-```{r}
-source("GGPlot_Themes.R")
-#Is the cost dependent on the treatment? 
-
-aloneSlope<-function(x){
-  y=0.07136*x+ 0.34158
-  return(y)
-}
-mapleSlope<-function(x){
-  y=(0.07136+0.21534)*x+0.34158 -0.23135
-  return(y)
-}
-
-mustardSlope<-function(x){
-  y=(0.07136+0.02952)*x+0.34158-0.61785#Non significant slope
-  return(y)
-}
-
-#Standardizing variables.
-dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
-dat2$PC1AllCGFS<-Standardize(dat2$PC1AllCGF)
-
-minM<-min(dat2$PC1AllCGFS[dat2$treatment=="m"],na.rm = T)
-maxM<-max(dat2$PC1AllCGFS[dat2$treatment=="m"],na.rm = T)
-
-minA<-min(dat2$PC1AllCGFS[dat2$treatment=="a"],na.rm = T)
-maxA<-max(dat2$PC1AllCGFS[dat2$treatment=="a"],na.rm = T)
-
-minG<-min(dat2$PC1AllCGFS[dat2$treatment=="gm"],na.rm = T)
-maxG<-max(dat2$PC1AllCGFS[dat2$treatment=="gm"],na.rm = T)
-
-
-#tiff("Selection_Figures/LeafQuality.tiff", units="in", width=8, height=6, res=300)
-TLATiff<-ggplot(dat2)+
-  geom_point(aes(y=GM_TotalLeaf_AreaS,x=PC1AllCGFS,colour=treatment),size=2)+
-  geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
-    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
-  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple_multiCol_First()+
-  ylab(bquote(bold("Total Leaf Area (σ)")))+xlab("Leaf Quality (σ)")+
-  scale_y_continuous(breaks=seq(-2,3,by=0.5))+
-  scale_x_continuous(breaks=seq(-5,5,by=1))+
-
-  scale_colour_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
-#dev.off()
-
-```
-
-
-
-
-
-#Modelling: Effect of Fern on GM
-```{r}
-#Because there are two garlic mustard individuals per pot, and the unit we are looking at is only replicable at the pot level (fern abundance in a pot) duplicates within the same pot in the garlic mustard treatment need to be removed and averaged to remove pseudoreplication. 
-
-#What i will do is make the competition number the tag for those in the GM treatment. This will have the effect of maintaining the leaf variation, but averaging it over each pot. 
-
-# I will need to use dat2, summarized at the individual level, because we have a single observation at the pot level, not at the leaf level. 
-datFern<-dat2
-datFern$Tag<-as.character(datFern$Tag)
-for(i in 1:length(datFern$Tag)){
-  if(!is.na(datFern$comp_number[i])){
-    datFern$Tag[i]<-datFern$comp_number[i]
-  }
-}
-
-#Averaging pot values in the GM treatment.
-datFernGM<-datFern %>% group_by(Tag) %>% filter(treatment=="gm") %>% summarize_all(~mean(.))
-datFernGM$treatment<-"gm"
-
-#Binding collumns back together. Family should not be used as those in the GM treatment represent the average of two families. 
-datFern2<-rbind(datFernGM,datFern[datFern$treatment!="gm",])
-
-
-
-
-########
-#Modelling fern effect. 
-fit_full<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+ThripsDam+(1|gh_bench),data=datFern2)
-summary(fit_full) #Thrips dam not significant.
-
-#What is the effect of ferns?
-fit_full1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
-fit_full2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
-anova(fit_full1,fit_full2) #Fern highly significant
-
-summary(fit_full1)
-
-#Treatment effect 
-fit_full1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(BlackPathDam)+WhiteFungLogis+Fern+(1|gh_bench),data=datFern2)
-fit_full2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~Standardize(BlackPathDam)+WhiteFungLogis+Fern+(1|gh_bench),data=datFern2)
-anova(fit_full1,fit_full2) #Treatment highly significant
-
-
-#Modelling to get coefficients
-fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
-
-summary(fit)
-
-#With standardized coefficients
-fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+Standardize(Fern)+Standardize(BlackPathDam)+WhiteFungLogis+(1|gh_bench),data=datFern2)
-summary(fit)
-
-confint(fit)
-
-```
-
-
 
 #Modelling: Fern Negative Binomial
 ```{r}
