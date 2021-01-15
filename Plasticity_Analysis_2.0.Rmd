@@ -153,42 +153,25 @@ dat2$Maple_Survival[dat2$Maple_Died=="Y"]<-0
 dat2<-dat2 %>% select(-Maple_Died)
 ```
 
+```{r}
+#######
+#Trying a pca with all three variables.
+#########
+pcaGlucCor<-prcomp(~Standardize(ChlorA)+Standardize(gluc_Conc),data=dat2,na.action=na.omit)
+biplot(pcaGlucCor)
+pcaGlucCor
+summary(pcaGlucCor)
 
-#Cluster analysis. ... doesnt look great.
+#Loading to data frame.
+prediction<-as.data.frame(predict(pcaGlucCor))
 
+#addings PCs to the data frame. 
+df2<-tibble::rownames_to_column(prediction, "rownumber")
+dat2[df2$rownumber,"PCCG_1"]<-df2$PC1
+dat2[df2$rownumber,"PCCG_2"]<-df2$PC2
 
-#Generating pca with values that are controlled for (gh bench, leaf area, initial size... etc. )
-pcaAll<-prcomp(~resiCalc(gluc_Conc~GM_Leaf_Area+gh_bench,data=dat2)+
-                 resiCalc(ChlorA~GM_Leaf_Area+gh_bench,data=dat2)+
-                 resiCalc(GM_TotalLeaf_Area~gh_bench,data=dat2)+
-               resiCalc(RGR1~gh_bench+GM_Leaf_Len_Initial,data=dat2)+
-                 resiCalc(flav_Conc~GM_Leaf_Area+gh_bench,data=dat2)
-               ,na.action=na.omit)
-
-
-pcaAll
-summary(pcaAll)
-
-#Generating data
-prediction<-as.data.frame(predict(pcaAll))
-
-df<-tibble::rownames_to_column(prediction, "rownumber")
-
-dat2[df$rownumber,"PC1All"]<-df$PC1
-dat2[df$rownumber,"PC2All"]<-df$PC2
-
-ggplot(dat2)+
-  geom_point(aes(y=PC1All,x=PC2All,color=treatment))
-
-#Even with accounting for gh bench and initial size, and leaf size, the clusters are not very distinct.   
-
-
-
-
-
-
-
-
+hist(dat2$PCCG_1)
+```
 
 
 #Generating PCA for Glucosinolate, Flavonoid and Chlorophyll
@@ -329,6 +312,65 @@ Xtract(fit,3.163e+00 )
 
 ```
 
+
+#Glucosinolate genetic variation..... 
+```{r}
+#Raw value test
+fit<-glmmTMB(gluc_Conc~GM_Leaf_Area+as.factor(Family)+(1|gh_bench),data=dat2)
+fit2<-glmmTMB(gluc_Conc~GM_Leaf_Area+(1|gh_bench),data=dat2)
+anova(fit,fit2) #Some significance
+
+#PCA Test
+fit<-glmmTMB(PCCG_2~as.factor(Family),data=dat2)
+fit2<-glmmTMB(PCCG_2~1,data=dat2)
+anova(fit,fit2) #Much more significance. 
+
+#GH_Bench not significant. 
+fit<-glmmTMB(PCCG_2~as.factor(Family)+(1|gh_bench),data=dat2)
+fit2<-glmmTMB(PCCG_2~as.factor(Family),data=dat2)
+anova(fit,fit2) 
+
+
+#Creating data frame for plotting.
+
+#Inserting family column into data frame.
+newframe<-dat2[!is.na(dat2$PCCG_2)&!is.na(dat2$Family),] %>% select(Family)
+
+#Obtaining population means and standard errors around those means, and sample size
+newframe$Estimate<-predict(fit,se.fit=T)$fit
+newframe$SE<-predict(fit,se.fit=T)$se.fit
+newframe$N<-newframe$Family#Adding in extra family column under the name of N because this column will be used to obtain sample size and the original family collumn will be used to give an ID. 
+
+#summarizing the data and obtaining the sample size for each estimate.
+newframe2<-newframe %>% group_by(Family) %>%  summarize(Family=first(Family),N=n(),Estimate=mean(Estimate),SE=mean(SE))
+
+#Adding in confidence intervals
+newframe2$Lower<-qt(0.025,newframe2$N-1)*newframe2$SE
+newframe2$Upper<-qt(0.975,newframe2$N-1)*newframe2$SE
+
+source("GGPlot_Themes.R")
+
+p<-ggplot(newframe2)+
+  geom_point(aes(y=Estimate,x=Family,shape=Family))+
+  geom_linerange(aes(ymin=Lower+Estimate,ymax=Upper+Estimate,x=Family,colour=Family))+
+  ylab("Relative Glucosinolate Investment")+
+  scale_y_continuous(breaks=seq(-1,2,0.1))+
+   scale_shape_manual(values=c(0,1,2,3,4,5,7,8,9,11,12,0,1,2,3,4,5,7,8,9,11,12,4))+
+  theme_simple( )%+replace%     
+  theme(axis.title.y =  element_text(color = "black", size = 12, angle=90,vjust= 0.5,margin=margin(0,5,0,0)),
+      axis.title.x =  element_text(color = "black", size = 12,margin=margin(5,0,0,0)),
+            legend.text = element_text(color = "black", size = 10 ),
+            axis.text.x = element_text(color = "black", size = 8),
+      axis.text.y = element_text(color = "black", size = 10)
+)
+
+
+tiff("Plasticity_Figures/RGI_Investment(PCA_W_Gluc_Chlor_Only).tiff", units="in", width=14, height=8, res=300)
+p
+dev.off
+
+
+```
 
 
 #Gluc Flav variance partition analysis

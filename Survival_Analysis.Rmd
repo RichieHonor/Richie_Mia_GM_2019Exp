@@ -294,7 +294,7 @@ pcaGlucCorFlav<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA)+Standardize(f
 biplot(pcaGlucCorFlav)
 pcaGlucCorFlav
 summary(pcaGlucCorFlav)
-pcaGlucCorFlav
+
 #Loading to data frame.
 prediction<-as.data.frame(predict(pcaGlucCorFlav))
 

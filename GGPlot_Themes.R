@@ -25,7 +25,9 @@ theme_simple<-function(){
       plot.margin = unit(c(1,1,1,1), "cm"),
       
       #Theme of Axis lines
-      axis.line=element_line(colour = "black", size = 1)
+      axis.line=element_line(colour = "black", size = 1),
+      
+      
     )
 }
 

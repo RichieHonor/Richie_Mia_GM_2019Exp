@@ -1,42 +1,53 @@
 ---
-title: "Growth Rate Analysis"
-output: html_notebook
+title: "All Data Synthesis"
+author: "Richard Honor"
+output:
+  html_document:
+    df_print: paged
 ---
 
-This document is to compile the various measurements I have taken, for all genotypes in the competition experiment. The data from the fertilizer experiement is also included in this data set, but is properly integrated with the data pertaining to the fertilizer experiment in the document "FertilizerSynthesis.csv".
+***Goal of Analysis***: To integrate the 11 different data sets I have surrounding *Alliaria petiolata* into a single data frame from which analysis and visualization can take place. 
 
-*Done*
-###File for *initial size of GM and Maples, greenhouse location, treatment and competition number*: **"Data_collection_GH.csv"**. In R/masters_thesis
+***Data structure***: Each of the >600 plants are labeled with a unique number ID. This ID must be matched to the plant's genotype, and the location from which the genotype was obtained from around the world. There are data corresponding to each individual genotype in terms of: leaf chemistry ( up to 12 observations per plant), greenhouse data (e.g, greenhouse bench, initial size measurements), germination data (i.e. treatment with giberrelic acid, germination time), measurements of sugar maple competitors and control sugar maples, *Alliaria petiolata* growth rate data (5 different timed observations per individual), fern abundance in each pot and pathogen abundance on leaves, field location, survival data, and fecundity data. These data are all contained in separate files. 
 
-*Done*
-###File for *germination transplant date, and gibberelic acid treatment*. **clean_germination_data_2.csv**. In R/masters_thesis.
+***Approach***: Each file will be integrated in sequence to an ever growing "master file". For example, after the first two files are integrated, a master file (DataSynthesis.csv) is written with the integrated data. The next data file is then integrated into the master file (DataSynthesis.csv), which is then overwritten. This approach allows me to work on the integration of the data files throughout the thesis as new data files are created. 
 
-*Done*
-###File for *final manual measurement of maple size* **Maple_data.txt**. in Python/Raw_Data.
+#### Files to be integrated
 
-*Done*
-###File for *final manual measurement of Alliaria leaf size* **Leaf_data.txt**. in Python/Final_GM_Data_CompetitionExp.
+* File for *initial size of GM and Maples, greenhouse location, treatment and competition number*: **"Data_collection_GH.csv"**. In R/masters_thesis
 
-###File for *Growth Rate of Alliaria* **All_photo_data.txt**. in Python/python_pics_analysis.
+* File for *germination transplant date, and gibberelic acid treatment*. **clean_germination_data_2.csv**. In R/masters_thesis.
 
-*Done*
-###File for *fern abundance and moss presence* **fern_cover.txt**. in Raw_Data. 
+* File for *final manual measurement of maple size* **Maple_data.txt**. in Python/Raw_Data.
 
-Note for analysis: 
-only record as dead if I have the barcode, because some lost the barcode but did not die. Also, ferns were recorded for only one genotype if they were in the competition treatment, but it applied to both plants in the compeition treatment. 
+* File for *final manual measurement of Alliaria leaf size* **Leaf_data.txt**. in Python/Final_GM_Data_CompetitionExp.
 
-*Done*
-###File for *Pathogen damage* 
+* File for *Growth Rate of Alliaria* **All_photo_data.txt**. in Python/python_pics_analysis.
 
-*Done*
-###File for *Glocosinolate,Flavonoid and Chlorophyll content* **All_UV_Data.txt**. in masters_thesis/UVSpec
+* File for *fern abundance and moss presence* **fern_cover.txt**. 
 
---------------------
---Goal of Analysis is to combine the documents into one master document that can be used to look at the data while considering all variables. 
+* File for *Pathogen damage* **Pathogen_Damage_Manual.csv**
+
+* File for *Glocosinolate,Flavonoid and Chlorophyll content* **All_UV_Data.txt**. in masters_thesis/UVSpec
+
+* File for final leaf area (length and width of each leaf at end of first growing season) **Gm_Final_Leaf_data.txt** 
+
+* File for *Field location and survival* **Data_Moities/Bolt_Field_Data_May132020.csv**. 
+
+* File for *fecundity* **Data_Moities/Fecundity.csv**. 
 
 
-#Incorporate Data_collection_GH_0.csv (treatment, ID, etc.) with Glucosinolate, Flavonoid and chlorophyll data (All_UV_Data.txt).
-```{r}
+**Notes**
+
+* The final data frame and structure can be viewed at the end of the document
+
+* This does not include data from the fertilizer experiment, which is separate from this integrate, and is properly integrated with the data pertaining to the fertilizer experiment in the document "FertilizerSynthesis.csv". 
+
+* All data are now be located in "Data_Moieties"
+
+# Integrating Greenhouse and UV Data. 
+This incorporates treatment, ID and greenhouse location (Data_collection_GH_0.csv) with Glucosinolate, Flavonoid and chlorophyll data (All_UV_Data.txt).
+```{r, results ='hide', message = F}
 library(dplyr)
 library(tidyr)
 
@@ -63,7 +74,8 @@ dat$Tag[grep("G381",dat$Tag)]<-"c|MSMID1-1-20|Q|381"
 
 ```
 
-
+#### Cleaning UV Data
+This function averages the technical replicates
 ```{r}
 #####
 #Spec data prep--------------------------------------
@@ -82,9 +94,8 @@ GF<-CleanData("Data_Moities/All_UV_Data.txt")[[1]]
 ```
 
 
-
-
-#Sample Identification!
+#### Sample Identification!
+Matching unique number ID to the genotype of the individual plant
 ```{r}
 #Using the Tag (fill ID) from the greenhouse data, assign a Tag to the ID numbers in the spec data.
 
@@ -155,8 +166,8 @@ ChlorNoCont[grepl("Feb_13",ChlorNoCont$DataFile),]
 
 ```
 
-#Removing Duplicates and checking for errors. 
-```{r}
+#### Removing duplicated data and checking for errors. 
+```{r, warning = F, message = F, results = 'hide'}
 
 #Searching for those with more replicates than they should have. They should have 2 because each leaf has two technical replicates. For some reason, the same sample is appearing for those that should not have more than 1 sample per leaf (i.e. those not in the fertilizer treatment)
 errors<-gluc %>% group_by(gluc_Sample) %>% summarize(n=n()) %>% filter(n>2)
@@ -167,13 +178,14 @@ errors<-gluc %>% select(gluc_Sample,gluc_DataFile,gluc_Tag,gluc_Conc) %>% right_
 
 
 
-# I went through these errors and could not explain them. I believe these errors were brought about because of poor transcribing during the data collection  process. This is unfortunate, but they must be deleted from the analysis because i an unsure of which sample is the correct sample and which is the transcribing error. This is done in the next chunk.
+# I went through these errors and could not explain them. I believe these errors were brought about because of poor transcribing during the data collection process. This is unfortunate, but they must be deleted from the analysis because i an unsure of which sample is the correct sample and which is the transcribing error. This is done in the next chunk.
 
 ```
 
 
-#Averaging duplicates (i.e. technical replicates) 
-```{r}
+#### Averaging duplicates (i.e. technical replicates) 
+There were two technical replicates for each leaf sample, two samples per leaf, and two leaves sampled per plant. Here they are averaged to the leaf level.
+```{r, results = 'hide',messages=F}
 #Averaging duplicates
 #------
 #gluc
@@ -250,16 +262,14 @@ if(length(All_Wide$Sample)!=length(Average_ChlorNoCont$Sample) |length(All_Wide$
  stop("gluc, flav and chlorophyll samples did not match up after duplicates were averaged.")
 }
 
-
 #removing errors found in the previous chunk. Sample size reduced from 1108 to 1093
 All_Wide<-All_Wide %>% filter(!Tag %in% errors$gluc_Tag)
-
-
 
 ```
 
 
-#--------Taking care of mismatching Tag/ID!!!!
+#### Taking care of mismatching Tag/ID!!!!
+Some ID's have typos which are obvious and can be corrected manually.
 ```{r}
 
 #a273_2_dupl is a|KVEDG1-1-80|Q|273 and shares a number with d|JBCHY1-1-50|Q|273. Because of the a identifier, i am assiging this plant to a|KVEDG1-1-80|Q|273. "da" stands for duplicate A
@@ -298,17 +308,12 @@ All_Wide[All_Wide$Sample=="381_1-Dat_Jan_21_2020_AM.txt",]<-"381_1"
 
 All_Wide[All_Wide$Tag=="381_1",]<-"c|MSMID1-1-20|G381"
 
-
-
-
 ```
 
 
 
-
-#Merging of clean greenhouse data (initial measurements from the greenhouse) and clean UV data with duplicates averaged.
+#### Merging clean greenhouse data with clean UV data (with technical replicate averaged)
 ```{r}
-0.6/18
 #This full join will keep all data from all individuals, whether or not we have glucosinolate and flavonoid data for them. 
 
 Final<-full_join(All_Wide,dat,by="Tag")
@@ -340,12 +345,9 @@ write.csv(Final,"DataSynthesis.csv")
 The output above will be empty if all labels were matched correctly. Else there will be a dataframe containing the samples that were not matched. 
 
 
-
-
-Integrating
-###File for *fern abundance and moss presence* **fern_cover.csv**. in Raw_Data.
-
-```{r}
+# Integrating for *fern abundance and moss presence* 
+The file **fern_cover.csv** will be integrated with the data frame just constructed.
+```{r, warning=F}
 #Clear Environment. 
 rm(list=ls())
 library(dplyr)
@@ -402,8 +404,9 @@ write.csv(final,"DataSynthesis.csv")
 
 
 
-Removing Runs from dec 8 and 9. These runs were performed before the evaporation step was integrated into the protocol. Also, glucosinolate and flavonoid data from Jan 30 PM, Jan 31 AM and Jan 31 PM will be removed. These runs were performed on a different plate as the old plate was becomming quite stained. These runs had very low pools with much more variance, and thus the glucosinolate and flavonoid values need to be removed as the data is not reliable.The chlorophyll data for these runs is, however, okay because the chlorophyll samples were performed on the same plate. In Mabels run on feb 3 2020 AM, she added twice the amount of stain by mistake.(I.e. final samples were 300ul instead of 200, beause she added 100ul of CHCOOH and ALCL3 instead of 50ul of each). For this reason flavonoids will be removed from this run. 
-```{r}
+# Removing UV spec Runs from dec 8 and 9. 
+These runs were performed before the evaporation step was integrated into the protocol. Also, glucosinolate and flavonoid data from Jan 30 PM, Jan 31 AM and Jan 31 PM will be removed. These runs were performed on a different plate as the old plate was becomming quite stained. These runs had very low pools with much more variance, and thus the glucosinolate and flavonoid values need to be removed as the data is not reliable.The chlorophyll data for these runs is, however, okay because the chlorophyll samples were performed on the same plate. In Mabels run on feb 3 2020 AM, she added twice the amount of stain by mistake.(I.e. final samples were 300ul instead of 200, beause she added 100ul of CHCOOH and ALCL3 instead of 50ul of each). For this reason flavonoids will be removed from this run. 
+```{r, results = 'hide', warning = F,fig.show='hide'}
 rm(list=ls())
 library(dplyr)
 dat<-read.csv("DataSynthesis.csv",stringsAsFactors = F)
@@ -476,10 +479,11 @@ write.csv(dat,"DataSynthesis.csv")
 
 
 
-###File for *final manual measurement of Alliaria leaf size*
+# Integreating pathogen damage and final body mass of alliaria petiolata
+The files below are integrated with the master synthesis file. 
 **Pathogen_Damage_Manual.csv** is the data file containing the holepunched leaf data, along with pathogen damage. 
 **Gm_Final_Leaf_data.txt** is the data pertaining to the rest of the leaves. 
-```{r}
+```{r, results = 'hide'}
 #This file contains the length and width of every leaf in the competition treatment that did not have a whole punch. This data has a complementary set of photos of each leaf that was holepunched, along with the length and width of each holepunched leaf. This, together, can be used to determine how leaf size affects secondary compound production, but can also be amalgamated into a final biomass measurement. 
 
 #Clear Environment. 
@@ -660,16 +664,9 @@ write.csv(final,"DataSynthesis.csv")
 
 
 
-
-###File for *Growth Rate of Alliaria* 
-```{r}
-#This is integrated in GrowthRate_Analysis.rmd
-```
-
-
-
-##Insert Final Maple biomass and Data on the Control Maples - both initial and final measurements. 
-```{r}
+# Integrating maple biomass data.
+The final maple biomass data for the experimental maples, and the  initial and final maple control data will be integrated with the master file.Data are stored in: Data_Moities/Maple_data.txt and Data_Moities/Data_collection_GH.csv.
+```{r, results = 'hide'}
 rm(list=ls())
 library(dplyr)
 #------------------------------
@@ -769,8 +766,9 @@ write.csv(Final,"DataSynthesis.csv")
 
 ```
 
-#Insert Germination date and germination treatment. 
-```{r}
+# Integrating Germination date and germination treatment. 
+Found in Data_Moities/clean_germination_data_2.csv.
+```{r, results='hide'}
 rm(list=ls())
 #Read in germination data
 dat<-read.csv("Data_Moities/clean_germination_data_2.csv",stringsAsFactors = F)
@@ -802,7 +800,8 @@ write.csv(master,"DataSynthesis.csv")
 ```
 
 
-#Insert Genotype location (longitude and lattitude).
+# Integrating Genotype location (longitude and lattitude).
+Found in "Data_Moities/S0_population_info.csv".
 ```{r}
 rm(list=ls())
 
@@ -841,8 +840,9 @@ write.csv(Final,"DataSynthesis.csv")
 
 ```
 
-#Insert mortality data. 
-```{r}
+# Integrating mortality data. 
+Found in "Data_Moities/Bolt_Field_Data_May132020.csv"
+```{r, results ='hide', message = F}
 rm(list=ls())
 
 field<-read.csv("Data_Moities/Bolt_Field_Data_May132020.csv",stringsAsFactors = F)
@@ -983,9 +983,9 @@ dat<-left_join(dat,field,by="ID")
 write.csv(dat,"DataSynthesis.csv")
 ```
 
-#Adding growth Rate Data
-Growth rate data were organised under "GrowthRate_Analysis.rmd".
-```{r}
+# Integrating growth rate data
+Growth rate data were organized in the "GrowthRate_Analysis.rmd". There I summarized the growth rate measurements into relative growth rate parameters which are to be used for data analysis. (integrating data in "Data_Moities/RGR_Dat.csv").
+```{r,results ='hide', message = F}
 rm(list=ls())
 
 #Reading in data
@@ -1015,12 +1015,8 @@ write.csv(final,"DataSynthesis.csv")
 
 
 
-
-
-
-Integrating
-###Adding in fern data for the maple controls
-
+# Integrating fern data for the maple controls
+Found in Data_Moities/fern_cover.csv". 
 ```{r}
 #Clear Environment. 
 rm(list=ls())
@@ -1074,8 +1070,10 @@ write.csv(final,"DataSynthesis.csv")
 ```
 
 
+# Integrating fecundity data 
+found in "Data_Moities/Fecundity.csv".
+```{r,results = 'hide', message =F, fig.show='hide'}
 
-```{r}
 library(dplyr)
 #Loading master file
 dat<-read.csv("DataSynthesis.csv")
@@ -1141,30 +1139,10 @@ dat<-dat %>% left_join(fec)
 
 write.csv(dat,"DataSynthesis.csv")
 
-
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# Final output
+```{r, warning=F}
+dat
+str(dat)
+```
 

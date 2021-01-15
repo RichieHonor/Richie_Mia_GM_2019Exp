@@ -155,7 +155,7 @@ pcaGlucCorFlav<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA)+Standardize(f
 biplot(pcaGlucCorFlav)
 pcaGlucCorFlav
 summary(pcaGlucCorFlav)
-pcaGlucCorFlav
+
 #Loading to data frame.
 prediction<-as.data.frame(predict(pcaGlucCorFlav))
 
@@ -176,11 +176,6 @@ dat2[df2$rownumber,"PC3All_CG"]<-df2$PC3
 
 
 
-```{r}
-table(dat2$Tag)
-
-
-```
 
 #What influences performance (update with PCA model selection) (Redoing estimate without family)? 
 ```{r}

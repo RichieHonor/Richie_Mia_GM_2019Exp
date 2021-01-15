@@ -8,7 +8,6 @@ output: html_document
 ```{r}
 library(ggplot2)
 library(glmmTMB)
-#library(tidyr)
 library(cowplot)
 library(grid)
 library(gridExtra)
@@ -19,8 +18,6 @@ source("GGPlot_Themes.R")
 rm(list=ls())
 dat<-read.csv("DataSynthesis.csv")
 
-#Remove maple controls data from the data set.
-#dat<-dat %>% filter(treatment!="mcnt") %>% droplevels()
 
 #remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
 dat<-dat[!grepl("i",dat$ID,fixed=T),]
@@ -30,7 +27,11 @@ dat<-dat[!grepl("i",dat$ID,fixed=T),]
 dat$WhiteFungLogis<-NA
 dat$BlackFungLogis<-NA
 
-dat %>% filter(Tag=="b|PDVRT1-20|Q|406")
+#Function to standardize variables. 
+Standardize<-function(x){
+  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
+}
+
 ```
 
 
@@ -45,12 +46,8 @@ dat %>% filter(Tag=="b|PDVRT1-20|Q|406")
  dat$ThripsDam<-log(dat$ThripsDam+1)
 dat$BlackPathDam<-log(dat$BlackPathDam+1)
 
-#Removing one of the fitness measurements that was negative. 
-#dat$GM_Fecundity[dat$GM_Fecundity==-0.04]<-NA
-
 #Creating leaf area vector 
 dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
-
 
 #Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
 dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),
@@ -75,29 +72,25 @@ Maple_TotalLeafArea_End=first(Maple_TotalLeafArea_End),
 MapleDamage=mean(Maple_Damage_End)
 )
 
-
 #All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
 dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
 
 deadID<-dead %>% filter(treatment!="mcnt",Tag!="e|JBCHY1-1-50|Q|240") #Here there are 12 putative dead competitors because  ("e|JBCHY1-1-50|Q|240") did not die. 
 
-
-#What are the frequencies in each treatment?
-#Assinging those that died. 
+#Creating a collumn for those that survived (1) or died (2) in the greenhouse
 dat2$GreenhouseSurvival<-c()
 dat2$GreenhouseSurvival[dat2$Tag %in% deadID$Tag]<-0
 dat2$GreenhouseSurvival[is.na(dat2$GreenhouseSurvival)]<-1
 
 
-
-#Because of how zero inflated white pathogen damage is, i will use a logistic regression to model it.
+#Creating a column to model white pathogen presence (1= present on leaf)
 dat2$WhiteFungLogis<-NA
 dat2$WhiteFungLogis[dat2$WhiteFungDam==0]<-0
 dat2$WhiteFungLogis[dat2$WhiteFungDam>0]<-1
 dat2$WhiteFungLogis<-as.factor(dat2$WhiteFungLogis)
 
 
-#Creating Survival Data.1 = survived, 0= dead.
+#Creating column to indivate whether bolts survived in the field or not (1 = survived, 0 = died).
 dat2$Bolt_Survival<-c()
 dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"]<-0
 dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt!="Dead"]<-1
@@ -107,14 +100,15 @@ dat2$Bolt_Survival[dat2$treatment=="mcnt"]<-NA #those that dies in year 1 are NA
 dat2$Bolt_Survival[dat2$treatment=="mcnt"]<-NA #Maple controls are NA
 
 
-#Creating Maple Survival Data.
+#Creating a column to indicate wheter maples survived in year 2 or not.
 dat2$Maple_SurvivalY2<-c()
 dat2$Maple_SurvivalY2[is.na(dat2$MapleFinalMass)]<-0 #Converting all those without a final measurement to dead.
 dat2$Maple_SurvivalY2[!is.na(dat2$MapleFinalMass)]<-1 #Anything that is not NA (i.e. has a final measurment, is alive)
 dat2$Maple_SurvivalY2[dat2$Maple_TotalLeafArea_End==0]<-NA #anything that died in the first year is overwritten as NA 
 dat2$Maple_SurvivalY2[!dat2$treatment %in% c("mcnt","m")]<-NA
 
-#Making a maple survival Y1 collumn
+
+#Creating a column to indicate whether maples survived in year 1 or not.
 dat2$Maple_SurvivalY1<-c()
 dat2$Maple_SurvivalY1[dat2$Maple_TotalLeafArea_End==0]<-0 #anything with a value of 0 is dead
 dat2$Maple_SurvivalY1[is.na(dat2$Maple_TotalLeafArea_End)]<-NA #anything with NA is unknown
@@ -130,36 +124,20 @@ dat2$Maple_SurvivalY1[dat2$Tag=="e|CBMCK1-1-0|N|49"]<-0
 
 #Removing dead individuals and dead competitors from the analysis. 
 ```{r}
-#Making a table to determine the frequencies..
-
 
 #Removing those with dead competitors from the garlic mustard treatment. ("e|JBCHY1-1-50|Q|240") did not die, we are simply missing the final measurement for it.
-
 dead_competitors<-dead %>% filter(treatment=="gm",Tag!="e|JBCHY1-1-50|Q|240") %>% select(comp_number)
 
 #Removing those with dead competitors from the analysis. 
 dat2<-dat2 %>% filter(!comp_number %in% dead_competitors$comp_number)
 dat<-dat %>% filter(!comp_number %in% dead_competitors$comp_number)
 
-
 #Removing dead individuals from the analysis. 
 dat2<-dat2[dat2$GreenhouseSurvival==1,]
-
 
 #Removing those with dead maples from the analysis
 dat2<-dat2[dat2$Maple_SurvivalY1==1 | is.na(dat2$Maple_SurvivalY1),]
 
-
-  #Function to standardize variables. 
-Standardize<-function(x){
-  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T)
-}
-
-
-#Standardizing leaf area. 
-#dat2$GM_Leaf_Area<-Standardize(dat2$GM_Leaf_Area)
-
-dat2 %>% filter(treatment!="mcnt")
 ```
 
 #Generating PCA for Glucosinolate, Flavonoid and Chlorophyll
@@ -171,7 +149,7 @@ pcaGlucCorFlav<-prcomp(~Standardize(gluc_Conc)+Standardize(ChlorA)+Standardize(f
 biplot(pcaGlucCorFlav)
 pcaGlucCorFlav
 summary(pcaGlucCorFlav)
-pcaGlucCorFlav
+
 #Loading to data frame.
 prediction<-as.data.frame(predict(pcaGlucCorFlav))
 
@@ -182,19 +160,18 @@ dat2[df2$rownumber,"PC2All_CF"]<-df2$PC2
 dat2[df2$rownumber,"PC3All_CG"]<-df2$PC3
 ```
 
-
 #Generating PCA for Glucosinolate and Chlorophyll
 ```{r}
 #######
-#Trying a pca with all three variables.
+#Trying a pca with all two variables, glucosinolate and chlorophyll.
 #########
-pcaGlucCorFlav<-prcomp(~Standardize(ChlorA)+Standardize(gluc_Conc),data=dat2,na.action=na.omit)
-biplot(pcaGlucCorFlav)
-pcaGlucCorFlav
-summary(pcaGlucCorFlav)
-pcaGlucCorFlav
+pcaGlucCor<-prcomp(~Standardize(ChlorA)+Standardize(gluc_Conc),data=dat2,na.action=na.omit)
+biplot(pcaGlucCor)
+pcaGlucCor
+summary(pcaGlucCor)
+
 #Loading to data frame.
-prediction<-as.data.frame(predict(pcaGlucCorFlav))
+prediction<-as.data.frame(predict(pcaGlucCor))
 
 #addings PCs to the data frame. 
 df2<-tibble::rownames_to_column(prediction, "rownumber")
@@ -218,30 +195,25 @@ dat2$GM_Leaf_Number_Bolt<-as.numeric(dat2$GM_Leaf_Number_Bolt)
 dat2$Larg_Leaf_Len_Bolt<-as.numeric(dat2$Larg_Leaf_Len_Bolt)
 dat2$Larg_Leaf_Wid_Bolt<-as.numeric(dat2$Larg_Leaf_Wid_Bolt)
 
-
+#Performing principal component analysis
 pca<-prcomp(~GM_StemHeight_Bolt+GM_Leaf_Number_Bolt+Larg_Leaf_Len_Bolt+Larg_Leaf_Wid_Bolt,data=dat2,scale.=T,na.action=na.omit)
 summary(pca)
-pca
 
+#Assignign PCA bolt size data to the main data frame from analysis
 prediction<-as.data.frame(predict(pca))
-
 df<-tibble::rownames_to_column(prediction, "rownumber")
-
 dat2[df$rownumber,"PC1BoltSize"]<-df$PC1
 ```
 
 
-#Maple PCA 
+#PCA of Initial maple size
 ```{r}
 #Creating a maple data frame
 Maple<-dat2[dat2$treatment=="m"|dat2$treatment=="mcnt",]
 
-Maple[is.na(Maple$Maple_StemHeight_End),]
-
-#b|EFCC2-4-80|Q|144 and f|JBCHY1-1-50|Q|247,e|CBMCK1-1-0|N|49, e|JWBOY-2-80|Q|264 are simply not in the datafile. Nothing to do there - they will be deleted from the analyis. These genotypes are either dead, or we missed them when conducting the sampling.
+#b|EFCC2-4-80|Q|144 and f|JBCHY1-1-50|Q|247,e|CBMCK1-1-0|N|49, e|JWBOY-2-80|Q|264 are simply not in the datafile. Nothing to do there - they will be deleted from the analysis. These genotypes are either dead, or we missed them when conducting the sampling.
 Maple<-Maple[!is.na(Maple$Maple_StemHeight_End),]
 Maple$treatment<-factor(Maple$treatment,levels = c("m","mcnt"))
-
 
 #Selecting variables to use in the PCA (All initial and final maple measurements which could indicate performance)
 PCAMaple<-Maple %>% select(maple_height_0,maple_leaf_length_0,maple_leaves_0,Maple_StemHeight_End,Maple_LeafNum_End,Maple_TotalLeafArea_End)
@@ -249,15 +221,8 @@ PCAMaple<-Maple %>% select(maple_height_0,maple_leaf_length_0,maple_leaves_0,Map
 #Standardizing all variables.
 PCAMaple<-data.frame(apply(PCAMaple,2,Standardize))
 
-#---------------
-#Performing model 
-#---------------
-
-#Model with everything
+#Performing PCA model of initial maple size
 pcaModelTotal<-prcomp(PCAMaple)
-
-
-#40% of the variation in the data is explained in the first PCA. 
 summary(pcaModelTotal)
 pcaModelTotal
 
@@ -267,25 +232,19 @@ plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_height_0)
 plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_leaf_length_0)
 plot(predict(pcaModelTotal)[,1]~PCAMaple$maple_leaves_0)
 
-#Adding in PC1 vales from the pca. This will be used to control for initial maple size in my experiment. 
+#Adding in PC1 values of initial maple size to main maple data frame.
 Maple$PC1Tot<-predict(pcaModelTotal)[,1]
 
-#Removing maple controls (to be used in models that do not include controls) 
+#Creating a new data frame without maple controls (to be used in models that do not include maple treatment as a variable.) 
 MapleModel<-Maple %>% filter(treatment=="m")
-
-
 ```
-
-
-
-
-
-
 
 
 #What influences performance? 
 ```{r}
+#Making fungal damage a factor for analyses
 dat2$WhiteFungLogis<-as.factor(dat2$WhiteFungLogis)
+
 #Modelling random effects.
 fitfull<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PC1AllCGF+treatment*PC2All_CF+treatment*PC3All_CG+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(Fern)+RGR1+(1|Family)+(1|gh_bench), data=dat2)
 
@@ -298,6 +257,7 @@ summary(fitfull)
 anova(fitfull,fitfull1) #No
 #Is gh bench important? 
 anova(fitfull,fitfull2) #Yes, gh_bench predicts performance. 
+
 
 #Modelling fixed effects. 
 
@@ -379,7 +339,7 @@ fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+St
 fit6<-glmmTMB(log(GM_TotalLeaf_Area)~treatment*Standardize(PC1AllCGF)+Standardize(BlackPathDam)+Fern+(1|gh_bench),  data=dat2)
 
 
-
+#AIC Analysis
 fit<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(gluc_Conc)+Standardize(BlackPathDam)+Fern+(1|gh_bench),  data=dat2[!is.na(dat2$PC1AllCGF),])
 fit1<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(flav_Conc)+Standardize(BlackPathDam)+Fern+(1|gh_bench),  data=dat2[!is.na(dat2$PC1AllCGF),])
 fit2<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*Standardize(ChlorA)+Standardize(BlackPathDam)+Fern+(1|gh_bench),  data=dat2[!is.na(dat2$PC1AllCGF),])
