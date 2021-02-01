@@ -1,0 +1,101 @@
+---
+title: "Dale_Help"
+output: html_document
+---
+
+
+
+```{r}
+library(dplyr)
+library(tidyr)
+library(mgcv)
+library(ggplot2)
+
+######
+#Robs code
+######
+dat<-read.csv("LythrumDisplay2008.csv")
+
+Days<-names(dat)[grep("d[0-9]",names(dat))] # Vector of names
+
+Flwr<-dat %>% gather(all_of(Days),key="RelDay",value="OpFlwr") # Rearrange
+
+Flwr$RelDay<-as.numeric(gsub("d","",Flwr$RelDay)) # Remove 'd' from day
+
+Flwr$AbsDay<-Flwr$RelDay+Flwr$Start # Add absolute day
+Flwr$CumFlwr<-ave(Flwr$OpFlwr,Flwr$Num,FUN=cumsum) # Calculate cumulative N flowers
+
+
+
+####
+#Function
+####
+
+PredictDay<-function(Num,days=c(0:125)){
+  Mod1<-gam(OpFlwr~s(AbsDay),data=Flwr[Flwr$Num==Num,]) #Fitting Gam model.
+  PredDay<-predict(Mod1,newdata=data.frame(AbsDay=c(0:125))) #Predicting data over all days.
+  PredDay[PredDay<0]<-0 #Changing negative values to zero.
+return(PredDay)
+}
+
+
+####
+#For loop trouble shooting 
+####
+
+Individual_ID<-unique(Flwr$Num) 
+Individual_ID #See here, there are missing numbers in the Num column, so we cant just use the length. This explains why the loop failed on the sixth iteration, because there is no Num = 6 in the data. Instead we need to use this individual_ID vector to subset for the Individual numbers that are actually in the data set.
+
+
+#The loop initially stopped at individual #187. so i am going to remove that ID from the Individual ID Vector. IT looks like you (really) dont have enough data for this one... it is all NA.
+Flwr[Flwr$Num==187,] 
+
+#Removing number 154 from the ID list 
+Individual_ID<-Individual_ID[Individual_ID!=187]
+
+#The same thing happened at Individual 440 so i will remove that individual as well. 
+Flwr[Flwr$Num==440,] #Both of these faulty IDs have all AbsDay values as NA, which explains why they arent working.
+
+#Removing number 440 from the ID list 
+Individual_ID<-Individual_ID[Individual_ID!=440]
+
+
+
+
+####
+#For loop that now works  
+####
+
+Days<-c()
+Individual<-c()
+Flowers<-c()
+count=0
+for( j in 1:length(Individual_ID)){
+    count=count+1
+  Flowers<-append(Flowers,PredictDay(Num=Individual_ID[j]))#Here use j to subset each individual in the individual ID vector. 
+  Individual<-append(Individual,rep(Individual_ID[j], times=length(0:125))) #Here to identify the individual, we also need to subset the Individual_ID vector instead. 
+  Days<-append(Days,0:125)
+}
+count #Now the loop worked and you have 386 individual growth rates in total (2 did not have enough data and were removed).
+
+
+
+####
+#Different Data Formats and Visualization 
+####
+
+
+#Putting growth rates into "long" format - this is good for plotting and other things depending on what you want.
+Mating.Matrix.Data_Long<-data.frame(Flowers,Individual,Days)
+
+#For example, here i am showing the growth rate for all IDs that are <5 (too many get cluttered).
+ggplot(Mating.Matrix.Data_Long[Mating.Matrix.Data_Long$Individual<5,])+
+  geom_line(aes(x=Days,y=Flowers,colour=as.factor(Individual)))+
+  theme_classic()
+
+
+#To convert the data to wide format, the original code we tried now works (after converting the flower data)
+Mating.Matrix.Data_Wide<-Mating.Matrix.Data_Long %>% pivot_wider(names_from = Days,values_from = Flowers)
+
+```
+

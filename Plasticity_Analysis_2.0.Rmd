@@ -4,6 +4,8 @@ author: "Richard Honor"
 date: "04/06/2020"
 output: html_document
 ---
+
+
 #Read in and prep data
 ```{r}
 library(ggplot2)
@@ -139,6 +141,7 @@ return(Standardize(newDF[,2]))
 
 
 #Creating Survival Data.1 = survived, 0= dead.
+dat2$Bolt_Survival<-c()
 dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"]<-0
 dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt!="Dead"]<-1
 
@@ -147,16 +150,17 @@ dat2$Bolt_Survival[dat2$GM_StemHeight_Bolt=="Dead"&!is.na(dat2$GM_Fecundity)]<-1
 
 
 #Creating Maple Survival Data.1 = survived, 0= dead.
+dat2$Maple_Survival<-c()
 dat2$Maple_Died<-as.character(dat2$Maple_Died)
 dat2$Maple_Survival[dat2$Maple_Died!="Y"]<-1
 dat2$Maple_Survival[dat2$Maple_Died=="Y"]<-0
 dat2<-dat2 %>% select(-Maple_Died)
 ```
 
+
+#Pca of glucosinolate and chlorophyll 
 ```{r}
-#######
-#Trying a pca with all three variables.
-#########
+#Running PCA
 pcaGlucCor<-prcomp(~Standardize(ChlorA)+Standardize(gluc_Conc),data=dat2,na.action=na.omit)
 biplot(pcaGlucCor)
 pcaGlucCor

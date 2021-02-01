@@ -1,0 +1,10 @@
+x,y,name,.ggraph.orig_index,circular,.ggraph.index
+8,22,PC1Tot,1,FALSE,1
+7.5,21,PCCG_1,2,FALSE,2
+10,22,MapleDamage,3,FALSE,3
+10.5,21,PCCG_2,4,FALSE,4
+9,20,Maple_TotalLeafArea_EndS,5,FALSE,5
+8,16,BlackPathDamS,6,FALSE,6
+9,16,Fern,7,FALSE,7
+10,16,gh_bench2,8,FALSE,8
+9,18,GM_TotalLeaf_AreaS,9,FALSE,9
