@@ -1,0 +1,8 @@
+x,y,name,.ggraph.orig_index,circular,.ggraph.index,name2
+8.75,22,PC1Tot,1,FALSE,1,Transplant Size
+8.25,21,PCCG_1S,2,FALSE,2,General Investment
+9.25,22,MapleDamage,3,FALSE,3,Leaf Damage
+9.75,21,PCCG_2S,4,FALSE,4,Relative Investment
+9,16,FernS,7,FALSE,7,Fern
+9,20,Maple_TotalLeafArea_EndS,5,FALSE,5,A. saccharum TLA
+9,18,Bolt_SurvivalMS,9,FALSE,9,Relative Survival
