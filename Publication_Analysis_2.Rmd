@@ -596,6 +596,14 @@ fit<- glmmTMB(Bolt_Survival ~ treatment + Standardize(Fern) +
     (1 | Family) + (1 | Row_Field) ,data=dat2, family="binomial")
 summary(fit)
 
+#Is treatment significant? 
+fit<- glmmTMB(Bolt_Survival ~ treatment + Standardize(Fern) +  
+    (1 | Family) + (1 | Row_Field) ,data=dat2, family="binomial")
+
+fit2<- glmmTMB(Bolt_Survival ~ Standardize(Fern) +  
+    (1 | Family) + (1 | Row_Field) ,data=dat2, family="binomial")
+anova(fit,fit2) # No it is not. .......
+
 
 Link=function(x){
   a=exp(x)/(1+exp(x))
@@ -963,7 +971,7 @@ indirect_PCCG_2 := B2 * B3
 
 fit<-sem(MapleFormula_1_1,data=MapleModel)
 
-summary(fit,standardize=T)
+summary(fit,standardize=T)[[1]]
 
 
 #Permutation tests.
