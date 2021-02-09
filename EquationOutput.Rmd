@@ -1,0 +1,105 @@
+---
+title: "EquationOutput"
+output: html_document
+---
+
+```{r}
+#Function to standardize variables. 
+Standardize<-function(x,meanSTD=F,SupplyDatStat=NULL){
+  
+  if(is.null(SupplyDatStat)){
+
+      if(meanSTD==T){
+            standard<-(x/mean(x,na.rm=T))
+      }
+      else{  standard<-(x-mean(x,na.rm=T))/sd(x,na.rm=T) }
+  }
+  
+  
+  else{ #SupplyDatStat allows the statistic from the entire population to be used as weighing measure to express values relative to the entire population and not just in a treatment. 
+    
+      if(meanSTD==T){
+            standard<-(x/mean(SupplyDatStat,na.rm=T))
+      }
+      else{  standard<-(x-mean(x,na.rm=T))/sd(SupplyDatStat,na.rm=T) }
+  }
+    
+
+
+  return(standard)
+}
+```
+
+
+
+```{r}
+library(equatiomatic)
+
+eq<-read.csv("CleanData.csv")
+
+eq$RosetteSize<-Standardize(eq$GM_TotalLeaf_Area,meanSTD=T)
+eq$PC1<-Standardize(eq$PCCG_1)
+eq$PC2<-Standardize(eq$PCCG_2)
+eq$Fern<-Standardize(eq$Fern)
+eq$X.Campestris<-Standardize(eq$BlackPathDam)
+eq$Bench<-eq$gh_bench
+eq$Survival<-eq$Bolt_Survival
+eq$Fecundity<-eq$GM_FecundityMS
+eq$BoltSize<-eq$PC1BoltSize
+eq$TotalFitness<-eq$GM_Fecundity2MS
+eq$TLA<-eq$Maple_TotalLeafArea_End
+eq$ShootMass<-eq$MapleFinalMass
+eq$TransplantSize<-eq$MapleFinalMass #THESE ARE NOT RIGHT
+eq$LeafDamage<-eq$MapleFinalMass#THESE ARE NOT RIGHT
+
+eq$treatment<-as.factor(eq$treatment)
+levels(eq$treatment)<-c("alone" ,   "intra" ,  "inter"  ,  "mcnt")
+
+#Remove random effects 
+
+#This wont work because the estimate will not be correct without the random effects inserted. 
+
+#rosette size
+fit<-lm(RosetteSize~treatment*PC1+Fern+X.Campestris,  data=eq)#+bench
+
+extract_eq(fit,use_coefs = F,wrap = T)
+
+#Survival
+fit<- glm(Survival ~ treatment + Fern ,data=eq, family="binomial")#(1|Family)+(1|Row_Field)
+
+extract_eq(fit,use_coefs = F,wrap = T)
+
+
+#Fecundity
+fit<- lm(Fecundity ~ treatment  ,data=eq)#No random
+extract_eq(fit,use_coefs = F,wrap = T)
+
+fit<- lm(Fecundity ~ BoltSize  ,data=eq) #No random
+extract_eq(fit,use_coefs = F,wrap = T)
+
+#Total fitness
+fit<-lm(TotalFitness~treatment,data=eq)#(1|Family)+(1|Row_Field)
+extract_eq(fit,use_coefs = F,wrap = T)
+
+fit<-lm(TotalFitness~BoltSize,data=eq)#no random
+extract_eq(fit,use_coefs = F,wrap = T)
+
+#Total fitness
+fit<-lm(TotalFitness~treatment,data=eq)#(1|Family)+(1|Row_Field)
+extract_eq(fit,use_coefs = F,wrap = T)
+
+fit<-lm(TotalFitness~BoltSize,data=eq)#no random
+extract_eq(fit,use_coefs = F,wrap = T)
+
+
+#Maple year 1
+fit<-lm(TLA~TransplantSize+PC1+PC2+LeafDamage, data=eq)
+extract_eq(fit,use_coefs = F,wrap = T)
+
+#Maple year 2
+fit<-lm(ShootMass~TransplantSize+RosetteSize, data=eq)
+extract_eq(fit,use_coefs = F,wrap = T)
+
+
+```
+

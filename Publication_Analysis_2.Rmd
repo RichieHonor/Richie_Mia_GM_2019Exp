@@ -184,6 +184,8 @@ dat2[df2$rownumber,"PCCG_1"]<-df2$PC1
 dat2[df2$rownumber,"PCCG_2"]<-df2$PC2
 
 hist(dat2$PCCG_1)
+
+
 ```
 
 #PCA of GM SIZE in the second year. 
@@ -242,6 +244,8 @@ Maple$PC1Tot<-predict(pcaModelTotal)[,1]
 
 #Creating a new data frame without maple controls (to be used in models that do not include maple treatment as a variable.) 
 MapleModel<-Maple %>% filter(treatment=="m")
+
+#write.csv(dat2,"CleanData.csv")
 ```
 
 
@@ -339,7 +343,16 @@ hist(residuals(fit6),breaks=20)
 #-0.08329 BPD
 Standardize(GM_TotalLeaf_Area,meanSTD = T)
 
+#Extracting equation
+fit6<-glm(GM_TotalLeaf_Area~treatment*PCCG_1+Fern+BlackPathDam+(1|gh_bench),  data=dat2)
+
+fit<-lm(GM_TotalLeaf_Area~treatment*PCCG_1+Fern+BlackPathDam+(1|gh_bench),  data=dat2)
+
+extract_eq(fit6)
+
 ```
+
+
 
 #### Reassessing perfromance analysis with leaf size residuals
 ```{r}
@@ -388,22 +401,21 @@ output
 
 ```
 
-
-
-#### Fecundity analysis redone with log data (Supplementary)
+#### Fecundity analysis without bolt size 
+Without bolt size is better because bolt size accounts for variation i do not want accounted for. It messes up the treatment effects uneccesairily. 
 ```{r}
 #Maximum model ... 
-fit<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Family)+(1|Col_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+fit<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Col_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
 
-fit2<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+fit2<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
 
-fit3<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+fit3<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
 
-fit4<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Family),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+fit4<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
 
-fit5<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize)+(1|Row_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+fit5<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Row_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
 
-fit6<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+fit6<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
 
 #IS column in field significant?
 anova(fit,fit4) # No
@@ -415,19 +427,19 @@ anova(fit2,fit4) #No
 anova(fit3,fit4) #No.
 
 #IS family  significant?
-anova(fit5,fit2) #No, 0.06
+anova(fit5,fit2) #No, p=1..
 
 ###Modelling fixed effects 
 
 #IS Black Path  dam significant?
-fit1<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$BlackPathDam),])
-fit2<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$BlackPathDam),])
+fit1<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1),data=dat2[!is.na(dat2$BlackPathDam),])
+fit2<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1),data=dat2[!is.na(dat2$BlackPathDam),])
 anova(fit1,fit2) #No
 
 
 #IS Fern significant?
-fit2<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$Fern),])
-fit3<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$Fern),])
+fit2<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1),data=dat2[!is.na(dat2$Fern),])
+fit3<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1),data=dat2[!is.na(dat2$Fern),])
 anova(fit2,fit3) #No
 
 
@@ -436,26 +448,22 @@ anova(fit2,fit3) #No
 ###
 
 #Is RGR significant?
-fit3<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$RGR1),])
-fit4<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$RGR1),])
-anova(fit3,fit4) # Yes.......
+fit3<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1),data=dat2[!is.na(dat2$RGR1),])
+fit4<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area),data=dat2[!is.na(dat2$RGR1),])
+anova(fit3,fit4) # No (but p = 0.051 so leaving it in for now)
 
 
 #Is Total leaf area (year 1) significant?
-fit3<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
-fit4<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
+fit3<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
+fit4<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(RGR1),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
 anova(fit3,fit4) #No
 
-#Is bolt size?
-fit4<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$PC1BoltSize),])
-fit5<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(RGR1),data=dat2[!is.na(dat2$PC1BoltSize),])
-anova(fit4,fit5)# Yes it is.
 
 
 ###
 # Testing leaf treats now
 ###
-fit5<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2)
+fit5<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(RGR1),data=dat2)
 
 
 #IS the interaction between treatment and PCCG_2 significant?
@@ -471,11 +479,10 @@ fit8<-update(fit7,~.-treatment:PCCG_1)
 anova(fit8,fit7) #No. 
 
 #IS PCCG_1 significant at all?
- fit10<-glmmTMB(log(GM_Fecundity) ~ treatment + PCCG_1 + Standardize(RGR1) +  
-    Standardize(PC1BoltSize),data=dat2[!is.na(dat2$PCCG_1),])
-  fit11<-glmmTMB(log(GM_Fecundity) ~ treatment  + Standardize(RGR1) +  
-    Standardize(PC1BoltSize),data=dat2[!is.na(dat2$PCCG_1),])
-anova(fit11,fit10) #No. 
+ fit10<-glmmTMB(log(GM_Fecundity) ~ treatment + PCCG_1 + Standardize(RGR1) ,data=dat2[!is.na(dat2$PCCG_1),])
+  fit11<-glmmTMB(log(GM_Fecundity) ~ treatment  + Standardize(RGR1) ,data=dat2[!is.na(dat2$PCCG_1),])
+anova(fit11,fit10) #No.... p = 0.059
+
 
 #IS treatment significant at all?
  fit10<-glmmTMB(log(GM_Fecundity) ~ treatment +  Standardize(RGR1) +  
@@ -486,38 +493,55 @@ anova(fit11,fit10) #Yes. treatment is significant
 
 
 #IS RGR1 still significant? 
-fit11<-glmmTMB(log(GM_Fecundity)~treatment+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$RGR1),])
-fit12<-glmmTMB(log(GM_Fecundity)~treatment+Standardize(PC1BoltSize),data=dat2[!is.na(dat2$RGR1),])
-anova(fit11, fit12) # No
+fit11<-glmmTMB(log(GM_Fecundity)~treatment+Standardize(RGR1),data=dat2[!is.na(dat2$RGR1),])
+fit12<-glmmTMB(log(GM_Fecundity)~treatment,data=dat2[!is.na(dat2$RGR1),])
+anova(fit11, fit12) # No... but close. p = 0.06
 
+#Best model
+fit12<-glmmTMB(log(GM_Fecundity)~treatment,data=dat2)
 
-
-#Best model is: 
-fit12<-glmmTMB(log(GM_Fecundity)~treatment+Standardize(PC1BoltSize),data=dat2)
 summary(fit12)
 
+#Best model
+fit12<-glmmTMB(GM_FecundityMS~treatment,data=dat2)
+summary(fit12)
+
+#Selection differential bolt size
+fit12<-glmmTMB(GM_FecundityMS~Standardize(PC1BoltSize),data=dat2)
+
+summary(fit12)
 ```
+
 
 #### Permutation test using relative fitness of gm fecundity. 
 ```{r}
 dat2$GM_FecundityMS<-Standardize(dat2$GM_Fecundity,meanSTD = T)
-dat2$PC1BoltSizeS<-Standardize(dat2$PC1BoltSize)
-
-fit12<-lm(GM_FecundityMS~treatment+PC1BoltSizeS,data=dat2)
+fit12<-lm(GM_FecundityMS~treatment,data=dat2)
 
 summary(fit12)
 
-library(PermutateR)
+source("/Users/richardhonor/Documents/PermutateR/R/permTest_LR.R")
+source("/Users/richardhonor/Documents/PermutateR/R/permTest_LR_int.R")
+source("/Users/richardhonor/Documents/PermutateR/R/permTest_Contrast.R")
+
+source("/Users/richardhonor/Documents/PermutateR/R/model_extract.R")
+source("/Users/richardhonor/Documents/PermutateR/R/new_data.R")
 
 #Perm test for treatment
 Fec_Treat_Perm<-permTest_Contrast(fit12,c("(Intercept)","treatmentgm" ,"treatmentm"),c("treatment"),"t value",10000)
-
-
-#Perm test for bolt size
-Fec_Bolt_Perm<-permTest_Contrast(fit12,c("PC1BoltSizeS"),c("PC1BoltSizeS"),"t value",10000)
-
 Fec_Treat_Perm
-Fec_Bolt_Perm
+
+#Perm test leaf traits. 
+fit<-lm(GM_FecundityMS~treatment+PCCG_1,data=dat2)
+fit<-lm(GM_FecundityMS~treatment+PCCG_2,data=dat2)
+
+#Perm test for PCCG_1
+Fec_Treat_Perm<-permTest_LR(fit,"PCCG_1","F",10000)
+Fec_Treat_Perm #Not even close now. 
+
+Fec_Treat_Perm<-permTest_LR(fit,"PCCG_2","F",10000)
+Fec_Treat_Perm #Not even close now. 
+
 
 ```
 
@@ -666,10 +690,243 @@ output<-permTest_LR_int(fit, "treatment:PCCG_1","PCCG_1","Chisq",3000,OutputData
 
 
 
+
+#Total fitness analysis -- testing fit of model objects
+```{r}
+####
+#Testing model fit
+####
+
+datPlot<-dat2[!is.na(dat2$GM_Fecundity2)&!is.na(dat2$PCCG_1)&!is.na(dat2$Fern)&!is.na(dat2$BlackPathDam)&!is.na(dat2$RGR1)&!is.na(dat2$PC1BoltSize),]
+
+fit<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2)
+hist(residuals(fit),breaks=20)
+plot(residuals(fit)~fitted(fit))
+plot(fitted(fit),log(datPlot$GM_Fecundity2+1))+abline(a=0,b=1) #This is actually a pretty good model. 
+shapiro.test(residuals(fit)) #The fit is not that bad. 
+
+#
+fit<-glmmTMB(GM_Fecundity2~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2,family=nbinom2)
+hist(residuals(fit),breaks=20)
+plot(residuals(fit)~fitted(fit))
+plot(fitted(fit),log(datPlot$GM_Fecundity2+1))+abline(a=0,b=1) #This is not a great fit. 
+shapiro.test(residuals(fit)) #The fit is not that bad. 
+
+
+fit<-glmmTMB(GM_Fecundity2~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2,family=tweedie)
+hist(residuals(fit),breaks=20)
+plot(residuals(fit)~fitted(fit))
+plot(fitted(fit),log(datPlot$GM_Fecundity2+1))+abline(a=0,b=1) #This is also not great.
+
+
+fit<-glm(GM_Fecundity2~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2,family=tweedie(link.power = 0, var.power = 2))
+hist(residuals(fit),breaks=20)
+plot(residuals(fit)~fitted(fit))
+plot(fitted(fit),log(datPlot$GM_Fecundity2+1))+abline(a=0,b=1) #This is also not great.
+
+library(statmod)
+library(tweedie)
+
+tweedie.profile( GM_Fecundity2~1, p.vec=seq(1.1, 5, length=30),data=dat2)
+
+
+
+fit<-glm(GM_Fecundity2~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2,family=tweedie(link.power = 0, var.power = 2))
+
+fit<-glm(GM_Fecundity2~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+Standardize(PC1BoltSize),data=dat2,family=tweedie(link.power = 0, var.power = 1.906897))
+hist(residuals(fit),breaks=20)
+plot(residuals(fit)~fitted(fit))
+plot(fitted(fit),log(datPlot$GM_Fecundity2+1))+abline(a=0,b=1) #This is also not a great model. 
+```
+
+#Total fitness analysis --modelling without bolt size excluded. 
+Random effects that were not significant  are now significant. 
+```{r}
+####
+#Modelling
+####
+
+#Maximum model ... 
+fit<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Col_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+fit2<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+fit3<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|gh_bench),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+fit4<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+fit5<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Row_Field),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+fit6<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1),data=dat2[!is.na(dat2$Col_Field|dat2$Row_Field),])
+
+#IS column in field significant?
+anova(fit,fit4) # No
+
+#IS row in field significant?
+anova(fit2,fit4) #Yes - this is now highly significant with bolt size excluded.
+
+#IS gh_bench  significant?
+anova(fit3,fit4) #No.
+
+#IS family  significant?
+anova(fit5,fit2) #Yes, family is now highly significant. 
+
+###Modelling fixed effects 
+
+#IS Black Path  dam significant?
+fit1<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$BlackPathDam),])
+fit2<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$BlackPathDam),])
+anova(fit1,fit2) #No
+
+
+#IS Fern significant?
+fit2<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$Fern),])
+fit3<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$Fern),])
+anova(fit2,fit3) #No but close p = 0.09
+
+
+###
+# Testing life history data now
+###
+
+#Is RGR significant?
+fit3<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$RGR1),])
+fit4<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$RGR1),])
+anova(fit3,fit4) # no
+
+
+#Is Total leaf area (year 1) significant?
+fit3<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+Standardize(GM_TotalLeaf_Area)+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
+fit4<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$GM_TotalLeaf_Area),])
+anova(fit3,fit4) #No
+
+
+
+###
+# Testing leaf treats now
+###
+fit5<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_1+treatment*PCCG_2+(1|Family)+(1|Row_Field),data=dat2)
+
+
+#IS the interaction between treatment and PCCG_2 significant?
+fit6<-update(fit5,~.-treatment:PCCG_2)
+anova(fit6,fit5) #No. 
+
+#IS the interaction between treatment and PCCG_1 significant?
+
+fit7<-update(fit6,~.-treatment:PCCG_1)
+anova(fit7,fit6) #No 
+
+#IS PCCG_2 significant? 
+fit8<-update(fit7,~.-PCCG_2)
+anova(fit8,fit7) #No
+
+#Is pccg_1 significant?
+fit12<-glmmTMB(log(GM_Fecundity2+1)~treatment+PCCG_1+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$PCCG_1),])
+fit13<-glmmTMB(log(GM_Fecundity2+1)~treatment +(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$PCCG_1),])
+anova(fit12,fit13)# No.
+
+
+#Is treatment significant?
+fit12<-glmmTMB(log(GM_Fecundity2+1)~treatment+(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$PCCG_1),])
+fit13<-glmmTMB(log(GM_Fecundity2+1)~1 +(1|Family)+(1|Row_Field),data=dat2[!is.na(dat2$PCCG_1),])
+anova(fit12,fit13)# Yes, treatment is highly significant and that is all. 
+
+summary(fit12) # Competition with maple and GM affecting total fitness relatively equally. 
+
+
+#Reassessing PCCG_2 without random effect of family
+fit12<-glmmTMB(log(GM_Fecundity2+1)~treatment*PCCG_2+(1|Row_Field),data=dat2[!is.na(dat2$PCCG_1),])
+fit13<-glmmTMB(log(GM_Fecundity2+1)~treatment+PCCG_2+(1|Row_Field),data=dat2[!is.na(dat2$PCCG_1),])
+anova(fit12,fit13) # interaction not significant. 
+
+fit12<-glmmTMB(log(GM_Fecundity2+1)~treatment+PCCG_2+(1|Row_Field),data=dat2[!is.na(dat2$PCCG_1),])
+fit13<-glmmTMB(log(GM_Fecundity2+1)~treatment+(1|Row_Field),data=dat2[!is.na(dat2$PCCG_1),])
+anova(fit12,fit13) # Variable not significant.
+
+#Best model: 
+
+fit12<-glmmTMB(log(GM_Fecundity2+1)~treatment+(1|Family)+(1|Row_Field),data=dat2)
+
+summary(fit12)
+
+#Relative fitness coeficients
+dat2$GM_Fecundity2MS<-Standardize(dat2$GM_Fecundity2,meanSTD = T)
+
+fit12<-glmmTMB(GM_Fecundity2MS~treatment+(1|Family)+(1|Row_Field),data=dat2)
+
+summary(fit12)
+
+#Selection differential bolt size
+fit12<-glmmTMB(GM_Fecundity2MS~Standardize(PC1BoltSize),data=dat2)
+summary(fit12)
+
+```
+
+#Permutation test on total fitness  
+(Not yet done. ) Could do treatment ? or interactions without bolt size. 
+```{r}
+#Permutation test
+#library(PermutateR)
+
+#Tests on treatment.
+fit<-lme4::glmer(GM_Fecundity2MS~treatment+(1|Family)+(1|Row_Field),data=dat2)
+
+summary(fit)
+TreamentTotPerm<-permTest_Contrast(fit,
+                Test_Parameter = c("treatmentgm","treatmentm"),
+                Randomize_Variables = "treatment",
+                Test_Statistic = "t value",
+                Replication=10000
+                ,OutputData=T)
+
+TreamentTotPerm
+
+#Tests on leaf traits. 
+fit<-lm(GM_Fecundity2 ~ treatment * PCCG_2  ,data=dat2[!is.na(dat2$PCCG_1),])
+
+
+output<-permTest_LR(fit, "PCCG_2","F",1000,OutputData=T)
+
+permTest_LR_int(fit,
+                Test_Parameter = "treatment:PCCG_2",
+                Randomize_Variables = "PCCG_2",
+                Test_Statistic = "F",
+                Replication=1000
+                ,OutputData=T)
+
+output #The p values are very accurate for this model it seems. Neither interaction nor p value are significant. 
+
+
+
+#Now assessing on PCCG_1
+fit<-lm(GM_Fecundity2 ~ treatment * PCCG_1  ,data=dat2[!is.na(dat2$PCCG_1),])
+
+fit2<-lm(GM_Fecundity2 ~ treatment + PCCG_1  ,data=dat2[!is.na(dat2$PCCG_1),])
+
+
+#Interaction
+output<-permTest_LR_int(fit,
+                Test_Parameter = "treatment:PCCG_1",
+                Randomize_Variables = "PCCG_1",
+                Test_Statistic = "F",
+                Replication=10000
+                ,OutputData=T)
+
+output #The interaction is close to significance at p = 0.072
+#effect
+output2<-permTest_LR(fit2, "PCCG_1","F",10000,OutputData=T) #Alone it is very much not significant. 
+
+
+output2 
+
+```
+
+
+
 # Maple Models
 
 #### What affects maple performance year 1? 
-Need to know this to determine what goes into the permutation test in path analysis. 
 ```{r}
 #Is bench important? 
 fit<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+PCCG_1+PCCG_2+(1|gh_bench), data=MapleModel)
@@ -831,11 +1088,10 @@ Maple2PermGM#Both p are , <0.001
 
 
 
-
-#Path analysis
+# Path analysis
 
 #Anova on greenhouse bench for use in the path analyses 
-Nominal variables not accepted. Determining where the real differences lie with metho of crawley from the R book. 
+Nominal variables not accepted. Determining where the real differences lie with method of crawley from the R book. 
 ```{r}
 #Indirect effect of leaf traits on performance
 fitBench1<-lm(GM_TotalLeaf_Area~as.factor(gh_bench),data=dat2)
@@ -921,6 +1177,13 @@ MapleModel$PC1BoltSizeS<-Standardize(MapleModel$PC1BoltSize,SupplyDatStat = dat2
 #Mean standardizing gm fecundity by entire data mean
 MapleModel$GM_FecundityMS<-Standardize(MapleModel$GM_Fecundity,SupplyDatStat = dat2$GM_Fecundity,meanSTD = T)
 
+#Mean standardizing gm fecundity2 (Total fitness) by entire data mean
+MapleModel$GM_Fecundity2MS<-Standardize(MapleModel$GM_Fecundity2,SupplyDatStat = dat2$GM_Fecundity2,meanSTD = T)
+
+#Logging and standardizing total fitness. 
+MapleModel$GM_Fecundity2LMS<-Standardize(log(MapleModel$GM_Fecundity2+1),SupplyDatStat = log(dat2$GM_Fecundity2+1),meanSTD = T)
+
+
 
 ###----
 #Standardizing PCCG_1 by entire population by mean 
@@ -994,21 +1257,6 @@ OutdirPerfMapl
 
 #### Path analysis survival
 ```{r}
-# library(piecewiseSEM)
-# 
-# #Survival data
-# 
-# 
-# library(lme4)
-# model <- piecewiseSEM::psem(
-#   lm(Maple_TotalLeafArea_EndS ~ PC1Tot+PCCG_1 + MapleDamage + PCCG_2,data=MapleModel)
-# ,
-#   
-# glmer(Bolt_Survival ~   Fern + Maple_TotalLeafArea_EndS+PCCG_1+PCCG_2 +(1|Row_Field)
-#     ,data=MapleModel, family="binomial")
-#   )
-
-summary(model)
 
 #Selection gradient of survival
 library(lavaan)
@@ -1069,6 +1317,116 @@ OutdirSurvMapl
 
 ```
 
+#### Path analysis Fecundity
+```{r}
+
+#Fecundity data 
+
+MapleFormula_1_1 <- '
+Maple_TotalLeafArea_EndS ~ PC1Tot+B1*PCCG_1S + MapleDamage + B2*PCCG_2S
+
+GM_FecundityMS~B3*Maple_TotalLeafArea_EndS +PCCG_2S+PCCG_1S
+
+indirect_PCCG_1 := B1 * B3
+indirect_PCCG_2 := B2 * B3
+
+'
+
+fit<-sem(MapleFormula_1_1,data=MapleModel)
+
+summary(fit) #No significance here. 
+
+#Permutations 
+
+OutIndirFecPC1<-permTest_Contrast(fit,c("indirect_PCCG_1"),"PCCG_1S","z",10000,Data_Supplement = MapleModel,OutputData = T)
+OutIndirFecPC1
+#"The simulated p-value value for test parameter indirect_PCCG_1 is: 0.3069"
+
+OutIndirFecPC2<-permTest_Contrast(fit,c("indirect_PCCG_2"),"PCCG_2S","z",10000,Data_Supplement = MapleModel,OutputData = T)
+OutIndirFecPC2
+
+
+#Finding the effect of maple 
+OutdirFecMapl<-permTest_Contrast(fit,c("Maple_TotalLeafArea_EndS"),"Maple_TotalLeafArea_EndS","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_FecundityMS"))
+OutdirFecMapl
+
+#Direct PC1
+OutdirFecPC1<-permTest_Contrast(fit,c("PCCG_1S"),"PCCG_1S","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_FecundityMS"))
+OutdirFecPC1
+#[1] "The simulated p-value value for test parameter PCCG_1S is: 0.1062"
+
+#Direct PC2
+OutdirFecPC1<-permTest_Contrast(fit,c("PCCG_2S"),"PCCG_2S","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_FecundityMS"))
+OutdirFecPC1
+#[1] "The simulated p-value value for test parameter PCCG_2S is: 0.1987"
+
+
+```
+
+#### Path analysis Total fitness
+```{r}
+#Selection gradient of survival (with bolt size)
+
+library(lavaan)
+
+#Bolt size variation was eliminating too much of the useful variation in total fecundity. I am removing this from the analysis for this reason. 
+MapleFormula_1_1 <- '
+ Maple_TotalLeafArea_EndS ~ PC1Tot+ B1*PCCG_1S + MapleDamage + B2*PCCG_2S
+
+
+GM_Fecundity2MS~ B3*Maple_TotalLeafArea_EndS +PCCG_1S +PCCG_2S
+
+
+indirect_PCCG_1 := B1 * B3
+indirect_PCCG_2 := B2 * B3
+
+'
+fit<-sem(MapleFormula_1_1,data=MapleModel)
+summary(fit)
+
+
+#Permutation test on this
+library(PermutateR)
+
+source("/Users/richardhonor/Documents/PermutateR/R/permTest_LR.R")
+source("/Users/richardhonor/Documents/PermutateR/R/permTest_LR_int.R")
+source("/Users/richardhonor/Documents/PermutateR/R/permTest_Contrast.R")
+
+source("/Users/richardhonor/Documents/PermutateR/R/model_extract.R")
+source("/Users/richardhonor/Documents/PermutateR/R/new_data.R")
+
+
+#OutdirTotPC2<-permTest_Contrast(fit,c("PCCG_2S"),"PCCG_2S","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_Fecundity2MS"))
+OutdirTotPC2
+#[1] "The simulated p-value value for test parameter PCCG_2S is: 0.0487"
+
+#OutdirTotPC1<-permTest_Contrast(fit,c("PCCG_1S"),"PCCG_1S","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_Fecundity2MS"))
+OutdirTotPC1
+#[1] "The simulated p-value value for test parameter PCCG_1S is: 0.0838"
+
+
+
+#OutIndirTotPC2<-permTest_Contrast(fit,c("indirect_PCCG_2"),"PCCG_2S","z",10000,Data_Supplement = MapleModel,OutputData = T)
+OutIndirTotPC2
+#[1] "The simulated p-value value for test parameter indirect_PCCG_2 is: 0.1521"
+
+#OutIndirTotPC1<-permTest_Contrast(fit,c("indirect_PCCG_1"),"PCCG_1S","z",10000,Data_Supplement = MapleModel,OutputData = T)
+OutIndirTotPC1
+#[1] "The simulated p-value value for test parameter indirect_PCCG_1 is: 0.1782"
+
+
+#OutdirTotMapl<-permTest_Contrast(fit,c("Maple_TotalLeafArea_EndS"),"Maple_TotalLeafArea_EndS","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_Fecundity2MS"))
+OutdirTotMapl
+
+#[1] "The simulated p-value value for test parameter Maple_TotalLeafArea_EndS is: 0.2805"
+
+#Interestingly maple is not significant when the effect of PC1 and PC2 are included. This might mean that they share alot of the same variance and so it is eliminating the singificance of maple. I now dont think i should include them as main effects. ...
+
+
+
+
+```
+
 
 
 #Manual selection gradients for survival and leaf traits. 
@@ -1095,51 +1453,6 @@ mean(MapleModel$Bolt_Survival,na.rm=T)-0.05*mean(MapleModel$Bolt_Survival,na.rm=
 
 
 
-```
-
-#### Path analysis Fecundity
-```{r}
-
-#Fecundity data 
-
-PC1BoltSizeS
-
-model2 <- psem(
-  
-  lm(Maple_TotalLeafArea_EndS ~ PC1Tot+PCCG_1 + MapleDamage + PCCG_2,data=MapleModel)
-,
-  
-lm(log(GM_Fecundity)~Standardize(PC1BoltSize)+Maple_TotalLeafArea_EndS,data=MapleModel)
-
-  )
-
-
-MapleFormula_1_1 <- '
-Maple_TotalLeafArea_EndS ~ PC1Tot+B1*PCCG_1S + MapleDamage + B2*PCCG_2S
-
-GM_FecundityMS~PC1BoltSizeS+B3*Maple_TotalLeafArea_EndS
-
-indirect_PCCG_1 := B1 * B3
-indirect_PCCG_2 := B2 * B3
-
-'
-
-fit<-sem(MapleFormula_1_1,data=MapleModel)
-
-summary(fit) #No significance here. 
-
-#Path ANalysis
-OutIndirFecPC1<-permTest_Contrast(fit,c("indirect_PCCG_1"),"PCCG_1S","z",10000,Data_Supplement = MapleModel,OutputData = T)
-OutIndirFecPC1
-#"The simulated p-value value for test parameter indirect_PCCG_1 is: 0.3069"
-
-OutIndirFecPC2<-permTest_Contrast(fit,c("indirect_PCCG_2"),"PCCG_2S","z",10000,Data_Supplement = MapleModel,OutputData = T)
-OutIndirFecPC2
-
-
-#Finding the effect of maple on bolt survival
-OutdirFecMapl<-permTest_Contrast(fit,c("Maple_TotalLeafArea_EndS"),"Maple_TotalLeafArea_EndS","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_FecundityMS"))
-OutdirFecMapl
 ```
 
 
@@ -1365,7 +1678,7 @@ Xtract(fit,2.681e-01) #Extremely high Genetic effect for PC2
 
 
 
-#Figures
+# Figures
 
 #### PCA figure
 ```{r}
@@ -1379,14 +1692,6 @@ CGSlope<-function(x){
   return(y)
 }
 
-PerpCGSlope<-function(x){
-    y=(-1/0.45434)*x-4.284156
-  return(y)
-}
-
-0= (-1/0.45434)*x +b 
-
--1.676608-2.558793
 
 minC<-min(dat2$ChlorA,na.rm=T)
 minG<-min(dat2$gluc_Conc,na.rm=T)
@@ -1398,13 +1703,14 @@ maxG<-max(dat2$gluc_Conc,na.rm=T)
 
 
 source("ggplot_themes.r")
-PCCG_1_Colour<-ggplot(dat2,aes(y=gluc_Conc,x=ChlorA,colour=PCCG_1))+
+a<-ggplot(dat2,aes(y=gluc_Conc,x=ChlorA))+
   geom_point(size=2)+
    # geom_smooth(method = lm,se=F,colour="black")+
-    scale_x_continuous(breaks = seq(-2.5,0.25,0.5))+
-    scale_y_continuous(breaks = seq(-2.25,-0.75,0.25))+
- # limits = c(-2.5,0.25),
-#limits = c(-2.25,-0.75),
+    scale_x_continuous(breaks = seq(-2.75,0.25,0.5))+
+    scale_y_continuous(breaks = seq(-2.5,-0.75,0.25),limits=c(-2.4,-0.70))+
+ # +xlimits=c(-2.75,-0.25)
+ # +ylimits=c(-2.6,-0.70)
+
  theme_simple_vertScientific()+
      ylab(bquote(bold("Glucosinolate, ln" (mg/ml))))+
    xlab(bquote(bold("Chlorophyll A, ln" (μg/ml))))+
@@ -1412,80 +1718,16 @@ PCCG_1_Colour<-ggplot(dat2,aes(y=gluc_Conc,x=ChlorA,colour=PCCG_1))+
   low = "#660000",
   high = "#FFF300",name="PC1")+
  theme( plot.margin = unit(c(1, 1, 0, 0), "cm"),
-          legend.position = c(0.12,0.8))+
-   geom_segment(x=minC,xend=maxC,y=CGSlope(minC),yend=CGSlope(maxC),colour="black",size=1,arrow = arrow(length = unit(0.5, "cm")))
-  
-
-
-PCCG_1_Colour
-
-
-PCCG_2_Colour<-ggplot(dat2,aes(y=gluc_Conc,x=ChlorA,colour=PCCG_2))+
-  geom_point(size=2)+
-  #  geom_smooth(method = lm,se=F,colour="black")+
-    scale_x_continuous(breaks = seq(-2.5,0.25,0.5))+
-    scale_y_continuous(breaks = seq(-2.25,-0.75,0.25))+
-
-#   limits = c(-2.5,0.25)
-# limits = c(-2.25,-0.75)
- theme_simple_vertScientific()+
-     ylab(bquote(bold("Glucosinolate, ln" (mg/ml))))+
-   xlab(bquote(bold("Chlorophyll A, ln" (μg/ml))))+
-  scale_colour_gradient(
-  low = "#000066",
-  high = "#FF66FF",name="PC2")+
-  theme(axis.title.y =  element_blank(),
-        plot.margin = unit(c(1, 1, 0, 0), "cm"),
-          legend.position = c(0.12,0.8))+
-    geom_segment(x=minC,xend=maxC,y=CGSlope(minC),yend=CGSlope(maxC),colour="black",size=0.5)+
-  
-    geom_segment(xend=-1.55,x=-0.9,yend=PerpCGSlope(-1.55),y=PerpCGSlope(-0.9),colour="black",size=1,arrow = arrow(length = unit(0.5, "cm")))
-  PCCG_2_Colour
-
-library(ggforce)
-PCCG_both<-ggplot(dat2,aes(y=gluc_Conc,x=ChlorA,colour=PCCG_2))+
-  geom_point(size=2)+
-  #  geom_smooth(method = lm,se=F,colour="black")+
-    scale_x_continuous(breaks = seq(-2.5,0.25,0.5))+
-    scale_y_continuous(breaks = seq(-2.25,-0.75,0.25))+
-
-#   limits = c(-2.5,0.25)
-# limits = c(-2.25,-0.75)
- theme_simple_vertScientific()+
-     ylab(bquote(bold("Glucosinolate, ln" (mg/ml))))+
-   xlab(bquote(bold("Chlorophyll A, ln" (μg/ml))))+
-  scale_colour_gradient(
-  low = "#000066",
-  high = "#FF66FF",name="PC2")+
-  theme(axis.title.y =  element_blank(),
-        plot.margin = unit(c(1, 1, 0, 0), "cm"),
           legend.position = c(0.12,0.8))
- geom_ellipse(x0=minC,xend=maxC,y=CGSlope(minC),yend=CGSlope(maxC),colour="black",size=0.5)+
-  #coord_fixed()
-PCCG_both
+  # geom_segment(x=minC,xend=maxC,y=CGSlope(minC),yend=CGSlope(maxC),colour="black",size=1,arrow = arrow(length = unit(0.5, "cm")))
+  
 
-
-library(grid)
-library(gridExtra)
-
-library(png)
-
-
-plot1 <- readPNG('Other_Figures/Table_1.png')
-
-a<-plot_grid(PCCG_1_Colour,PCCG_2_Colour,plot1,rel_widths = c(1.1,1),ncol=2)
-
-
-tiff("Other_Figures/GCInvestement2.tiff", units="in", width=10, height=5, res=300)
-grid.arrange(PCCG_1_Colour,PCCG_2_Colour,rasterGrob(plot1),layout_matrix=rbind(
-  c(3,3),
-  c(1,2)
-),
-heights=unit(c(1,4),c("in","in")),
-widths=unit(c(5,5),c("in","in"))
-)
+tiff("Other_Figures/GCInvestementSimple.tiff", units="in", width=8, height=6, res=300)
+a
 dev.off()
 ```
+inkscape as svg
+
 
 #### Performance visualization with residuals
 ```{r}
@@ -1702,9 +1944,6 @@ dev.off()
 
 ```
 
-
-
-
 #### Survival Path analysis Visualization 
 ```{r}
 library(ggraph)
@@ -1832,6 +2071,236 @@ dev.off()
 
 ```
 
+
+#### Fecundity Path analysis Visualization 
+```{r}
+library(ggraph)
+library(igraph)
+
+MapleFormula_1_1 <- '
+Maple_TotalLeafArea_EndS ~ PC1Tot+B1*PCCG_1S + MapleDamage + B2*PCCG_2S
+
+GM_FecundityMS~B3*Maple_TotalLeafArea_EndS +PCCG_2S+PCCG_1S
+
+indirect_PCCG_1 := B1 * B3
+indirect_PCCG_2 := B2 * B3
+
+'
+
+
+fit<-sem(MapleFormula_1_1,data=MapleModel)
+
+summary(fit)
+#Constructing data frame of paths
+b<-summary(fit)[[1]]
+b<-b %>% filter(exo==0) %>% select(from=rhs,to=lhs,est,pvalue)
+#Option to remove the indirect effects 
+b<-b %>% filter(!to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
+
+#Altering the p values in the model to reflect permutation tests.
+ b$pvalue[b$from=="PCCG_1S"& b$to=="GM_FecundityMS"]<-0.1062
+ b$pvalue[b$from=="PCCG_2S"& b$to=="GM_FecundityMS"]<-0.1987
+ 
+#Adding significance to b values. 
+ b$estL<-b$est
+  b$estL[b$pvalue>=0.05]<- round(b$est[b$pvalue>=0.05],2)
+ b$estL[b$pvalue<0.05]<-paste(round(b$est[b$pvalue<0.05],2),"*")
+  b$estL[b$pvalue<0.01]<-paste(round(b$est[b$pvalue<0.01],2),"**")
+  b$estL[b$pvalue<0.001]<-paste(round(b$est[b$pvalue<0.001],2),"***")
+
+
+
+
+#Defining the whether the relationship is positive or negative.
+defineColour<-function(x){
+x[x<0]<-"Negative"
+x[!grepl("Negative",x)]<-"Positive"
+  return(x)
+}
+b$PosNeg<-defineColour(b$est)
+
+
+
+
+#Creating names for the path diagram
+Vert<-data.frame(name=append(unique(b$to),unique(b$from)))
+Vert<-Vert[!duplicated(Vert$name),]
+
+
+#Converting to a graph-able object
+SGg<-graph_from_data_frame(b,directed=T)
+# SGg
+# 
+
+#Custom layout 
+
+#Creating a dummy layout list to work with 
+lay = create_layout(SGg, layout ="fr" )
+
+lay
+#Importing the x and y data point i want
+Lay<-read.csv("CustomLayoutFecundity.csv")
+
+#Replacing the data point in lay with the ones i want in Lay
+lay$x<-Lay$x
+lay$y<-Lay$y
+lay$name<-Lay$name2
+
+
+#Graphing
+PathSurv<-ggraph(lay)  +
+  
+
+ geom_edge_link(
+   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")), width=abs(est),color=PosNeg,alpha=-pvalue,label=estL),
+            fontface="bold",
+
+   show.legend = F,
+  # label_dodge = unit(400, 'mm')
+  label_colour = 'black',
+  fill='white',
+  
+        # label_dodge = unit(2.5, 'mm'),
+    arrow = arrow(type = "closed", length = unit(5, 'mm'))
+  
+  ) + 
+  
+
+    geom_node_label(aes(label =name))+
+  set_graph_style(plot_margin = margin(10,10,10,10))+
+  scale_x_continuous(limits=c(8,10))
+
+ # theme_graph()
+
+
+tiff("Selection_Figures/PathAnalysisFecundity.tiff", units="in", width=8, height=4, res=300)
+PathSurv
+dev.off()
+
+
+```
+
+#### Total fitness Path analysis Visualization 
+```{r}
+library(ggraph)
+library(igraph)
+
+MapleFormula_1_1 <- '
+ Maple_TotalLeafArea_EndS ~ PC1Tot+ B1*PCCG_1S + MapleDamage + B2*PCCG_2S
+
+
+GM_Fecundity2MS~ B3*Maple_TotalLeafArea_EndS +PCCG_1S +PCCG_2S
+
+
+indirect_PCCG_1 := B1 * B3
+indirect_PCCG_2 := B2 * B3
+
+'
+
+fit<-sem(MapleFormula_1_1,data=MapleModel)
+
+summary(fit)
+#Constructing data frame of paths
+b<-summary(fit)[[1]]
+b<-b %>% filter(exo==0) %>% select(from=rhs,to=lhs,est,pvalue)
+#Option to remove the indirect effects 
+b<-b %>% filter(!to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
+
+#Altering the p values in the model to reflect permutation tests.
+ b$pvalue[b$from=="Maple_TotalLeafArea_EndS"]<-0.2805
+  b$pvalue[b$from=="PCCG_1S"& b$to=="GM_Fecundity2MS"]<-0.0838
+ b$pvalue[b$from=="PCCG_2S"& b$to=="GM_Fecundity2MS"]<-0.0487
+ b$pvalue[b$from=="indirect_PCCG_2"]<- 0.1521
+  b$pvalue[b$from=="indirect_PCCG_1"]<-0.1782
+#Adding significance to b values. 
+ b$estL<-b$est
+  b$estL[b$pvalue>=0.05]<- round(b$est[b$pvalue>=0.05],2)
+ b$estL[b$pvalue<0.05]<-paste(round(b$est[b$pvalue<0.05],2),"*")
+  b$estL[b$pvalue<0.01]<-paste(round(b$est[b$pvalue<0.01],2),"**")
+  b$estL[b$pvalue<0.001]<-paste(round(b$est[b$pvalue<0.001],2),"***")
+  
+ b$estL[b$from=="PCCG_2S"& b$to=="GM_Fecundity2MS"]<-"-0.50*"
+
+
+
+
+#Defining the whether the relationship is positive or negative.
+defineColour<-function(x){
+x[x<0]<-"Negative"
+x[!grepl("Negative",x)]<-"Positive"
+  return(x)
+}
+b$PosNeg<-defineColour(b$est)
+
+
+
+
+#Creating names for the path diagram
+Vert<-data.frame(name=append(unique(b$to),unique(b$from)))
+Vert<-Vert[!duplicated(Vert$name),]
+
+
+#Converting to a graph-able object
+SGg<-graph_from_data_frame(b,directed=T)
+# SGg
+# 
+
+#Custom layout 
+
+#Creating a dummy layout list to work with 
+lay = create_layout(SGg, layout ="fr" )
+
+lay
+#Importing the x and y data point i want
+Lay<-read.csv("CustomLayoutTotalFit.csv")
+
+#Replacing the data point in lay with the ones i want in Lay
+lay$x<-Lay$x
+lay$y<-Lay$y
+lay$name<-Lay$name2
+
+
+#Graphing
+PathSurv<-ggraph(lay)  +
+  
+
+ geom_edge_link(
+   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")), width=abs(est),color=PosNeg,alpha=-pvalue,label=estL),
+            fontface="bold",
+
+   show.legend = F,
+  # label_dodge = unit(400, 'mm')
+  label_colour = 'black',
+  fill='white',
+  
+        # label_dodge = unit(2.5, 'mm'),
+    arrow = arrow(type = "closed", length = unit(5, 'mm'))
+  
+  ) + 
+  
+
+    geom_node_label(aes(label =name))+
+  set_graph_style(plot_margin = margin(10,10,10,10))+
+  scale_x_continuous(limits=c(8,10))
+
+ # theme_graph()
+
+
+tiff("Selection_Figures/PathAnalysisTotalFit.tiff", units="in", width=8, height=4, res=300)
+PathSurv
+dev.off()
+
+
+```
+
+
+
+
+
+
+# Simulations for understanding
+
+
 #Testing selection differential of survival.
 ```{r}
 
@@ -1896,6 +2365,142 @@ length(SurvDat$Survival[SurvDat$Survival==0])/length(SurvDat$Survival)
 
 
 ```
+
+
+#Testing selection differential with indirect and direct effects. 
+```{r}
+#Path analysis estimating only a simple indirect effect 
+Glucosinolate<-c()
+Maple<-c()
+Fitness<-c()
+
+  #Wide glucosinolate investment. 
+  Glucosinolate<-rnorm(10000,mean=0, sd=3) 
+  
+  #Maple decreases with increasing glucosinolate investment
+  Maple<-Glucosinolate*(-2)+rnorm(10000,sd=3)
+
+plot(Maple~Glucosinolate)
+
+  #Fitness decreases with increasing maple performance. 
+  Fitness<-Maple*(-1)+rnorm(10000,sd=3)
+
+PathDat<-data.frame(Fitness,Glucosinolate,Maple)
+
+#Performing path analysis without indirect effect and looking at the estimate. 
+
+TestFormula <- '
+Maple ~ b*Glucosinolate
+
+Fitness ~ b2*Maple
+
+indirect_ := b * b2
+
+'
+
+fit<-sem(TestFormula,data=PathDat)
+summary(fit)
+
+#With a direct influence paramter...
+
+TestFormula <- '
+Maple ~ b*Glucosinolate
+
+Fitness ~ b2*Maple + Glucosinolate
+
+indirect_ := b * b2
+
+'
+
+fit<-sem(TestFormula,data=PathDat)
+summary(fit) #It performed very well actually even though i allowed for the direct parameter to be estimated. 
+
+#What happens if i add direct influence into the data? 
+
+  #Wide glucosinolate investment. 
+  Glucosinolate<-rnorm(1000,mean=0, sd=3) 
+  
+  #Maple decreases with increasing glucosinolate investment
+  Maple<-Glucosinolate*(-2)+rnorm(1000,sd=3)
+
+  #Fitness decreases with increasing maple performance. 
+  Fitness<-Maple*(-1)+rnorm(1000,sd=3)+Glucosinolate*(1)+rnorm(1000, sd=3) 
+PathDat<-data.frame(Fitness,Glucosinolate,Maple)
+
+  
+TestFormula <- '
+Maple ~ b*Glucosinolate
+
+Fitness ~ b2*Maple + Glucosinolate
+
+indirect_ := b * b2
+
+'
+
+fit<-sem(TestFormula,data=PathDat)
+summary(fit) #It performed very well actually even though i allowed for the direct parameter to be estimated. 
+
+
+
+TestFormula <- '
+Maple ~ b*Glucosinolate
+
+Fitness ~ b2*Maple 
+
+indirect_ := b * b2
+
+'
+
+fit<-sem(TestFormula,data=PathDat)
+summary(fit) 
+
+#The indirect effects are always inflated by the correlation with the variable . It is therefore likely better to include it in the model. 
+
+
+
+#Reducing the SD between glucosinolate and maple relationship. 
+
+  #Wide glucosinolate investment. 
+  Glucosinolate<-rnorm(1000,mean=0, sd=3) 
+  
+  #Maple decreases with increasing glucosinolate investment
+  Maple<-Glucosinolate*(-2)+rnorm(1000,sd=1)
+
+  #Fitness decreases with increasing maple performance. 
+  Fitness<-Maple*(-1)+rnorm(1000,sd=3)+Glucosinolate*(1)+rnorm(1000, sd=3) 
+PathDat<-data.frame(Fitness,Glucosinolate,Maple)
+
+  
+  
+TestFormula <- '
+Maple ~ b*Glucosinolate
+
+Fitness ~ b2*Maple + Glucosinolate
+
+indirect_ := b * b2
+
+'
+
+fit<-sem(TestFormula,data=PathDat)
+summary(fit) #It performed very well actually even though i allowed for the direct parameter to be estimated. 
+
+
+
+TestFormula <- '
+Maple ~ b*Glucosinolate
+
+Fitness ~ b2*Maple 
+
+indirect_ := b * b2
+
+'
+
+fit<-sem(TestFormula,data=PathDat)
+summary(fit) 
+```
+
+
+
 
 
 
