@@ -101,5 +101,16 @@ fit<-lm(ShootMass~TransplantSize+RosetteSize, data=eq)
 extract_eq(fit,use_coefs = F,wrap = T)
 
 
+table(nchar(gsub("[^C]","",c("ACTGCTCTGACTGATTT","XCTGGS"))))
+
+
+gsub(".*/n","",c("ddddd/nACTGCTCTGACTGATTT","XCTGGS"))
+
+"ddddd/nACTGCTCTGACTGATTT"
+
+eq$GM_FecundityMS
+eq$GM_Fecundity2MS
+eq$PC1BoltSize
+
 ```
 
