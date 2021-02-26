@@ -17,7 +17,6 @@ source("GGPlot_Themes.R")
 rm(list=ls())
 dat<-read.csv("DataSynthesis.csv")
 
-
 #remove those with fertilizer treatment, and extra genotypes that are only in the alone treatment. 
 dat<-dat[!grepl("i",dat$ID,fixed=T),]
 
@@ -70,6 +69,12 @@ dat$BlackPathDam<-log(dat$BlackPathDam+1)
 #Creating leaf area vector 
 dat$GM_Leaf_Area<-dat$GM_Leaf_Len*dat$GM_Leaf_Wid
 
+#clarifying names 
+dat$GM_Leaf_Len_SampledLeaf<-dat$GM_Leaf_Len
+dat$GM_Leaf_WidSampledLeaf<-dat$GM_Leaf_Wid
+
+dat$GM_Leaf_Number_EndRosette<-dat$GM_Leaf_Number
+
 #Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
 dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),
 GM_StemHeight_Bolt=first(GM_StemHeight_Bolt),
@@ -90,8 +95,12 @@ maple_leaves_0=first(maple_leaves_0),
 Maple_StemHeight_End=first(Maple_StemHeight_End),
 Maple_LeafNum_End=first(Maple_LeafNum_End),
 Maple_TotalLeafArea_End=first(Maple_TotalLeafArea_End),
-MapleDamage=mean(Maple_Damage_End)
+MapleDamage=mean(Maple_Damage_End),
+GM_Leaf_Len_Initial=mean(GM_Leaf_Len_Initial),
+GM_NumberOfLeaves_Initial=mean(GM_NumberOfLeaves_Initial)
+
 )
+
 
 #All of these genotypes died (15 Genotypes).(We are simply missing a final measurement for e|JBCHY1-1-50|Q|240) That is only 3% Mortality. 
 dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
@@ -255,9 +264,32 @@ MapleModel<-Maple %>% filter(treatment=="m")
 
 
 
+
 # Garlic Mustard Models
 
- 
+#Importance of A.petiolata transplant size
+```{r}
+dat2$GM_Leaf_Len_Initial
+dat2$GM_NumberOfLeaves_Initial
+
+summary(lm(GM_TotalLeaf_Area~GM_Leaf_Len_Initial+GM_NumberOfLeaves_Initial,data=dat2))
+summary(lm(GM_TotalLeaf_Area~GM_Leaf_Len_Initial,data=dat2))
+summary(lm(GM_TotalLeaf_Area~GM_NumberOfLeaves_Initial,data=dat2))
+
+#Growthrate it extremely affected by transplant size. Wow i cant believe i never looked at this.
+summary(lm(RGR1~GM_NumberOfLeaves_Initial,data=dat2)) 
+
+summary(lm(RGR1~GM_Leaf_Len_Initial,data=dat2)) #Even more by leaf length.
+
+#Should i use an adjusted RGR in my analyses? Definitely should in the variance component analysis. ..damn
+
+summary(lm(GM_Fecundity~GM_NumberOfLeaves_Initial,data=dat2)) #Number of leaves almost predicts fecundity. 
+summary(lm(GM_Fecundity~GM_Leaf_Len_Initial,data=dat2))
+
+#It is significant. 
+```
+
+
 #### Performance analysis 
 ```{r}
 #Making fungal damage a factor for analyses
@@ -1100,6 +1132,8 @@ Maple2PermGM#Both p are , <0.001
 
 #Anova on greenhouse bench for use in the path analyses 
 Nominal variables not accepted. Determining where the real differences lie with method of crawley from the R book. 
+
+I think that i should still log fecundity and total fitness because they were logged before. 
 ```{r}
 #Indirect effect of leaf traits on performance
 fitBench1<-lm(GM_TotalLeaf_Area~as.factor(gh_bench),data=dat2)
@@ -1153,7 +1187,6 @@ anova(fitBench2,fitBench1) #There is information lost, but the following is perf
 #### Modifying variables for path analysis
 ```{r}
 library(lavaan)
-library(semPlot)
 
 
 #Standardizing variables by the entire population parameters to be consistent and reflect more relevant data. 
@@ -1184,6 +1217,9 @@ MapleModel$PC1BoltSizeS<-Standardize(MapleModel$PC1BoltSize,SupplyDatStat = dat2
 
 #Mean standardizing gm fecundity by entire data mean
 MapleModel$GM_FecundityMS<-Standardize(MapleModel$GM_Fecundity,SupplyDatStat = dat2$GM_Fecundity,meanSTD = T)
+
+MapleModel$GM_FecundityLMS<-Standardize(log(MapleModel$GM_Fecundity),SupplyDatStat = log(dat2$GM_Fecundity),meanSTD = T)
+
 
 #Mean standardizing gm fecundity2 (Total fitness) by entire data mean
 MapleModel$GM_Fecundity2MS<-Standardize(MapleModel$GM_Fecundity2,SupplyDatStat = dat2$GM_Fecundity2,meanSTD = T)
@@ -1267,7 +1303,6 @@ OutdirPerfMapl
 ```{r}
 
 #Selection gradient of survival
-library(lavaan)
 MapleFormula_1_1 <- '
  Maple_TotalLeafArea_EndS ~ PC1Tot+ B1*PCCG_1S + MapleDamage + B2*PCCG_2S
 
@@ -1286,15 +1321,10 @@ fit<-sem(MapleFormula_1_1,data=MapleModel)
 summary(fit,standardize=T)
 #Very interesting, there is direct selection for relative investment both through maple performance and directly on the plant. This may reflect benefits for competition and benefits through some other mechanism other than maple increasing survival. Adding up these effects results in the total direct selection, which matches up very closesly to the selection gradient i calculated manually at 20%. Very nice result. I must also do the perm test on the direct effect of PCG2 on survival now. 
 
- test %>% dplyr::filter(rhs %in% "Maple_TotalLeafArea_EndS" , lhs %in% "Bolt_SurvivalMS") %>% dplyr::select("z")
 
-   
-   
-mean(dat2$PCCG_1,na.rm=T)
-mean(dat2$PCCG_1,na.rm=T)
 
 #Permutation test on this
-library(PermutateR)
+library("PermutateR")
 
 source("/Users/richardhonor/Documents/PermutateR/R/permTest_LR.R")
 source("/Users/richardhonor/Documents/PermutateR/R/permTest_LR_int.R")
@@ -1304,7 +1334,7 @@ source("/Users/richardhonor/Documents/PermutateR/R/model_extract.R")
 source("/Users/richardhonor/Documents/PermutateR/R/new_data.R")
 
 
-OutdirSurvPC2<-permTest_Contrast(fit,c("PCCG_2S"),"PCCG_2S","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("Bolt_SurvivalMS"))
+OutdirSurvPC2<-permTest_Contrast(fit,c("PCCG_2S"),"PCCG_2S","z",10,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("Bolt_SurvivalMS"))
 OutdirSurvPC2
 #[1] "The simulated p-value value for test parameter PCCG_2S is: 0.3032"
 
@@ -1373,11 +1403,6 @@ OutdirFecPC1
 
 #### Path analysis Total fitness
 ```{r}
-#Selection gradient of survival (with bolt size)
-
-library(lavaan)
-
-#Bolt size variation was eliminating too much of the useful variation in total fecundity. I am removing this from the analysis for this reason. 
 MapleFormula_1_1 <- '
  Maple_TotalLeafArea_EndS ~ PC1Tot+ B1*PCCG_1S + MapleDamage + B2*PCCG_2S
 
@@ -1391,6 +1416,7 @@ indirect_PCCG_2 := B2 * B3
 '
 fit<-sem(MapleFormula_1_1,data=MapleModel)
 summary(fit)
+
 
 
 #Permutation test on this
@@ -1431,10 +1457,96 @@ OutdirTotMapl
 #Interestingly maple is not significant when the effect of PC1 and PC2 are included. This might mean that they share alot of the same variance and so it is eliminating the singificance of maple. I now dont think i should include them as main effects. ...
 
 
+#[1] "The simulated p-value value for test parameter PCCG_2S is: 0.0487"
+#[1] "The simulated p-value value for test parameter PCCG_1S is: 0.0838"
+#[1] "The simulated p-value value for test parameter indirect_PCCG_2 is: 0.1521"
+#[1] "The simulated p-value value for test parameter indirect_PCCG_1 is: 0.1782"
+#[1] "The simulated p-value value for test parameter Maple_TotalLeafArea_EndS is: 0.2805"
 
 
 ```
 
+#Trying different lifetime fecudnity models
+```{r}
+#Assessing with a log fecundity
+MapleFormula_Log <- '
+Maple_TotalLeafArea_EndS ~ PC1Tot+ B1*PCCG_1S + MapleDamage + B2*PCCG_2S
+GM_Fecundity2LMS~ B3*Maple_TotalLeafArea_EndS +PCCG_1S +PCCG_2S
+indirect_PCCG_1 := B1 * B3
+indirect_PCCG_2 := B2 * B3
+'
+fit<-sem(MapleFormula_Log,data=MapleModel)
+summary(fit)
+AIC(fit)
+
+MapleFormula_Log <- '
+Maple_TotalLeafArea_EndS ~ PC1Tot+ B1*PCCG_1S + MapleDamage + B2*PCCG_2S
+GM_Fecundity2MS~ B3*Maple_TotalLeafArea_EndS +PCCG_1S +PCCG_2S
+indirect_PCCG_1 := B1 * B3
+indirect_PCCG_2 := B2 * B3
+'
+fit<-sem(MapleFormula_Log,data=MapleModel)
+summary(fit)
+AIC(fit) #This AIC is much higher.. It is otherwise the exact same data so i think the other model explains the data much better.
+
+
+MapleFormula_1_1 <- '
+Maple_TotalLeafArea_EndS ~ PC1Tot+B1*PCCG_1S + MapleDamage + B2*PCCG_2S
+
+GM_FecundityLMS~B3*Maple_TotalLeafArea_EndS +PCCG_2S+PCCG_1S
+
+indirect_PCCG_1 := B1 * B3
+indirect_PCCG_2 := B2 * B3
+
+'
+
+fit<-sem(MapleFormula_1_1,data=MapleModel)
+summary(fit)
+
+AIC(fit) #Can compare AICs
+library(piecewiseSEM)
+
+# Construct SEM... This glm with a poisson estimated very good estimations... i should do this with logged data maybe
+glmsem <- psem(
+  lm( Maple_TotalLeafArea_EndS ~ PC1Tot+ PCCG_1S + MapleDamage + PCCG_2S, MapleModel),
+  glm(GM_Fecundity2MS~ Maple_TotalLeafArea_EndS +PCCG_1S +PCCG_2S
+, "poisson", MapleModel)
+)
+
+summary(glmsem)
+
+
+#Testing residuals of GM_Fecundity logged vs not logged. 
+ fit<- lm(GM_Fecundity2MS~ Maple_TotalLeafArea_EndS +PCCG_1S +PCCG_2S, MapleModel)
+hist(residuals(fit),breaks=20)
+plot(residuals(fit)~fitted(fit))
+shapiro.test(residuals(fit))
+summary(fit)
+ fit<- lm(GM_Fecundity2LMS~ Maple_TotalLeafArea_EndS +PCCG_1S +PCCG_2S, MapleModel)
+hist(residuals(fit),breaks=20)
+plot(residuals(fit)~fitted(fit))
+shapiro.test(residuals(fit)) 
+summary(fit)
+
+#Both are bad. 
+ fit<- glm(GM_Fecundity2LMS~ Maple_TotalLeafArea_EndS +PCCG_1S +PCCG_2S,"poisson", MapleModel)
+hist(residuals(fit),breaks=20)
+plot(residuals(fit)~fitted(fit))
+shapiro.test(residuals(fit)) 
+
+hist(MapleModel$GM_Fecundity2LMS)
+ hist(MapleModel$GM_Fecundity2MS)
+ 
+ #Both are bad. 
+ fit<- glmmTMB(GM_Fecundity2LMS~ Maple_TotalLeafArea_EndS +PCCG_1S +PCCG_2S,family="nbinom2", data=MapleModel)
+ summary(fit)
+hist(residuals(fit),breaks=20)
+plot(residuals(fit)~fitted(fit))
+shapiro.test(residuals(fit)) 
+
+
+
+```
 
 
 #Manual selection gradients for survival and leaf traits. 
@@ -1694,14 +1806,24 @@ Xtract(fit,2.681e-01) #Extremely high Genetic effect for PC2
 library(officer)
 library(rvg)
 
-ExportX<-function(plot,outfile){
+ExportX<-function(plot,plot2=NULL, outfile){
   
-my_vec_graph <- dml(ggobj = plot)
+  outputPPT<-read_pptx() 
 
-outputPPT<-read_pptx() 
-layout_summary(outputPPT)
+   if(!is.null(plot2)){
+   my_vec_graph2 <- dml(ggobj = plot2)
+   }
+  
+  #Converting plots to output objects
+my_vec_graph <- dml(ggobj = plot)
  outputPPT<-add_slide(outputPPT,layout = "Title and Content",master="Office Theme")
- outputPPT<-ph_with(outputPPT,my_vec_graph,location=ph_location_fullsize())
+  outputPPT<-ph_with(outputPPT,my_vec_graph,location=ph_location_fullsize())
+  outputPPT<-add_slide(outputPPT,layout = "Title Slide",master="Office Theme")
+   outputPPT<-ph_with(outputPPT,my_vec_graph2,location=ph_location_fullsize())
+
+
+
+
  print(outputPPT,target=outfile)
 }
 
@@ -1771,6 +1893,7 @@ source("GGPlot_Themes.R")
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area,meanSTD = T)~treatment*Standardize(PCCG_1)+Standardize(BlackPathDam)+Standardize(Fern)+(1|gh_bench),  data=dat2) #Most gluc is correlated with performance, but not causing it through allelopathy? idk. 
 summary(fit6)
 
+
 #Removing Na's and making new dataframe with NAs excluded
 datPlot<-dat2[!is.na(dat2$PCCG_1)&!is.na(dat2$BlackPathDam)&!is.na(dat2$gh_bench)&!is.na(dat2$Fern),]
 
@@ -1830,11 +1953,11 @@ datPlot<-datPlot[datPlot$treatment!="mcnt",]
 ###
 
 TLATiff<-ggplot(datPlot)+
-  geom_point(aes(y=GMSizeResi,x=PCCG_1S,colour=treatment),size=1)+
+  geom_point(aes(y=GMSizeResi,x=PCCG_1S,colour=treatment,shape=treatment),size=2)+
   geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
     geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
   geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple_multiCol_First()+
-  ylab(bquote(bold("Rosette Size Residuals")))+xlab("General Glucosinolate and Chlorophyll investment (σ)")+
+  ylab(bquote(bold("Rosette Size")))+xlab(bquote(bold("General Investment (PC2)")))+
   scale_y_continuous(breaks=seq(-2,3,by=0.5))+
   scale_x_continuous(breaks=seq(-5,5,by=1))+
 
@@ -1856,6 +1979,9 @@ library(ggraph)
 library(igraph)
 library(lavaan)
 
+#------
+#Performing path analysis and obtaining data to visualize
+#-----
 MapleFormula_1_1 <- '
 Maple_TotalLeafArea_EndS ~ PC1Tot+B1*PCCG_1S + MapleDamage + B2*PCCG_2S
 
@@ -1894,6 +2020,34 @@ x[!grepl("Negative",x)]<-"Positive"
 }
 b$PosNeg<-defineColour(b$est)
 
+#Adding Custom gradient values ranging from 1-6 for the size of the effect. 
+
+#Function to scale data linearly between 1 and 6
+Scale<-function(m,Type="Width"){
+  if(Type=="Alpha"){
+  m <- (m-0)/(1-0)*(1-0)+0
+  }
+  else{
+    m <- (m-0)/(1-0)*(6-1)+1
+  }
+  return(m)
+}
+#Creating unique identifier column for each edge. 
+b$Unique<-letters[1:nrow(b)]
+
+
+b$Thickness<-Scale(abs(b$est))
+names(b$Thickness)<-b$Unique
+ThicknessNames<-b$Thickness
+names(ThicknessNames)<-b$Unique
+ThicknessNames
+
+b$Alpha<-Scale(abs(1-b$pvalue),Type = "Alpha")
+AlphaNames<-b$Alpha
+names(AlphaNames)<-b$Unique
+AlphaNames
+
+
 # Keeping only the indirect effects in c data frame
 c<-b %>% filter(to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
 
@@ -1907,13 +2061,13 @@ b<-b %>% filter(!to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
  
  c$from[c$from=="B2*B3"]<-"PCCG_2S"
  c$to[c$to=="indirect_PCCG_2"]<-"GM_TotalLeaf_AreaMS"
-# 
 
  
-#Formating data frame for graphing
+ 
+#---------
+#Converting data frame into a ggraph object
 #---------
 
- 
 #Creating names for the path diagram b
 Vert<-data.frame(name=append(unique(b$to),unique(b$from)))
 Vert<-Vert[!duplicated(Vert$name),]
@@ -1921,8 +2075,6 @@ Vert<-Vert[!duplicated(Vert$name),]
 #Creating names for the path diagram c
 Vert2<-data.frame(name=append(unique(c$to),unique(c$from)))
 Vert2<-Vert2[!duplicated(Vert2$name),]
-
-
 
 #Converting to a graph-able object, b
 SGg<-graph_from_data_frame(b,directed=T)
@@ -1932,14 +2084,17 @@ SGg_C<-graph_from_data_frame(c,directed=T)
 
 
 
-#Custom layout 
+
+#-------
+#Adding in Custom layout defined in external excel files. 
+#-------
 
 #Creating a dummy layout list to work with, b
 lay = create_layout(SGg, layout ="fr" )
 
 #Creating a dummy layout list to work with, c
 lay2 = create_layout(SGg_C, layout ="fr" )
-lay2
+
 
 #Importing the x and y data point i want
 Lay<-read.csv("CustomLayout.csv")
@@ -1956,37 +2111,47 @@ lay2$x<-Lay2$x
 lay2$y<-Lay2$y
 lay2$name<-Lay2$name2
 
+
+
 #------------
 #Graphing plot b
-
+#------------
+b$T
 PathPerf<-ggraph(lay)  +
 
  geom_edge_link(
-
-   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")), width=abs(est),color=PosNeg,label=estL),
+   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")),color=PosNeg,label=estL,width=Unique,alpha=Unique),
+   
    fontface="bold",
    show.legend = F,
   label_colour = 'black',
   fill='white',
-      arrow = arrow(type = "closed", length = unit(5, 'mm'))
   
+      arrow = arrow(type = "closed", length = unit(5, 'mm'))
   ) + 
   
     geom_node_label(aes(label =name))+
   set_graph_style(plot_margin = margin(10,10,10,10))+
   scale_x_continuous(limits=c(8,10))+
-  scale_edge_colour_manual(values=c("#CC6666","#66CC99"))
- # scale_edge_width(range=c(0,max(abs(b$est))))
+  scale_edge_colour_manual(values=c("#CC6666","#66CC99"))+
+  scale_edge_width_manual(values=ThicknessNames)+
+  scale_edge_alpha_manual(values=AlphaNames)
+
 
 
 PathPerf
-c
-#Graphing plot c
-PathPerfC<-ggraph(lay2,circular=T)  +
 
- geom_edge_link(
-   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")),color=PosNeg,label=estL,width=as.factor(estL)),
+
+#----
+#Graphing plot c
+#-----
+PathPerfC<-ggraph(lay2,circular=F)  +
+
+ geom_edge_arc(
+   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")),color=PosNeg,label=estL,width=Unique,alpha=Unique),
+linetype="dashed",
    #width=6,
+   curvature = c(-0.1,0.1),
    fontface="bold",
    show.legend = F,
   label_colour = 'black',
@@ -1999,29 +2164,30 @@ PathPerfC<-ggraph(lay2,circular=T)  +
   set_graph_style(plot_margin = margin(10,10,10,10))+
   scale_x_continuous(limits=c(8,10))+
       scale_edge_colour_manual(values=c("#CC6666","#66CC99"))+
-  scale_edge_width_manual(values=c("0.02 **"=6,"-0.01 **"=3))
-
-PathPerfC
+  scale_edge_width_manual(values=ThicknessNames)+
+  scale_edge_alpha_manual(values=AlphaNames)
 
 
 #tiff("Selection_Figures/PathAnalysisPerf.tiff", units="in", width=8, height=6, res=300)
 PathPerfC
 #dev.off()
-summary(PathPerf)
+Lay2
 
-ExportX(PathPerf,"Selection_Figures/PathPerf.pptx")
+ExportX(PathPerf,PathPerfC,"Selection_Figures/PathPerfNew.pptx")
 
 
-#With arc instead?
-
-b$est
 ```
+
 
 #### Survival Path analysis Visualization 
 ```{r}
 library(ggraph)
 library(igraph)
+library(lavaan)
 
+#------
+#Performing path analysis and obtaining data to visualize
+#-----
 MapleFormula_1_1 <- '
  Maple_TotalLeafArea_EndS ~ PC1Tot+ B1*PCCG_1S + MapleDamage + B2*PCCG_2S
 
@@ -2038,41 +2204,24 @@ indirect_PCCG_2 := B2 * B3
 
 fit<-sem(MapleFormula_1_1,data=MapleModel)
 
-summary(fit)
+
 #Constructing data frame of paths
 b<-summary(fit)[[1]]
 b<-b %>% filter(exo==0) %>% select(from=rhs,to=lhs,est,pvalue)
-#Option to remove the indirect effects 
-b<-b %>% filter(!to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
 
 #Altering the p values in the model to reflect permutation tests.
-# b$pvalue[b$from=="B1*B3"]<- #indirect pc1
-# b$pvalue[b$from=="B2*B3"]<- #indirect Pc2
- b$pvalue[b$from=="Maple_TotalLeafArea_EndS"]<-0.0043
- b
+b$pvalue[b$from=="Maple_TotalLeafArea_EndS"]<-0.0122
+ b$pvalue[b$from=="B1*B3"]<-0.0016 #indirect pc1
+ b$pvalue[b$from=="B2*B3"]<- 0.0166 #indirect Pc2
+ 
+ 
+ 
 #Adding significance to b values. 
- b$estL<-b$est
-  b$estL[b$pvalue>=0.05]<- round(b$est[b$pvalue>=0.05],2)
- b$estL[b$pvalue<0.05]<-paste(round(b$est[b$pvalue<0.05],2),"*")
-  b$estL[b$pvalue<0.01]<-paste(round(b$est[b$pvalue<0.01],2),"**")
-  b$estL[b$pvalue<0.001]<-paste(round(b$est[b$pvalue<0.001],2),"***")
-
-# 
-# #Removing direct effects of leaf traits
-# b<-b[!(b$from=="PCCG_1S" & b$to=="GM_TotalLeaf_AreaMS"),] 
-# b<-b[!(b$from=="PCCG_2S" & b$to=="GM_TotalLeaf_AreaMS"),] 
-# 
-
-
-#Option to display the indirect effects - better because only omit one direct effect. 
-# b$from[b$from=="B1*B3"]<-"PCCG_1S"
-# b$to[b$to=="indirect_PCCG_1"]<-"GM_TotalLeaf_AreaMS"
-# 
-# b$from[b$from=="B2*B3"]<-"PCCG_2S"
-# b$to[b$to=="indirect_PCCG_2"]<-"GM_TotalLeaf_AreaMS"
-# 
-
-
+b$estL<-b$est
+b$estL[b$pvalue>=0.05]<-round(b$est[b$pvalue>=0.05],2)
+b$estL[b$pvalue<0.05]<-paste(round(b$est[b$pvalue<0.05],2),"*")
+b$estL[b$pvalue<0.01]<-paste(round(b$est[b$pvalue<0.01],2),"**")
+b$estL[b$pvalue<0.001]<-paste(round(b$est[b$pvalue<0.001],2),"***")
 
 
 #Defining the whether the relationship is positive or negative.
@@ -2083,68 +2232,164 @@ x[!grepl("Negative",x)]<-"Positive"
 }
 b$PosNeg<-defineColour(b$est)
 
+#Adding Custom gradient values ranging from 1-6 for the size of the effect. 
+
+#Function to scale data linearly between 1 and 6
+Scale<-function(m,Type="Width"){
+  if(Type=="Alpha"){
+  m <- (m-0)/(1-0)*(1-0)+0
+  }
+  else{
+    m <- (m-0)/(1-0)*(6-1)+1
+  }
+  return(m)
+}
+#Creating unique identifier column for each edge. 
+b$Unique<-letters[1:nrow(b)]
 
 
+b$Thickness<-Scale(abs(b$est))
+names(b$Thickness)<-b$Unique
+ThicknessNames<-b$Thickness
+names(ThicknessNames)<-b$Unique
+ThicknessNames
 
-#Creating names for the path diagram
+b$Alpha<-Scale(abs(1-b$pvalue),Type = "Alpha")
+AlphaNames<-b$Alpha
+names(AlphaNames)<-b$Unique
+AlphaNames
+
+
+# Keeping only the indirect effects in c data frame
+c<-b %>% filter(to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
+
+# Removing the indirect effects in b data frame
+b<-b %>% filter(!to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
+
+#Display the indirect effects in C 
+
+ c$from[c$from=="B1*B3"]<-"PCCG_1S"
+ c$to[c$to=="indirect_PCCG_1"]<-"Bolt_SurvivalMS"
+ 
+ c$from[c$from=="B2*B3"]<-"PCCG_2S"
+ c$to[c$to=="indirect_PCCG_2"]<-"Bolt_SurvivalMS"
+
+ 
+ 
+#---------
+#Converting data frame into a ggraph object
+#---------
+
+#Creating names for the path diagram b
 Vert<-data.frame(name=append(unique(b$to),unique(b$from)))
 Vert<-Vert[!duplicated(Vert$name),]
 
+#Creating names for the path diagram c
+Vert2<-data.frame(name=append(unique(c$to),unique(c$from)))
+Vert2<-Vert2[!duplicated(Vert2$name),]
 
-#Converting to a graph-able object
+#Converting to a graph-able object, b
 SGg<-graph_from_data_frame(b,directed=T)
-# SGg
-# 
 
-#Custom layout 
+#Converting to a graph-able object, c
+SGg_C<-graph_from_data_frame(c,directed=T)
 
-#Creating a dummy layout list to work with 
+
+
+
+#-------
+#Adding in Custom layout defined in external excel files. 
+#-------
+
+#Creating a dummy layout list to work with, b
 lay = create_layout(SGg, layout ="fr" )
 
-lay
+#Creating a dummy layout list to work with, c
+lay2 = create_layout(SGg_C, layout ="fr" )
+
+
 #Importing the x and y data point i want
 Lay<-read.csv("CustomLayoutSurvival.csv")
+Lay2<-read.csv("CustomLayoutSurv_Curv.csv")
 
-#Replacing the data point in lay with the ones i want in Lay
+
+#Replacing the data point in lay with the ones i want in Lay (b)
 lay$x<-Lay$x
 lay$y<-Lay$y
 lay$name<-Lay$name2
 
+#Replacing the data point in lay with the ones i want in Lay2 (c)
+lay2$x<-Lay2$x
+lay2$y<-Lay2$y
+lay2$name<-Lay2$name2
 
-#Graphing
-PathSurv<-ggraph(lay)  +
-  
+
+
+#------------
+#Graphing plot b
+#------------
+
+PathPerf<-ggraph(lay)  +
 
  geom_edge_link(
-   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")), width=abs(est),color=PosNeg,alpha=-pvalue,label=estL),
-            fontface="bold",
-
+   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")),color=PosNeg,label=estL,width=Unique,alpha=Unique),
+   
+   fontface="bold",
    show.legend = F,
-  # label_dodge = unit(400, 'mm')
   label_colour = 'black',
   fill='white',
   
-        # label_dodge = unit(2.5, 'mm'),
-    arrow = arrow(type = "closed", length = unit(5, 'mm'))
-  
+      arrow = arrow(type = "closed", length = unit(5, 'mm'))
   ) + 
   
-
     geom_node_label(aes(label =name))+
   set_graph_style(plot_margin = margin(10,10,10,10))+
-  scale_x_continuous(limits=c(8,10))
+  scale_x_continuous(limits=c(8,10))+
+  scale_edge_colour_manual(values=c("#CC6666","#66CC99"))+
+  scale_edge_width_manual(values=ThicknessNames)+
+  scale_edge_alpha_manual(values=AlphaNames)
 
- # theme_graph()
 
 
-tiff("Selection_Figures/PathAnalysisSurv.tiff", units="in", width=8, height=6, res=300)
-PathSurv
-dev.off()
+PathPerf
+
+
+#----
+#Graphing plot c
+#-----
+PathPerfC<-ggraph(lay2,circular=F)  +
+
+ geom_edge_arc(
+   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")),color=PosNeg,label=estL,width=Unique,alpha=Unique),
+#linetype="dashed",
+   #width=6,
+   curvature = c(-0.1,0.1),
+   fontface="bold",
+   show.legend = F,
+  label_colour = 'black',
+  fill='white',
+      arrow = arrow(type = "closed", length = unit(5, 'mm'))
+  
+  ) +
+  
+    geom_node_label(aes(label =name))+
+  set_graph_style(plot_margin = margin(10,10,10,10))+
+  scale_x_continuous(limits=c(8,10))+
+      scale_edge_colour_manual(values=c("#CC6666","#66CC99"))+
+  scale_edge_width_manual(values=ThicknessNames)+
+  scale_edge_alpha_manual(values=AlphaNames)
+
+
+#tiff("Selection_Figures/PathAnalysisPerf.tiff", units="in", width=8, height=6, res=300)
+PathPerfC
+#dev.off()
+
+
+ExportX(PathPerf,PathPerfC,"Selection_Figures/PathSurvNew2.pptx")
 
 
 ```
-
-#### Fecundity Path analysis Visualization 
+#### Fecundity path analysis Visualization 
 ```{r}
 library(ggraph)
 library(igraph)
@@ -2252,11 +2497,16 @@ dev.off()
 
 ```
 
-#### Total fitness Path analysis Visualization 
+
+#### Lifetime fitness Path analysis Visualization Update
 ```{r}
 library(ggraph)
 library(igraph)
+library(lavaan)
 
+#------
+#Performing path analysis and obtaining data to visualize
+#-----
 MapleFormula_1_1 <- '
  Maple_TotalLeafArea_EndS ~ PC1Tot+ B1*PCCG_1S + MapleDamage + B2*PCCG_2S
 
@@ -2271,29 +2521,33 @@ indirect_PCCG_2 := B2 * B3
 
 fit<-sem(MapleFormula_1_1,data=MapleModel)
 
-summary(fit)
+
 #Constructing data frame of paths
 b<-summary(fit)[[1]]
 b<-b %>% filter(exo==0) %>% select(from=rhs,to=lhs,est,pvalue)
-#Option to remove the indirect effects 
-b<-b %>% filter(!to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
-
+b
 #Altering the p values in the model to reflect permutation tests.
- b$pvalue[b$from=="Maple_TotalLeafArea_EndS"]<-0.2805
-  b$pvalue[b$from=="PCCG_1S"& b$to=="GM_Fecundity2MS"]<-0.0838
- b$pvalue[b$from=="PCCG_2S"& b$to=="GM_Fecundity2MS"]<-0.0487
- b$pvalue[b$from=="indirect_PCCG_2"]<- 0.1521
-  b$pvalue[b$from=="indirect_PCCG_1"]<-0.1782
-#Adding significance to b values. 
- b$estL<-b$est
-  b$estL[b$pvalue>=0.05]<- round(b$est[b$pvalue>=0.05],2)
- b$estL[b$pvalue<0.05]<-paste(round(b$est[b$pvalue<0.05],2),"*")
-  b$estL[b$pvalue<0.01]<-paste(round(b$est[b$pvalue<0.01],2),"**")
-  b$estL[b$pvalue<0.001]<-paste(round(b$est[b$pvalue<0.001],2),"***")
-  
- b$estL[b$from=="PCCG_2S"& b$to=="GM_Fecundity2MS"]<-"-0.50*"
+b$pvalue[b$from=="Maple_TotalLeafArea_EndS"]<-0.2805
+ b$pvalue[b$from=="B1*B3"]<- 0.1782#indirect pc1
+ b$pvalue[b$from=="B2*B3"]<- 0.1521 #indirect Pc2
+ 
+  b$pvalue[b$from=="PCCG_1S"&b$to=="GM_Fecundity2MS"]<- 0.0838#direct pc1
+ b$pvalue[b$from=="PCCG_2S"&b$to=="GM_Fecundity2MS"]<- 0.0487 #direct Pc2
+ 
+ #[1] "The simulated p-value value for test parameter PCCG_2S is: 0.0487"
+#[1] "The simulated p-value value for test parameter PCCG_1S is: 0.0838"
+#[1] "The simulated p-value value for test parameter indirect_PCCG_2 is: 0.1521"
+#[1] "The simulated p-value value for test parameter indirect_PCCG_1 is: 0.1782"
+#[1] "The simulated p-value value for test parameter Maple_TotalLeafArea_EndS is: 0.2805"
 
-
+ 
+ 
+#Adding significance symbols to regression coefficients. 
+b$estL<-b$est
+b$estL[b$pvalue>=0.05]<-round(b$est[b$pvalue>=0.05],2)
+b$estL[b$pvalue<0.05]<-paste(round(b$est[b$pvalue<0.05],2),"*")
+b$estL[b$pvalue<0.01]<-paste(round(b$est[b$pvalue<0.01],2),"**")
+b$estL[b$pvalue<0.001]<-paste(round(b$est[b$pvalue<0.001],2),"***")
 
 
 #Defining the whether the relationship is positive or negative.
@@ -2304,68 +2558,164 @@ x[!grepl("Negative",x)]<-"Positive"
 }
 b$PosNeg<-defineColour(b$est)
 
+#Adding Custom gradient values ranging from 1-6 for the size of the effect. 
+
+#Function to scale data linearly between 1 and 6
+Scale<-function(m,Type="Width"){
+  if(Type=="Alpha"){
+  m <- (m-0)/(1-0)*(1-0)+0
+  }
+  else{
+    m <- (m-0)/(1-0)*(6-1)+1
+  }
+  return(m)
+}
+#Creating unique identifier column for each edge. 
+b$Unique<-letters[1:nrow(b)]
 
 
+b$Thickness<-Scale(abs(b$est))
+names(b$Thickness)<-b$Unique
+ThicknessNames<-b$Thickness
+names(ThicknessNames)<-b$Unique
+ThicknessNames
 
-#Creating names for the path diagram
+b$Alpha<-Scale(abs(1-b$pvalue),Type = "Alpha")
+AlphaNames<-b$Alpha
+names(AlphaNames)<-b$Unique
+AlphaNames
+
+
+# Keeping only the indirect effects in c data frame
+c<-b %>% filter(to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
+
+# Removing the indirect effects in b data frame
+b<-b %>% filter(!to %in% c("indirect_PCCG_1","indirect_PCCG_2"))
+
+#Display the indirect effects in C 
+
+ c$from[c$from=="B1*B3"]<-"PCCG_1S"
+ c$to[c$to=="indirect_PCCG_1"]<-"GM_Fecundity2MS"
+ 
+ c$from[c$from=="B2*B3"]<-"PCCG_2S"
+ c$to[c$to=="indirect_PCCG_2"]<-"GM_Fecundity2MS"
+
+ 
+ 
+#---------
+#Converting data frame into a ggraph object
+#---------
+
+#Creating names for the path diagram b
 Vert<-data.frame(name=append(unique(b$to),unique(b$from)))
 Vert<-Vert[!duplicated(Vert$name),]
 
+#Creating names for the path diagram c
+Vert2<-data.frame(name=append(unique(c$to),unique(c$from)))
+Vert2<-Vert2[!duplicated(Vert2$name),]
 
-#Converting to a graph-able object
+#Converting to a graph-able object, b
 SGg<-graph_from_data_frame(b,directed=T)
-# SGg
-# 
 
-#Custom layout 
+#Converting to a graph-able object, c
+SGg_C<-graph_from_data_frame(c,directed=T)
 
-#Creating a dummy layout list to work with 
+
+
+
+#-------
+#Adding in Custom layout defined in external excel files. 
+#-------
+
+#Creating a dummy layout list to work with, b
 lay = create_layout(SGg, layout ="fr" )
 
-lay
+#Creating a dummy layout list to work with, c
+lay2 = create_layout(SGg_C, layout ="fr" )
+
+
 #Importing the x and y data point i want
 Lay<-read.csv("CustomLayoutTotalFit.csv")
+Lay2<-read.csv("CustomLayoutTot_Curv.csv")
 
-#Replacing the data point in lay with the ones i want in Lay
+
+#Replacing the data point in lay with the ones i want in Lay (b)
 lay$x<-Lay$x
 lay$y<-Lay$y
 lay$name<-Lay$name2
 
+#Replacing the data point in lay with the ones i want in Lay2 (c)
+lay2$x<-Lay2$x
+lay2$y<-Lay2$y
+lay2$name<-Lay2$name2
 
-#Graphing
-PathSurv<-ggraph(lay)  +
-  
+
+
+#------------
+#Graphing plot b
+#------------
+
+PathPerf<-ggraph(lay)  +
 
  geom_edge_link(
-   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")), width=abs(est),color=PosNeg,alpha=-pvalue,label=estL),
-            fontface="bold",
-
+   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")),color=PosNeg,label=estL,width=Unique,alpha=Unique),
+   
+   fontface="bold",
    show.legend = F,
-  # label_dodge = unit(400, 'mm')
   label_colour = 'black',
   fill='white',
   
-        # label_dodge = unit(2.5, 'mm'),
-    arrow = arrow(type = "closed", length = unit(5, 'mm'))
-  
+      arrow = arrow(type = "closed", length = unit(5, 'mm'))
   ) + 
   
-
     geom_node_label(aes(label =name))+
   set_graph_style(plot_margin = margin(10,10,10,10))+
-  scale_x_continuous(limits=c(8,10))
+  scale_x_continuous(limits=c(8,10))+
+  scale_edge_colour_manual(values=c("#CC6666","#66CC99"))+
+  scale_edge_width_manual(values=ThicknessNames)+
+  scale_edge_alpha_manual(values=AlphaNames)
 
- # theme_graph()
 
 
-tiff("Selection_Figures/PathAnalysisTotalFit.tiff", units="in", width=8, height=4, res=300)
-PathSurv
-dev.off()
+PathPerf
 
+
+#----
+#Graphing plot c
+#-----
+PathPerfC<-ggraph(lay2,circular=F)  +
+
+ geom_edge_arc(
+   aes(start_cap = label_rect(node1.name,padding =margin(3,3,3,3,"mm") ), end_cap = label_rect(node2.name,padding =margin(5,3,3,3,"mm")),color=PosNeg,label=estL,width=Unique,alpha=Unique),
+#linetype="dashed",
+   #width=6,
+   curvature = c(-0.1,0.1),
+   fontface="bold",
+   show.legend = F,
+  label_colour = 'black',
+  fill='white',
+      arrow = arrow(type = "closed", length = unit(5, 'mm'))
+  
+  ) +
+  
+    geom_node_label(aes(label =name))+
+  set_graph_style(plot_margin = margin(10,10,10,10))+
+  scale_x_continuous(limits=c(8,10))+
+      scale_edge_colour_manual(values=c("#CC6666","#66CC99"))+
+  scale_edge_width_manual(values=ThicknessNames)+
+  scale_edge_alpha_manual(values=AlphaNames)
+
+
+#tiff("Selection_Figures/PathAnalysisPerf.tiff", units="in", width=8, height=6, res=300)
+PathPerfC
+#dev.off()
+
+
+ExportX(PathPerf,PathPerfC,"Selection_Figures/PathTotalNew2.pptx")
+
+#Didnt simulate direct effect on maple.... probably irrelevant thoough. 
 
 ```
-
-
 
 
 

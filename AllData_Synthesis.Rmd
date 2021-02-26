@@ -58,9 +58,10 @@ library(tidyr)
 
 #read in GH data
 dat=read.csv("Data_Moities/Data_collection_GH.csv",stringsAsFactors = F)
-
+dat
 #Fix column names
 colnames(dat)[9:12]<-c("comp_number","maple_leaf_length_0","maple_height_0","maple_leaves_0")
+
 
 #Removing first row (Which contains no data).
 dat<-dat[2:length(dat$gh_bench),]
