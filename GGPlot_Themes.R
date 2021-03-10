@@ -116,6 +116,34 @@ theme_simple_vertScientific<-function(){
     )
 }
 
+theme_simple_2<-function(){
+  #base theme
+  theme_classic() %+replace%
+    #theme additions
+    theme(
+      
+      #Remove legend
+      legend.position="none",
+      
+      #Theme of axis text and ticks
+      axis.text.x = element_text(color = "black", size = 16, face = "bold"),
+      axis.text.y = element_text(color = "black", size = 16, face = "bold"),
+      axis.ticks = element_blank(),
+      
+      #Theme of Axis titles
+      axis.title.x =  element_text(color = "black", size = 20, face = "bold",margin=margin(3,0,3,0)),
+      
+      axis.title.y =  element_text(color = "black", size = 20, face = "bold",margin=margin(3,0,3,0),angle = 90),
+      
+  
+      #Plot Margin
+     # plot.margin = unit(c(0.5,0.5,0.5,0.5), "cm"),
+      
+      #Theme of Axis lines
+      axis.line=element_line(colour = "black", size = 1)
+    )
+}
+
 theme_simple_multiCol<-function(){
   #base theme
   theme_classic() %+replace%
