@@ -716,11 +716,15 @@ fit<- glmmTMB(Standardize(Bolt_Survival,meanSTD=T) ~ treatment + Standardize(Fer
 
 summary(fit)
 
+
+
+
 ```
 
 
 #reassessing PCCG_2 when family is not included. 
 ```{r}
+
 #reassessing PCCG_2 when family is not included. 
 fit<- glmmTMB(Bolt_Survival ~ treatment*Standardize(PCCG_2) + Standardize(Fern) +  
       (1 | Row_Field) ,data=dat2, family="binomial")
@@ -762,10 +766,6 @@ Link=function(x){
 }
 
 
-Link(-0.7106)#alone
-Link(-0.7106-0.1086)#GM
-Link(-0.7106-0.5742)#Maple
-Link(0.5455) #Fern
 ```
 
 #Reasessing survival analysis with leaf size controlled for.
@@ -1067,232 +1067,6 @@ output2
 ```
 
 
-#Attempting table creation with semi-automated selection. 
-```{r}
-
-
-
-library(tidyr)
-
-#This works on non-significant variables when you want to add an effect. 
-NonSigExtract<-function(bestmodel,NonSigVar){
- #Extracting test statistic of every non significant variable: 
-    
-  #Model data with NAs of additional variable removed. 
-    datFoc<-dat2 %>% drop_na(NonSigVar)
-
-  oldFormula<-as.character(formula(bestmodel))
-  #Making one string
-  oldFormula<- paste(oldFormula[2],oldFormula[1],oldFormula[3],sep="")
-  
-  #New model for anova
-  newFormula<-paste(oldFormula,NonSigVar,sep="+")
-  
-  oldMod<-glmmTMB(formula=as.formula(oldFormula),data=datFoc)
-
-    newMod<-glmmTMB(formula=as.formula(newFormula),data=datFoc)
-    
-out<-anova(oldMod,newMod)
-
-return(out)
-}
-
-#This works on significant variables when you want to remove an effect. 
-SigExtract<-function(bestmodel,SigVar){
- #Extracting test statistic of every non significant variable: 
-    
-  #Model data with NAs of additional variable removed. 
-    datFoc<-dat2 %>% drop_na(SigVar)
-
-  oldFormula<-as.character(formula(bestmodel))
-  #Making one string
-  oldFormula<- paste(oldFormula[2],oldFormula[1],oldFormula[3],sep="")
-  
-  #New model for anova
-  #Removing term
-  newFormula<-sub(SigVar,"",oldFormula,fixed = T)
-  #Removing spaces
-  newFormula<-gsub(" ","",newFormula,fixed = T)
-  #Removing any double + from removing variable.
-  newFormula<-gsub("++","+",newFormula,fixed = T)
-
-  oldMod<-glmmTMB(formula=as.formula(oldFormula),data=datFoc)
-
-    newMod<-glmmTMB(formula=as.formula(newFormula),data=datFoc)
-    
-out<-anova(oldMod,newMod)
-
-return(out)
-}
-
-
-
-
-
-```
-
-#Performance -- Table generation of test statistics
-```{r}
-#Best model 
-fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PCCG_1+Fern+BlackPathDam+Transplant_Size_GM+(1|gh_bench),  data=dat2)
-summary(fit6)
-
-# Maximum model 
-fitfull<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PCCG_1+treatment*PCCG_2+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(Fern)+RGR1+Transplant_Size_GM+(1|Family)+(1|gh_bench), data=dat2)
-
-SignificantVar<-c("Fern","BlackPathDam","Transplant_Size_GM")
-
-NonSignificantVar<-c("PCCG_2","WhiteFungLogis","ThripsDam","RGR1")
-
-
-#Model still does not work when there are interactions or random effects because it cannot remove NAs from those collumns. 
-
-# Yay! Model extracting functions. 
-
-#Non-significant vars
-Variable_Glob<-c()
-Chi_Glob<-c()
-p_Glob<-c()
-
-for(i in 1:length(NonSignificantVar)){
-  out<-NonSigExtract(fit6,NonSigVar=NonSignificantVar[i])
-
-  Chi<-out[2,"Chisq"]
-
-p<-out[2,"Pr(>Chisq)"]
-
-Variable_Glob<-append(Variable_Glob,NonSignificantVar[i])
-Chi_Glob<-append(Chi_Glob,Chi)
-p_Glob<-append(p_Glob,p)
-}
-
-data.frame(Variable_Glob,Chi_Glob,p_Glob)
-
-
-
-
-#Significant vars. 
-
-
-Variable_Glob<-c()
-Chi_Glob<-c()
-p_Glob<-c()
-
-for(i in 1:length(SignificantVar)){
-  out<-SigExtract(fit6,SigVar=SignificantVar[i])
-
-  Chi<-out[2,"Chisq"]
-
-p<-out[2,"Pr(>Chisq)"]
-
-Variable_Glob<-append(Variable_Glob,SignificantVar[i])
-Chi_Glob<-append(Chi_Glob,Chi)
-p_Glob<-append(p_Glob,p)
-}
-
-data.frame(Variable_Glob,Chi_Glob,p_Glob)
-
-
-
-
-```
-
-
-#growth rate?
-```{r}
-#Calculates lambda based on the input of lifetime fitness for a popoulation
-LamFun<-function(x){
-  x<-x[!is.na(x)]
-  x<-x*100
-  nt1<-sum(x) #individuals at time 1, assuming 1 gram of silique results in 1 offspring.
-  nt<-length(x) #Individuals at time 0
-  return(nt1/nt)
-}
-
-#I am not sure if it makes sense to include treatment as there were no GXE interactions and if we are looking for the genetic correlation between a trait then we should just use the mean value. This analysis, however, doesnt control for nuissance variables impacting total fitness. Might be best to obtain these estimates from a mixed model. 
-
-#Controlling for field row in lifetime fitness, the only signficant variable besides treamtent ----
-
-#Removing Na's and making new dataframe with NAs excluded
-datPlot<-dat2[!is.na(dat2$Row_Field)&!is.na(dat2$GM_Fecundity2),]
-
-#For PCCG_1, Leaf Quality, obtaining the values of PCCG_1 after controlling for leaf area. 
-fit<-glmmTMB(GM_Fecundity2~as.factor(Row_Field),data=datPlot)
-summary(fit)
-fitResi<-residuals(fit)
-datPlot$GM_Fecundity2Controlled<-as.single(fitResi)
-
-
-dat3.0<-dat2 %>% filter(treatment!="mcnt") %>% group_by(Family) %>% summarize(Lam=LamFun(GM_Fecundity2),PCCG_1=mean(PCCG_1,na.rm=T),PCCG_2=mean(PCCG_2,na.rm=T),Latitude=mean(Latitude,na.rm=T))
-
-
-fit<-glmmTMB(Lam~PCCG_2,data=dat3.0,family=nbinom2)
-fit<-glmmTMB(Lam~PCCG_2,data=dat3.0)
-
-summary(fit)
-
-
-fit<-glmmTMB(Lam~PCCG_1,data=dat3.0,family=nbinom2)
-summary(fit)
-
-
-fit3<-update(fit2,~.-PCCG_1)
-anova(fit2,fit3)
-
-fit4<-update(fit3,~.-PCCG_2:treatment)
-anova(fit4,fit3)
-
-fit5<-update(fit4,~.-PCCG_2)
-anova(fit4,fit5)
-
-
-
-#Getting summarized (pop mean) data. 
-
-dat3<-dat2 %>% filter(treatment!="mcnt") %>% group_by(Family,treatment) %>% summarize(Lam=LamFun(GM_Fecundity2),PCCG_1=mean(PCCG_1,na.rm=T),PCCG_2=mean(PCCG_2,na.rm=T),Latitude=mean(Latitude,na.rm=T))
-
-ggplot(dat3)+
-  geom_point(aes(x=PCCG_1,y=Lam))
-
-ggplot(dat3[dat3$treatment=="a",])+
-  geom_point(aes(x=PCCG_2,y=Lam))
-
-hist(dat3$Lam)
-
-dat3[dat3$treatment=="m",]
-
-fit<-glmmTMB(Lam~PCCG_1*treatment+PCCG_2*treatment,data=dat3,family=nbinom2)
-fit2<-update(fit,~.-PCCG_1:treatment)
-anova(fit,fit2)
-
-fit3<-update(fit2,~.-PCCG_1)
-anova(fit2,fit3)
-
-fit4<-update(fit3,~.-PCCG_2:treatment)
-anova(fit4,fit3)
-
-fit5<-update(fit4,~.-PCCG_2)
-anova(fit4,fit5)
-
-#None significant but treatment. 
-summary(fit5)
-
-#Should control for the field row. 
-
-hist(residuals(fit),breaks=20)
-plot(residuals(fit)~fitted(fit))
-plot(fitted(fit),fitted(fit)+residuals(fit))+abline(a=0,b=1)  
-shapiro.test(residuals(fit)) 
-
-
-fit<-glmmTMB(Lam~PCCG_2+treatment,data=dat3,family=nbinom2)
-summary(fit)
-
-plot(dat3.0$Latitude~dat3.0$PCCG_2)
-
-summary(lm(dat3.0$Latitude~dat3.0$PCCG_2))
-
-```
 
 
 
@@ -2023,6 +1797,16 @@ mean(dat2$PCCG_2[dat2$Bolt_Survival==1&dat2$treatment!="m"],na.rm=T)-mean(dat2$P
 
 mean(MapleModel$PCCG_2S[MapleModel$Bolt_Survival==1],na.rm=T)-mean(MapleModel$PCCG_2S,na.rm=T)
 #Mean PCCG_2 was reduced by -0.218 in the maple treatment. 
+
+mean(dat2$PCCG_2[dat2$Bolt_Survival==1&dat2$treatment=="gm"],na.rm=T)-mean(dat2$PCCG_2[dat2$treatment=="gm"],na.rm=T)
+#Mean PCCG 2 was reduced by -0.1843 SD i in gm treatments 
+
+mean(dat2$PCCG_2[dat2$Bolt_Survival==1&dat2$treatment=="a"],na.rm=T)-mean(dat2$PCCG_2[dat2$treatment=="a"],na.rm=T)
+#Mean PCCG 2 was reduced by -0.1843 SD i in gm treatments 
+
+mean(dat2$PCCG_2[dat2$Bolt_Survival==1],na.rm=T)-mean(dat2$PCCG_2,na.rm=T)
+#Mean PCCG 2 was reduced by -0.094 SD in all treatments 
+
 
 #Mean change in PCCG 1...: 
 mean(dat2$PCCG_1[dat2$Bolt_Survival==1&dat2$treatment!="m"],na.rm=T)-mean(dat2$PCCG_1[dat2$treatment!="m"],na.rm=T)
@@ -3684,5 +3468,334 @@ min(Fitness)
 
 
 
+#Table Creation
+
+
+# Functions for automatic table creation 
+```{r}
+
+library(tidyr)
+
+int<-"treatment:PCCG_2"
+var<-"(1 | gh_bench)" #Must insert space between random effects .
+model.frame(fit6)
+
+#Function to create a data frame without the NA's in it
+NewData<-function(x,var){
+  
+  #When there is an interaction
+  if(grepl(":",var,fixed=T)){
+   before<- gsub(".*\\:","",var)
+   after<- gsub("\\:.*","",var)
+   datFoc<-x %>% drop_na(before,after)
+  }
+  
+  #When there is a random effect.
+  else if(grepl("|",var,fixed=T)){
+    a<-gsub(".* \\| ","",var)
+    b<-gsub(")","",a)
+    datFoc<-x %>% drop_na(b)
+  }
+  
+  #Simple removing Nas when not an interaction and not a random effect 
+   else datFoc<-x %>% drop_na(var)
+   
+   return(datFoc)
+}
+
+
+
+#This works on non-significant variables when you want to add an effect. 
+NonSigExtract<-function(Data,bestmodel,NonSigVar){
+ #Extracting test statistic of every non significant variable: 
+    
+  #Model data with NAs of additional variable removed. 
+    datFoc<-NewData(Data,NonSigVar)
+    
+    
+    #Creating a new formula with a nonsigvar included
+  oldFormula<-as.character(formula(bestmodel))
+  #Making one string
+  oldFormula<- paste(oldFormula[2],oldFormula[1],oldFormula[3],sep="")
+  #New model for anova
+  newFormula<-paste(oldFormula,NonSigVar,sep="+")
+  
+  #Creating models with althered formula and data without Na's for the excluded variable
+  oldMod<-glmmTMB(formula=as.formula(oldFormula),data=datFoc)
+  newMod<-glmmTMB(formula=as.formula(newFormula),data=datFoc)
+    
+  #Return anova output
+out<-anova(oldMod,newMod)
+
+
+return(out)
+}
+
+#This works on significant variables when you want to remove an effect. 
+SigExtract<-function(Data,bestmodel,SigVar){
+ #Extracting test statistic of every non significant variable: 
+    
+  #Model data with NAs of additional variable removed. 
+    datFoc<-NewData(Data,SigVar)
+
+  oldFormula<-as.character(formula(bestmodel))
+  #Making one string
+  oldFormula<- paste(oldFormula[2],oldFormula[1],oldFormula[3],sep="")
+  
+  #Creating new formula without the effect 
+  #Removing term
+  newFormula<-sub(SigVar,"",oldFormula,fixed = T)
+  #Removing spaces
+  newFormula<-gsub(" ","",newFormula,fixed = T)
+  #Removing any double + from formula after removing variable.
+  newFormula<-gsub("++","+",newFormula,fixed = T)
+  #Removing any trailing "+"
+  newFormula<-sub("\\+$","",newFormula)
+
+
+  oldMod<-glmmTMB(formula=as.formula(oldFormula),data=datFoc)
+
+    newMod<-glmmTMB(formula=as.formula(newFormula),data=datFoc)
+    
+out<-anova(oldMod,newMod)
+
+return(out)
+}
+
+
+
+
+```
+
+#Wrapping chisq and p extraction into one function. 
+```{r}
+
+ChiExtracter<-function(Data,fit,SignificantVar,NonSignificantVar){
+
+#Non-significant vars
+Variable_Glob<-c()
+Chi_Glob<-c()
+p_Glob<-c()
+
+for(i in 1:length(NonSignificantVar)){
+  out<-NonSigExtract(Data,fit,NonSigVar=NonSignificantVar[i])
+
+  Chi<-out[2,"Chisq"]
+
+p<-out[2,"Pr(>Chisq)"]
+
+if(out[2,"Chi Df"]<1){
+  stop("Error on DF")
+}
+
+Variable_Glob<-append(Variable_Glob,NonSignificantVar[i])
+Chi_Glob<-append(Chi_Glob,Chi)
+p_Glob<-append(p_Glob,p)
+
+print(paste("NonSigVar:",i))
+}
+
+dataA<-data.frame(Variable_Glob,Chi_Glob,p_Glob)
+print("NonSigVar done")
+
+
+
+#Significant vars. 
+Variable_Glob<-c()
+Chi_Glob<-c()
+p_Glob<-c()
+
+for(i in 1:length(SignificantVar)){
+  out<-SigExtract(Data,fit,SigVar=SignificantVar[i])
+
+  Chi<-out[2,"Chisq"]
+
+p<-out[2,"Pr(>Chisq)"]
+
+if(out[2,"Chi Df"]<1){
+  stop("Error on DF")
+}
+
+Variable_Glob<-append(Variable_Glob,SignificantVar[i])
+Chi_Glob<-append(Chi_Glob,Chi)
+p_Glob<-append(p_Glob,p)
+
+
+print(paste("SigVar:",i))
+
+}
+
+dataB<-data.frame(Variable_Glob,Chi_Glob,p_Glob)
+
+
+print("SigVar done")
+
+return(rbind(dataA,dataB))
+
+}
+
+
+
+
+```
+
+
+# Creating a table of chisq and p values for paper. 
+
+Must explicitely state model (i.e. no "*")
+
+Must also have a space between random effect in model (1 | term) not (1|term)
+```{r}
+
+#PERFORMANCE
+
+#Best model 
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~PCCG_1+treatment:PCCG_1+Fern+BlackPathDam+Transplant_Size_GM+(1 | gh_bench),  data=dat2)
+
+# Maximum model 
+fitfull<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PCCG_1+treatment*PCCG_2+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(Fern)+RGR1+Transplant_Size_GM+(1|Family)+(1|gh_bench), data=dat2)
+
+SignificantVar<-c("treatment:PCCG_1","Fern","BlackPathDam","Transplant_Size_GM","(1 | gh_bench)")
+NonSignificantVar<-c("PCCG_2","WhiteFungLogis","ThripsDam","RGR1","(1 | Family)", "treatment:PCCG_2")
+
+perfTable<-ChiExtracter(Data=dat2,fit=fit6,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
+
+
+#FECUNDITY
+
+#Best model
+dat2$GM_FecundityL<-log(dat2$GM_Fecundity)
+
+fit12<-glmmTMB(GM_FecundityL~treatment+Transplant_Size_GM+PCCG_1,data=dat2)
+# Maximum model 
+fitfull<-fit<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Col_Field)+Transplant_Size_GM,data=dat2)
+
+dat2$WhiteFungLogis<-as.factor(dat2$WhiteFungLogis)
+
+SignificantVar<-c("treatment","Transplant_Size_GM","PCCG_1")
+NonSignificantVar<-c("PCCG_2","ThripsDam","RGR1","(1 | Family)", "treatment:PCCG_2","treatment:PCCG_1","BlackPathDam","Fern","WhiteFungLogis","(1 | Col_Field)","(1 | Row_Field)","GM_TotalLeaf_AreaS", "(1 | gh_bench)")
+
+FecTable<-ChiExtracter(Data=dat2,fit=fit12,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
+
+#SURVIVAL
+
+#Best model
+fits<- glmmTMB(Bolt_Survival ~ treatment+PCCG_1 +treatment:PCCG_1  + Fern +  
+    (1 | Family) + (1 | Row_Field) ,data=dat2, family="binomial")
+
+SignificantVar<-c("treatment:PCCG_1"+"treatment" , "Fern" ,  
+   "(1 | Family)" , "(1 | Row_Field)")
+
+dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
+
+NonSignificantVar<-c("PCCG_2","WhiteFungLogis","RGR1", "treatment:PCCG_2","BlackPathDam","ThripsDam","(1 | Col_Field)","GM_TotalLeaf_AreaS","Transplant_Size_GM","(1 | gh_bench)")
+
+SurvTable<-ChiExtracter(Data=dat2,fit=fits,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
+
+SurvTable
+
+
+
+
+#LIFETIME FITNESS
+
+dat2$GM_Fecundity2L<-log(dat2$GM_Fecundity2+1)
+
+#Best model
+fit2<-glmmTMB(GM_Fecundity2L~treatment+(1|Family)+(1|Row_Field),data=dat2)
+
+
+SignificantVar<-c("treatment" ,  
+   "(1 | Family)" , "(1 | Row_Field)")
+
+NonSignificantVar<-c("PCCG_2","WhiteFungLogis","RGR1", "treatment:PCCG_2","treatment:PCCG_1","PCCG_1","BlackPathDam","ThripsDam","WhiteFungLogis","(1 | Col_Field)","GM_TotalLeaf_AreaS", "Fern","Transplant_Size_GM", "(1 | gh_bench)")
+
+LifetimeTable<-ChiExtracter(Data=dat2,fit=fit2,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
+
+LifetimeTable
+```
+
+#organizing table
+```{r}
+
+#Organizing table 
+
+#Rounding p values and chi values
+perfTable<-perfTable %>% mutate(Chi=round(Chi_Glob,1),p=round(p_Glob,2))
+
+#Changing significance values to to symbols: < 0.04
+
+     perfTable$p[perfTable$p_Glob<0.05]<-"< 0.05"
+    perfTable$p[perfTable$p_Glob<0.01]<-"< 0.01"
+    perfTable$p[perfTable$p_Glob<0.001]<-"< 0.001"
+    
+#Combining chi and p into the structure i want:
+    
+perfTable$Performance<-paste("(",perfTable$Chi,", ",perfTable$p,")",sep="")
+
+
+#Fecundity
+
+#Rounding p values and chi values
+FecTable<-FecTable %>% mutate(Chi=round(Chi_Glob,1),p=round(p_Glob,2))
+
+#Changing significance values to to symbols: < 0.04
+
+     FecTable$p[FecTable$p_Glob<0.05]<-"< 0.05"
+    FecTable$p[FecTable$p_Glob<0.01]<-"< 0.01"
+    FecTable$p[FecTable$p_Glob<0.001]<-"< 0.001"
+    
+#Combining chi and p into the structure i want:
+    
+FecTable$Fecundity<-paste("(",FecTable$Chi,", ",FecTable$p,")",sep="")
+
+
+#Survival
+
+#Rounding p values and chi values
+SurvTable<-SurvTable %>% mutate(Chi=round(Chi_Glob,1),p=round(p_Glob,2))
+
+#Changing significance values to to symbols: < 0.04
+
+     SurvTable$p[SurvTable$p_Glob<0.05]<-"< 0.05"
+    SurvTable$p[SurvTable$p_Glob<0.01]<-"< 0.01"
+    SurvTable$p[SurvTable$p_Glob<0.001]<-"< 0.001"
+    
+#Combining chi and p into the structure i want:
+    
+SurvTable$Survival<-paste("(",SurvTable$Chi,", ",SurvTable$p,")",sep="")
+
+
+
+# LifetimeTable
+#Rounding p values and chi values
+LifetimeTable<-LifetimeTable %>% mutate(Chi=round(Chi_Glob,1),p=round(p_Glob,2))
+
+#Changing significance values to to symbols: < 0.04
+
+     LifetimeTable$p[LifetimeTable$p_Glob<0.05]<-"< 0.05"
+    LifetimeTable$p[LifetimeTable$p_Glob<0.01]<-"< 0.01"
+    LifetimeTable$p[LifetimeTable$p_Glob<0.001]<-"< 0.001"
+    
+#Combining chi and p into the structure i want:
+    
+LifetimeTable$Lifetime<-paste("(",LifetimeTable$Chi,", ",LifetimeTable$p,")",sep="")
+
+LifetimeTable
+
+#Adding all tabes together. 
+a<-perfTable %>% select(Variable_Glob,Performance)
+b<-SurvTable %>% select(Variable_Glob,Survival)
+c<-FecTable %>% select(Variable_Glob,Fecundity)
+d<-LifetimeTable %>% select(Variable_Glob,Lifetime)
+
+output<-a %>% full_join(b,by="Variable_Glob") %>% full_join(c,by="Variable_Glob") %>% left_join(d,by="Variable_Glob")
+
+
+output
+
+
+
+```
 
 
