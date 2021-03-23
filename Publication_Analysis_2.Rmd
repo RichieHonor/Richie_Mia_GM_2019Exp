@@ -400,6 +400,8 @@ anova(fit7,fit6) #Yes p= 0.0025
 fit8<-update(fit7,~.-PCCG_2)
 anova(fit8,fit7) #No. 
 
+
+
 #Best Model is (With performance gradients): 
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area,meanSTD = T)~treatment*Standardize(PCCG_1)+Standardize(Fern)+Standardize(BlackPathDam)+Standardize(Transplant_Size_GM)+(1|gh_bench),  data=dat2)
 summary(fit6)
@@ -563,6 +565,7 @@ fit12<-glmmTMB(log(GM_Fecundity)~treatment+Transplant_Size_GM+PCCG_1,data=dat2)
 
 #Selection differential
 fit12<-glmmTMB(GM_FecundityMS~treatment+Standardize(Transplant_Size_GM)+Standardize(PCCG_1),data=dat2)
+
 
 summary(fit12)
 min(dat2$GM_FecundityMS,na.rm=T)
@@ -3476,9 +3479,6 @@ min(Fitness)
 
 library(tidyr)
 
-int<-"treatment:PCCG_2"
-var<-"(1 | gh_bench)" #Must insert space between random effects .
-model.frame(fit6)
 
 #Function to create a data frame without the NA's in it
 NewData<-function(x,var){
@@ -3512,14 +3512,29 @@ NonSigExtract<-function(Data,bestmodel,NonSigVar){
   #Model data with NAs of additional variable removed. 
     datFoc<-NewData(Data,NonSigVar)
     
+  #Creating a new formula with a nonsigvar included
     
-    #Creating a new formula with a nonsigvar included
+    #If there is an interaction add in all lower order terms before testing it.: 
+      if(grepl(":",NonSigVar,fixed=T)){
+   before<- gsub(".*\\:","",NonSigVar)
+   after<- gsub("\\:.*","",NonSigVar)
+  
+    oldFormula<-as.character(formula(bestmodel))
+  #Making one string
+  oldFormula<- paste(oldFormula[2],oldFormula[1],oldFormula[3],sep="")
+  #old formula with lower order terms added
+  oldFormula<-paste(oldFormula,before,after,sep="+")
+  #New model with interaction added 
+  newFormula<-paste(oldFormula,NonSigVar,sep="+")
+  }
+  
+    else{
   oldFormula<-as.character(formula(bestmodel))
   #Making one string
   oldFormula<- paste(oldFormula[2],oldFormula[1],oldFormula[3],sep="")
   #New model for anova
   newFormula<-paste(oldFormula,NonSigVar,sep="+")
-  
+    }
   #Creating models with althered formula and data without Na's for the excluded variable
   oldMod<-glmmTMB(formula=as.formula(oldFormula),data=datFoc)
   newMod<-glmmTMB(formula=as.formula(newFormula),data=datFoc)
@@ -3646,14 +3661,15 @@ Must explicitely state model (i.e. no "*")
 
 Must also have a space between random effect in model (1 | term) not (1|term)
 ```{r}
+dat2$GM_FecundityL<-log(dat2$GM_Fecundity)
+dat2$WhiteFungLogis<-as.factor(dat2$WhiteFungLogis)
+dat2$GM_Fecundity2L<-log(dat2$GM_Fecundity2+1)
+dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
 
 #PERFORMANCE
 
 #Best model 
-fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~PCCG_1+treatment:PCCG_1+Fern+BlackPathDam+Transplant_Size_GM+(1 | gh_bench),  data=dat2)
-
-# Maximum model 
-fitfull<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment*PCCG_1+treatment*PCCG_2+BlackPathDam*WhiteFungLogis*ThripsDam+Standardize(Fern)+RGR1+Transplant_Size_GM+(1|Family)+(1|gh_bench), data=dat2)
+fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area)~treatment+PCCG_1+PCCG_1+treatment:PCCG_1+Fern+BlackPathDam+Transplant_Size_GM+(1 | gh_bench),  data=dat2)
 
 SignificantVar<-c("treatment:PCCG_1","Fern","BlackPathDam","Transplant_Size_GM","(1 | gh_bench)")
 NonSignificantVar<-c("PCCG_2","WhiteFungLogis","ThripsDam","RGR1","(1 | Family)", "treatment:PCCG_2")
@@ -3661,21 +3677,17 @@ NonSignificantVar<-c("PCCG_2","WhiteFungLogis","ThripsDam","RGR1","(1 | Family)"
 perfTable<-ChiExtracter(Data=dat2,fit=fit6,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
 
 
+
 #FECUNDITY
 
 #Best model
-dat2$GM_FecundityL<-log(dat2$GM_Fecundity)
-
 fit12<-glmmTMB(GM_FecundityL~treatment+Transplant_Size_GM+PCCG_1,data=dat2)
-# Maximum model 
-fitfull<-fit<-glmmTMB(log(GM_Fecundity)~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+BlackPathDam+Standardize(GM_TotalLeaf_Area)+Standardize(RGR1)+(1|Family)+(1|Col_Field)+Transplant_Size_GM,data=dat2)
-
-dat2$WhiteFungLogis<-as.factor(dat2$WhiteFungLogis)
 
 SignificantVar<-c("treatment","Transplant_Size_GM","PCCG_1")
 NonSignificantVar<-c("PCCG_2","ThripsDam","RGR1","(1 | Family)", "treatment:PCCG_2","treatment:PCCG_1","BlackPathDam","Fern","WhiteFungLogis","(1 | Col_Field)","(1 | Row_Field)","GM_TotalLeaf_AreaS", "(1 | gh_bench)")
 
 FecTable<-ChiExtracter(Data=dat2,fit=fit12,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
+
 
 #SURVIVAL
 
@@ -3683,7 +3695,7 @@ FecTable<-ChiExtracter(Data=dat2,fit=fit12,SignificantVar=SignificantVar,NonSign
 fits<- glmmTMB(Bolt_Survival ~ treatment+PCCG_1 +treatment:PCCG_1  + Fern +  
     (1 | Family) + (1 | Row_Field) ,data=dat2, family="binomial")
 
-SignificantVar<-c("treatment:PCCG_1"+"treatment" , "Fern" ,  
+SignificantVar<-c("treatment:PCCG_1" , "Fern" ,  
    "(1 | Family)" , "(1 | Row_Field)")
 
 dat2$GM_TotalLeaf_AreaS<-Standardize(dat2$GM_TotalLeaf_Area)
@@ -3692,14 +3704,11 @@ NonSignificantVar<-c("PCCG_2","WhiteFungLogis","RGR1", "treatment:PCCG_2","Black
 
 SurvTable<-ChiExtracter(Data=dat2,fit=fits,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
 
-SurvTable
-
 
 
 
 #LIFETIME FITNESS
 
-dat2$GM_Fecundity2L<-log(dat2$GM_Fecundity2+1)
 
 #Best model
 fit2<-glmmTMB(GM_Fecundity2L~treatment+(1|Family)+(1|Row_Field),data=dat2)
@@ -3708,11 +3717,11 @@ fit2<-glmmTMB(GM_Fecundity2L~treatment+(1|Family)+(1|Row_Field),data=dat2)
 SignificantVar<-c("treatment" ,  
    "(1 | Family)" , "(1 | Row_Field)")
 
-NonSignificantVar<-c("PCCG_2","WhiteFungLogis","RGR1", "treatment:PCCG_2","treatment:PCCG_1","PCCG_1","BlackPathDam","ThripsDam","WhiteFungLogis","(1 | Col_Field)","GM_TotalLeaf_AreaS", "Fern","Transplant_Size_GM", "(1 | gh_bench)")
+NonSignificantVar<-c("PCCG_2","WhiteFungLogis","RGR1", "treatment:PCCG_2","treatment:PCCG_1","PCCG_1","BlackPathDam","ThripsDam","(1 | Col_Field)","GM_TotalLeaf_AreaS", "Fern","Transplant_Size_GM", "(1 | gh_bench)")
 
 LifetimeTable<-ChiExtracter(Data=dat2,fit=fit2,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
 
-LifetimeTable
+
 ```
 
 #organizing table
@@ -3789,13 +3798,210 @@ b<-SurvTable %>% select(Variable_Glob,Survival)
 c<-FecTable %>% select(Variable_Glob,Fecundity)
 d<-LifetimeTable %>% select(Variable_Glob,Lifetime)
 
-output<-a %>% full_join(b,by="Variable_Glob") %>% full_join(c,by="Variable_Glob") %>% left_join(d,by="Variable_Glob")
 
 
-output
+#Setting organization data frame
 
+Org=data.frame("Variable_Glob"=c(
+"treatment:PCCG_1",
+"treatment:PCCG_2",
+'treatment',
+'PCCG_1',
+'PCCG_2',
+'Transplant_Size_GM',
+'RGR1',
+'GM_TotalLeaf_AreaS',
+'Boltsize',
+'Fern',
+'ThripsDam',
+'BlackPathDam',
+'WhiteFungLogis',
+'(1 | gh_bench)',
+'(1 | Col_Field)',
+'(1 | Row_Field)',
+'(1 | Family)'
+),
+"ind"=1:17)
+
+#Organizing
+output<-a %>% full_join(b,by="Variable_Glob") %>% full_join(c,by="Variable_Glob") %>% full_join(d,by="Variable_Glob") %>% full_join(Org,by="Variable_Glob")
+
+output[order(output$ind),]
+
+write.csv(output[order(output$ind),],"AnovaResultsTable.csv")
 
 
 ```
 
+#Treatment effects on A.saccarum
+```{r}
+
+#FIRST YEAR 
+Maple$Maple_TotalLeafArea_EndS<-Standardize(Maple$Maple_TotalLeafArea_End,meanSTD=T)
+
+Maple$MapleFinalMassL<-log(Maple$MapleFinalMass)
+
+MapleModel$GM_TotalLeaf_AreaS<-Standardize( MapleModel$GM_TotalLeaf_Area )
+MapleModel$Maple_TotalLeafArea_EndS<-Standardize(MapleModel$Maple_TotalLeafArea_End,meanSTD=T)
+MapleModel$MapleFinalMassL<-log(MapleModel$MapleFinalMass)
+
+
+fit1<-glmmTMB(Maple_TotalLeafArea_EndS~PC1Tot+treatment+Fern+MapleDamage,data=Maple)
+
+SignificantVar<-c("PC1Tot","treatment","Fern","MapleDamage")
+NonSignificantVar<-c("(1 | gh_bench)")
+
+M1<-ChiExtracter(Data=Maple,fit=fit1,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
+
+
+#FIRST YEAR WITHIN TREATMENT
+fit3<-glmmTMB(Maple_TotalLeafArea_EndS~PC1Tot+PCCG_1+PCCG_2+MapleDamage, data=MapleModel)
+
+SignificantVar<-c("PC1Tot","PCCG_1","PCCG_2","MapleDamage")
+NonSignificantVar<-c("(1 | gh_bench)","Fern","GM_TotalLeaf_AreaS","RGR1","Family")
+
+M1Within<-ChiExtracter(Data=MapleModel,fit=fit3,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
+
+
+
+#SECOND YEAR
+fit<-glmmTMB(MapleFinalMassL~treatment+PC1Tot,data=Maple)
+
+
+SignificantVar<-c("PC1Tot","treatment")
+NonSignificantVar<-c("(1 | gh_bench)","Fern","MapleDamage")
+
+M2<-ChiExtracter(Data=Maple,fit=fit,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
+
+M2
+
+
+#SECOND YEAR WITHIN TREATMENT
+fit9<-glmmTMB(MapleFinalMassL ~ PC1Tot  +
+    GM_TotalLeaf_AreaS  +(1 | Row_Field),data=MapleModel)
+
+
+# omit repeats.. ?
+SignificantVar<-c("PC1Tot","GM_TotalLeaf_AreaS","(1 | Row_Field)")
+NonSignificantVar<-c("(1 | gh_bench)","(1 | Col_Field)","Fern","RGR1","Family","PCCG_2","PCCG_1","MapleDamage")
+
+M2Within<-ChiExtracter(Data=MapleModel,fit=fit9,SignificantVar=SignificantVar,NonSignificantVar=NonSignificantVar)
+
+                                                                                    
+M2Within
+```
+
+#Organizing maple tables
+```{r}
+
+#Rounding p values and chi values
+M1<-M1 %>% mutate(Chi=round(Chi_Glob,1),p=round(p_Glob,2))
+
+#Changing significance values to to symbols: < 0.04
+
+     M1$p[M1$p_Glob<0.05]<-"< 0.05"
+    M1$p[M1$p_Glob<0.01]<-"< 0.01"
+    M1$p[M1$p_Glob<0.001]<-"< 0.001"
+    
+#Combining chi and p into the structure i want:
+    
+M1$Year1<-paste("(",M1$Chi,", ",M1$p,")",sep="")
+
+
+
+#M2
+
+#Rounding p values and chi values
+M2<-M2 %>% mutate(Chi=round(Chi_Glob,1),p=round(p_Glob,2))
+
+#Changing significance values to to symbols: < 0.04
+
+     M2$p[M2$p_Glob<0.05]<-"< 0.05"
+    M2$p[M2$p_Glob<0.01]<-"< 0.01"
+    M2$p[M2$p_Glob<0.001]<-"< 0.001"
+    
+#Combining chi and p into the structure i want:
+    
+M2$Year2<-paste("(",M2$Chi,", ",M2$p,")",sep="")
+
+#M1Within 
+M1Within<-M1Within %>% mutate(Chi=round(Chi_Glob,1),p=round(p_Glob,2))
+
+#Changing significance values to to symbols: < 0.04
+
+     M1Within$p[M1Within$p_Glob<0.05]<-"< 0.05"
+    M1Within$p[M1Within$p_Glob<0.01]<-"< 0.01"
+    M1Within$p[M1Within$p_Glob<0.001]<-"< 0.001"
+    
+#Combining chi and p into the structure i want:
+    
+M1Within$Year1<-paste("(",M1Within$Chi,", ",M1Within$p,")",sep="")
+
+
+#M2Within 
+M2Within<-M2Within %>% mutate(Chi=round(Chi_Glob,1),p=round(p_Glob,2))
+
+#Changing significance values to to symbols: < 0.04
+
+     M2Within$p[M2Within$p_Glob<0.05]<-"< 0.05"
+    M2Within$p[M2Within$p_Glob<0.01]<-"< 0.01"
+    M2Within$p[M2Within$p_Glob<0.001]<-"< 0.001"
+    
+#Combining chi and p into the structure i want:
+    
+M2Within$Year2<-paste("(",M2Within$Chi,", ",M2Within$p,")",sep="")
+
+
+#Adding all tabes together. 
+a<-M1 %>% select(Variable_Glob,Year1)
+b<-M2 %>% select(Variable_Glob,Year2)
+c<-M1Within %>% select(Variable_Glob,Year1)
+d<-M2Within %>% select(Variable_Glob,Year2)
+
+
+
+#Setting organization data frame
+output1
+Org1=data.frame("Variable_Glob"=c(
+'treatment',
+'PC1Tot',
+'MapleDamage',
+'Fern',
+'(1 | gh_bench)'
+),
+"ind"=1:5)
+
+Org2=data.frame("Variable_Glob"=c(
+'PCCG_1',
+'PCCG_2',
+'RGR1',
+'GM_TotalLeaf_AreaS',
+'Family',
+'PC1Tot',
+'MapleDamage',
+'Fern',
+'(1 | gh_bench)',
+'(1 | Col_Field)',
+'(1 | Row_Field)'
+),
+"ind"=1:11)
+
+
+#Organizing
+output1<-a %>% full_join(b,by="Variable_Glob")%>% full_join(Org1,by="Variable_Glob")
+
+output2<-c %>% full_join(d,by="Variable_Glob") %>% full_join(Org2,by="Variable_Glob")
+
+
+#Pasting data frames together
+
+output<-rbind(
+output1[order(output1$ind),],
+output2[order(output2$ind),]
+)
+
+write.csv(output,"MapleResultsTable.csv")
+
+
+```
 
