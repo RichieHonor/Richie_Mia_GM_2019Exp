@@ -60,11 +60,11 @@ Standardize<-function(x,meanSTD=F,SupplyDatStat=NULL){
 ```{r}
 
  #Logging data
-  dat$Fern<-log(dat$Fern+1)
-  dat$gluc_Conc<-log(dat$gluc_Conc)
-  dat$flav_Conc<-log(dat$flav_Conc)
-  dat$ChlorA<-log(dat$ChlorA)
- dat$ThripsDam<-log(dat$ThripsDam+1)
+dat$Fern<-log(dat$Fern+1)
+dat$gluc_Conc<-log(dat$gluc_Conc)
+dat$flav_Conc<-log(dat$flav_Conc)
+dat$ChlorA<-log(dat$ChlorA)
+dat$ThripsDam<-log(dat$ThripsDam+1)
 dat$BlackPathDam<-log(dat$BlackPathDam+1)
 
 #Creating leaf area vector 
@@ -77,7 +77,12 @@ dat$GM_Leaf_WidSampledLeaf<-dat$GM_Leaf_Wid
 dat$GM_Leaf_Number_EndRosette<-dat$GM_Leaf_Number
 
 #Summarizing: Taking the mean value of leaves. This tibble contains data at the level of the plant means. 
+
 dat2<-dat %>% group_by(Tag) %>% summarize(ChlorA=mean(ChlorA),ChlorB=mean(ChlorB),gluc_Conc=mean(gluc_Conc),flav_Conc=mean(flav_Conc),Family=first(Family),treatment=first(treatment),gh_row=first(gh_row),gh_bench=first(gh_bench),GM_TotalLeaf_Area=first(GM_TotalLeaf_Area),comp_number=first(comp_number),ThripsDam=mean(ThripsDam),WhiteFungDam=mean(WhiteFungDam),BlackPathDam=mean(BlackPathDam),Fern=mean(Fern),gh_col=first(gh_col),GM_Leaf_Area=mean(GM_Leaf_Area),Latitude=first(Latitude),Longitude=first(Longitude),Altitude=first(Altitude),
+RosDens=first(RosDens),
+AdultDens=first(AdultDens),
+TotalSizeS0=first(TotalSizeS0),
+HerbivoryS0=first(HerbivoryS0),
 GM_StemHeight_Bolt=first(GM_StemHeight_Bolt),
 GM_Leaf_Number_Bolt=first(GM_Leaf_Number_Bolt),
 Larg_Leaf_Len_Bolt=first(Larg_Leaf_Len_Bolt),
@@ -312,9 +317,6 @@ MapleModel<-Maple %>% filter(treatment=="m")
 
 #write.csv(dat2,"CleanData.csv")
 ```
-
-
-
 
 
 
@@ -728,14 +730,15 @@ summary(fit)
 #reassessing PCCG_2 when family is not included. 
 ```{r}
 
-#reassessing PCCG_2 when family is not included. 
+#reassessing PCCG_2:treatment interaction when family is not included. 
 fit<- glmmTMB(Bolt_Survival ~ treatment*Standardize(PCCG_2) + Standardize(Fern) +  
       (1 | Row_Field) ,data=dat2, family="binomial")
 fit1<- glmmTMB(Bolt_Survival ~ treatment+Standardize(PCCG_2) + Standardize(Fern) +  
       (1 | Row_Field) ,data=dat2, family="binomial")
-anova(fit,fit1) # not significant
-
+anova(fit,fit1) # interaction not significant
 #This is actually close to significant. (p = 0.058)
+
+#Testing PCCG_2 without family
 fit<- glmmTMB(Bolt_Survival ~ treatment+Standardize(PCCG_2) + Standardize(Fern)  
      +(1 | Row_Field),data=dat2[!is.na(dat2$PCCG_2),], family="binomial")
 fit1<- glmmTMB(Bolt_Survival ~ treatment + Standardize(Fern)   
@@ -743,24 +746,54 @@ fit1<- glmmTMB(Bolt_Survival ~ treatment + Standardize(Fern)
 anova(fit,fit1) 
 summary(fit)
 
-#reassessing PCCG_1 when family is not included. 
+#reassessing PCCG_1 treatment interaction when family is not included. 
 fit<- glmmTMB(Bolt_Survival ~ treatment*Standardize(PCCG_1) + Standardize(Fern) +  
       (1 | Row_Field) ,data=dat2, family="binomial")
 fit1<- glmmTMB(Bolt_Survival ~ treatment+Standardize(PCCG_1) + Standardize(Fern) +  
       (1 | Row_Field) ,data=dat2, family="binomial")
 anova(fit,fit1) # Almost significant
 summary(fit)
-
 #This is actually close to significant. (p = 0.058)
+
+#testing PCCG_1 without family
 fit<- glmmTMB(Bolt_Survival ~ treatment+Standardize(PCCG_1) + Standardize(Fern)  
      +(1 | Row_Field),data=dat2[!is.na(dat2$PCCG_2),], family="binomial")
 fit1<- glmmTMB(Bolt_Survival ~ treatment + Standardize(Fern)   
        +(1 | Row_Field),data=dat2[!is.na(dat2$PCCG_2),], family="binomial")
 anova(fit,fit1)  #Almost significant again...
 
+#
+#Reassessing treatment by removing the GM treatment
+datrmGM<-dat2 %>% mutate(treatment=replace(treatment,treatment=="gm","a")) %>% filter(!is.na(PCCG_2))
 
+fit<- glmmTMB(Bolt_Survival ~ treatment + Standardize(Fern)  
+     +(1 | Row_Field),data=datrmGM, family="binomial")
+fit1<- glmmTMB(Bolt_Survival ~   Standardize(Fern)   
+       +(1 | Row_Field),data=datrmGM, family="binomial")
+anova(fit,fit1)  #Wow significant again...
+#Now treatment is significant !!! why didnt i do this before. This is what to report. 
+summary(fit)
+
+#Reassessing if PCCG_2 : treatment interaction is significant with new treatment categories 
+fit<- glmmTMB(Bolt_Survival ~ treatment * Standardize(PCCG_2)+Standardize(Fern)  
+     +(1 | Row_Field),data=datrmGM, family="binomial")
+fit1<- glmmTMB(Bolt_Survival ~  treatment +Standardize(PCCG_2)+Standardize(Fern)   
+       +(1 | Row_Field),data=datrmGM, family="binomial")
+anova(fit,fit1)  #not significant
+
+#reassessing if PCCG_2 is significant
+fit<- glmmTMB(Bolt_Survival ~ treatment + Standardize(PCCG_2)+Standardize(Fern)  
+     +(1 | Row_Field),data=datrmGM, family="binomial")
+fit1<- glmmTMB(Bolt_Survival ~  treatment +Standardize(Fern)   
+       +(1 | Row_Field),data=datrmGM, family="binomial")
+anova(fit,fit1)  #still not significant p == 0.059
+
+summary(fit)
+
+#New model with relative survival. 
 fit<- glmmTMB(Standardize(Bolt_Survival,meanSTD=T) ~ treatment + Standardize(Fern) +  
-    Standardize(PCCG_2) + (1 | Row_Field) ,data=dat2)
+    (1 | Family) + (1 | Row_Field) ,data=datrmGM)
+
 
 summary(fit)
 Link=function(x){
@@ -815,6 +848,44 @@ output<-permTest_LR_int(fit, "treatment:PCCG_1","PCCG_1","Chisq",3000,OutputData
 
 #The simulated p value is 0.035 on 3000 iterations, which is significant, but not when leaf size is accounted for.  
 
+
+```
+
+#Change in mean (manual calculations)
+```{r}
+##### PC1
+dat2$PCCG_1S<-Standardize(dat2$PCCG_1)
+dat2$PCCG_2S<-Standardize(dat2$PCCG_2)
+
+#Alone treatment ... -0.03
+dat2 %>% filter(treatment=="a",Bolt_Survival==1) %>% summarize(mean(PCCG_1S,na.rm=T)) -
+dat2 %>% filter(treatment=="a") %>% summarize(mean(PCCG_1S,na.rm=T)) 
+
+#Maple treatment...0.099
+dat2 %>% filter(treatment=="m",Bolt_Survival==1) %>% summarize(mean(PCCG_1S,na.rm=T)) -
+dat2 %>% filter(treatment=="m") %>% summarize(mean(PCCG_1S,na.rm=T)) 
+
+#GM treatment...0.433
+dat2 %>% filter(treatment=="gm",Bolt_Survival==1) %>% summarize(mean(PCCG_1S,na.rm=T)) -
+dat2 %>% filter(treatment=="gm") %>% summarize(mean(PCCG_1S,na.rm=T)) 
+
+
+##### PC2
+#Alone treatment ... 0.0089
+dat2 %>% filter(treatment=="a",Bolt_Survival==1) %>% summarize(mean(PCCG_2S,na.rm=T)) -
+dat2 %>% filter(treatment=="a") %>% summarize(mean(PCCG_2S,na.rm=T)) 
+
+#Maple treatment...-0.221
+dat2 %>% filter(treatment=="m",Bolt_Survival==1) %>% summarize(mean(PCCG_2S,na.rm=T)) -
+dat2 %>% filter(treatment=="m") %>% summarize(mean(PCCG_2S,na.rm=T)) 
+
+#GM treatment...-0.321
+dat2 %>% filter(treatment=="gm",Bolt_Survival==1) %>% summarize(mean(PCCG_2S,na.rm=T)) -
+dat2 %>% filter(treatment=="gm") %>% summarize(mean(PCCG_2S,na.rm=T)) 
+
+#All treatment...-0.16
+dat2 %>% filter(Bolt_Survival==1) %>% summarize(mean(PCCG_2S,na.rm=T)) -
+dat2 %>%  summarize(mean(PCCG_2S,na.rm=T)) 
 
 ```
 
@@ -1272,6 +1343,10 @@ anova(fit1,fit2) #Yes
 fit1<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+treatment+Standardize(Fern)+Standardize(MapleDamage),data=Maple)
 fit2<-glmmTMB(Standardize(Maple_TotalLeafArea_End)~Standardize(PC1Tot)+treatment+Standardize(MapleDamage),data=Maple)
 anova(fit1,fit2) #Yes
+summary(fit1)
+summary(fit2)
+
+
 
 #Is treatment significant?
 fit1<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+Fern+MapleDamage,data=Maple)
@@ -1522,7 +1597,6 @@ OutdirPerfPC2
 ```
 
 #### Path analysis survival
-fix and redo permutation tests. 
 ```{r}
 
 #Selection gradient of survival
@@ -3220,6 +3294,106 @@ ExportX(PathPerf,PathPerfC,"Selection_Figures/PathTotalNew2.pptx")
 
 # Simulations for understanding
 
+#Looking at the effect of pc2 on pathogen damage
+```{r}
+#PCCG_1 is associated with more black pathogen damage. Interesting.... maybe they got more water resulting in higher performance, but it was too much water and they got the pathogen damage? 
+
+#do models like this 
+fit3<-glmmTMB(Standardize(BlackPathDam)~PCCG_1+GM_Leaf_Area+treatment+Standardize(Fern)+(1|gh_bench), data=dat2)
+summary(fit3)
+
+#do models like this 
+fit3<-glmmTMB(Standardize(BlackPathDam)~PCCG_2+GM_Leaf_Area+treatment+Standardize(Fern)+(1|gh_bench), data=dat2)
+summary(fit3)
+
+
+#Check if glucosinolate and chlorophyll are diluted in bigger leaves and if this has an effect. 
+
+
+#There is no significant effect of the predictors on white fungal damage
+fitfull<-glmmTMB(WhiteFungLogis~PCCG_1+PCCG_2+treatment+Standardize(Fern)+RGR1+Transplant_Size_GM+(1|gh_bench), data=dat2)
+summary(fitfull)
+
+
+
+
+#there is a significant effect of PCCG_2
+
+
+#Testing with family 
+
+fit4<-glmmTMB(Standardize(ThripsDam)~PCCG_2+GM_Leaf_Area+treatment+(1|gh_bench)+(1|Family), data=dat2)
+summary(fit4) 
+
+#I think that pathogen damage needs to go into the path analysis... --- if it is a significant predictor. 
+
+
+
+
+#Leaf damage from adult populations 
+dat$
+```
+
+# Testing whether PC2 is significantly correated with adult traits. 
+```{r}
+#Creating total density
+dat2<-dat2 %>% mutate(TotalDens=RosDens+AdultDens)
+
+#Summarizing to family level
+dat3 <-
+  dat2 %>% 
+  group_by(Family) %>% 
+  summarize(
+    TotalDens = first(TotalDens),
+    RosDens = first(RosDens),
+    AdultDens = first(AdultDens),
+    GM_Leaf_Area = mean(GM_Leaf_Area, na.rm = T),
+    PCCG_2 = mean(PCCG_2, na.rm = T),
+    TotalSizeS0 = first(TotalSizeS0),
+    HerbivoryS0 = first(HerbivoryS0)
+  )
+
+dat2 %>% filter(is.na(TotalSizeS0))
+  
+  dat2$total
+#Testing whether density is associated with PC1 or PC2
+fit3<-glmmTMB(Standardize(TotalDens)~PCCG_2, data=dat3)
+summary(fit3)
+fit3<-glmmTMB(Standardize(RosDens)~PCCG_2, data=dat3)
+summary(fit3)
+
+#PC2 is still significant after taking the family mean on adult density --- interesting. 
+fit3<-glmmTMB(Standardize(AdultDens)~PCCG_2, data=dat3)
+summary(fit3)
+#There is a positive correlated between pccg_2 and adult density in the original field experiement
+
+#testing whether total GM size is significantly correlated with PC2
+fit3<-glmmTMB(Standardize(TotalSizeS0)~PCCG_2, data=dat3)
+summary(fit3) #Very close to significance! p = 0.0532
+
+
+#testing whether the bolt:rosette density ratio is significantly correlated with PC2. This would demosntrate that something about the phase of the two year cycle is important
+fit3<-glmmTMB(Standardize(RosDens/AdultDens)~PCCG_2, data=dat3)
+summary(fit3) #Not significant.
+
+
+
+
+###
+#Testing whether PC2 is significantl correalted with adult herbivore damage in the populations
+###
+fit3<-glmmTMB(Standardize(HerbivoryS0)~PCCG_2, data=dat3)
+summary(fit3) #Not significant. 
+
+#Glucosinolate concentration is significantly higher in populations with higher adult density. 
+dat2$GM_Leaf_Area
+dat2$lat
+
+ggplot(dat2 %>% filter(!is.na(PCCG_2)))+
+  geom_jitter(aes(x=Longitude, y= Latitude, colour=PCCG_2),width = 1.5, height = 1.5)
+```
+
+
 
 #Testing selection differential of survival.
 ```{r}
@@ -4005,3 +4179,114 @@ write.csv(output,"MapleResultsTable.csv")
 
 ```
 
+
+
+
+#Generating table of genotype location and sample size. 
+```{r}
+table(dat$Family,dat$Longitude,dat$Latitude,dat$Altitude)
+
+GenotypeLocation<-dat %>% group_by(Family) %>% summarize(Longitude=first(Longitude),Latitude=first(Latitude),Altitude=first(Altitude))
+
+
+
+
+######
+#Generating table demonstrating sample size before Sample Loss. 
+#####
+
+#Creating column for full family name
+dat2$FamilyLong<-gsub("\\|[[:digit:]]+$","",dat2$Tag)
+
+dat2$FamilyLong<-gsub("^[[:alpha:]]{1}\\|","",dat2$FamilyLong)
+
+dat2$FamilyLong<-gsub("\\|[[:graph:]]+$","",dat2$FamilyLong)
+
+
+#creating the tale in long format
+repTable<-dat2 %>% filter(treatment != "mcnt") %>% group_by(FamilyLong,treatment) %>% summarize(SampleSize=n())
+
+
+#Making the table into a wide format
+repTableWide<-repTable %>% pivot_wider(names_from = treatment,values_from = SampleSize)
+
+##Adding a column for total sample size per genotype
+repTableWide$Total<-repTableWide$a+repTableWide$gm+repTableWide$m
+
+##Ordering the data set.  
+repTableWide<-repTableWide[order(repTableWide$Total,decreasing = T),]
+repTableWide
+
+apply(repTableWide[,2:5],2,sum)
+
+##Printing table. 
+write.csv(repTableWide,"SampleSizeUpdate.csv")
+#write.csv(GenotypeLocation,"GenotypeLocation.csv")
+
+
+
+
+
+
+
+######
+#Generating table demonstrating sample size with loss of glcosinolate samples. 
+#####
+
+# After Sample Loss. 
+repTable<-dat2 %>% filter(treatment != "mcnt") %>% drop_na(gluc_Conc) %>% group_by(FamilyLong,treatment) %>% summarize(SampleSize=n())
+
+
+#Making the table into a wide format
+repTableWide<-repTable %>% pivot_wider(names_from = treatment,values_from = SampleSize)
+
+##Adding a column for total sample size per genotype
+repTableWide$Total<-repTableWide$a+repTableWide$gm+repTableWide$m
+
+##Ordering the data set.  
+repTableWide<-repTableWide[order(repTableWide$Total,decreasing = T),]
+repTableWide
+
+#writing to csv
+write.csv(repTableWide,"SampleSizeNoGlucConc.csv")
+
+#generating column totals
+apply(repTableWide[,2:5],2,sum)
+
+
+
+
+####
+#Generating table with latitude and longitude and altitude added in.
+
+# After Sample Loss. 
+repTable<-dat2 %>% filter(treatment != "mcnt") %>% drop_na(gluc_Conc) %>% group_by(FamilyLong,treatment) %>% summarize(SampleSize=n(),Latitude=first(round(Latitude,2)),Longitude=first(round(Longitude,2)),Altitude=first(Altitude))
+
+
+#Making the table into a wide format
+repTableWide<-repTable %>% pivot_wider(names_from = treatment,values_from = SampleSize)
+
+##Adding a column for total sample size per genotype
+repTableWide$Total<-repTableWide$a+repTableWide$gm+repTableWide$m
+
+##Ordering the data set.  
+repTableWide<-repTableWide[order(repTableWide$Total,decreasing = T),]
+repTableWide
+
+
+write.csv(repTableWide,"Long_Family_Table.csv")
+
+apply(repTableWide[,2:5],2,sum)
+
+
+
+#hmmmmm.... this is very interesting. There is a strong significance between PCCG_2 and adult density. 
+summary(glmmTMB(AdultDens~PCCG_2+(1|Family),data=dat2))
+####
+
+
+#We are seeing that glucosinolate investment is higher in higher adult densities???
+dat2$
+
+
+```

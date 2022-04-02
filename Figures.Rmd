@@ -7,6 +7,7 @@ output: html_document
 
 
 ```{r}
+library(dplyr)
 source("GGPlot_Themes.R")
 
 #read in data
@@ -118,7 +119,7 @@ class(world)
 
 library("maps")
 library("sf")
-states <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
+states <- st_as_sf(map("state", plot = FALSE, fill = TRUE)) %>% as_tibble()
 
 dat<-read.csv("GenotypeLocation.csv")
 Efcc<-dat %>% filter(Family=="EFCC2")
