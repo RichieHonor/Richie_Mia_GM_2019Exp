@@ -119,11 +119,20 @@ class(world)
 
 library("maps")
 library("sf")
-states <- st_as_sf(map("state", plot = FALSE, fill = TRUE)) %>% as_tibble()
+states <- st_as_sf(map("state", plot = FALSE, fill = TRUE)) #%>% as_tibble()
 
 dat<-read.csv("GenotypeLocation.csv")
 Efcc<-dat %>% filter(Family=="EFCC2")
 dat2<-dat %>% filter(Family!="EFCC2")
+
+
+
+
+dat<-dat %>% add_row(Family="Common Garden", Latitude=44.5671, Longitude= -76.3250) 
+
+dat$Cat[dat$Family=="Common Garden"]<-"CG"
+dat$Cat[dat$Family!="Common Garden"]<-"GM"
+
 
 minLat<-min(dat2$Latitude)
 maxLat<-max(dat2$Latitude)
@@ -135,37 +144,57 @@ maxLatE<-max(Efcc$Latitude)
 minLongE<-min(Efcc$Longitude)
 maxLongE<-max(Efcc$Longitude)
 
+tiff("Other_Figures/Genotype_LocationSimple.tiff", units="in", width=8, height=6, res=300)
+ggplot(data=world)+
+  geom_sf(colour=gray(.1),fill=gray(0.95))+
+  geom_sf(data=states,colour=gray(.1),fill=gray(0.95))+
+  geom_point(data=dat,aes(y=Latitude,x=Longitude,colour=Cat, shape=Cat),size=3,stroke=1.25,alpha=0.8)+
+  coord_sf(xlim = c(minLong-5, maxLong+5), ylim = c(minLat-5, maxLat+5), expand = F)+
+  scale_shape_manual(values=c(4,16))+
+  scale_colour_manual(values=c("#E69F00","#009E73"))+
+  theme_simple()+
+  theme(legend.position = "none",
+        axis.line.y.right = element_line(color="black",size=3),
+        panel.border = element_rect(colour = "black", fill=NA, size=1)
 
+        )
+dev.off()
+```
+
+
+```{r}
 library(viridis)
 source("GGPlot_Themes.R")
 library(cowplot)
-
+world
 a<-ggplot(data=world)+
-  geom_sf(colour=gray(.5))+
-  geom_sf(data=states,colour=gray(.5))+
-  geom_point(data=dat,aes(y=Latitude,x=Longitude,colour=Family,shape=Family),size=2.5,stroke=1)+
+  geom_sf(colour=gray(.3))+
+  geom_sf(data=states,colour=gray(.3))+
+  geom_point(data=dat,aes(y=Latitude,x=Longitude),size=2.5,stroke=1)+
 coord_sf(xlim = c(minLong-4, maxLong+4), ylim = c(minLat-4, maxLat+4), expand = F)+
   scale_shape_manual(values=c(0,1,2,3,4,5,7,8,9,11,12,0,1,2,3,4,5,7,8,9,11,12,4))+theme_simple_vert()
 
 leg<-get_legend(a)
-a<-ggplot(data=world)+
-  geom_sf(colour=gray(.5))+
-  geom_sf(data=states,colour=gray(.5))+
-  geom_point(data=dat,aes(y=Latitude,x=Longitude,colour=Family,shape=Family),size=2.5,stroke=1.25)+
+ggplot(data=world)+
+  geom_sf(colour=gray(.1),fill=gray(0.95))+
+  geom_sf(data=states,colour=gray(.1),fill=gray(0.95))+
+  geom_point(data=dat,aes(y=Latitude,x=Longitude),size=1.5,stroke=1.25,colour="darkgreen")+
 coord_sf(xlim = c(minLong-5, maxLong+5), ylim = c(minLat-5, maxLat+5), expand = F)+
   scale_shape_manual(values=c(0,1,2,3,4,5,7,8,9,11,12,0,1,2,3,4,5,7,8,9,11,12,4))+theme_simple_multiCol_First()+theme(legend.position = "none")
+
+gray()
 
 b<-ggplot(data=world)+
   geom_sf(colour=gray(.5))+
   geom_sf(data=states,colour=gray(.5))+
-  geom_point(data=dat,aes(y=Latitude,x=Longitude,colour=Family,shape=Family),size=2.5,stroke=1.25)+
+  geom_point(data=dat,aes(y=Latitude,x=Longitude),size=2,stroke=1.25)+
 coord_sf(xlim = c(minLongE-20, maxLongE+20), ylim = c(minLat-5, maxLat+5), expand = F)+
   scale_shape_manual(values=c(0,1,2,3,4,5,7,8,9,11,12,0,1,2,3,4,5,7,8,9,11,12,4))+theme_simple_multiCol()
 
 
 a
 plots <- align_plots(a, b,align="hv")
-plot_grid(a,b,rel_widths = c(1,0.5))
+plot_grid(a,b,rel_widths = c(1.2,1))
 
 top<-plot_grid(plots[[1]],plots[[2]],ncol=2,rel_widths=c(1,1),rel_heights = c(1,1),labels = c("a","b"),label_fontfamily = "Arial",label_size = 18)
 top
@@ -173,10 +202,84 @@ top
 tiff("Other_Figures/Genotype_Location.tiff", units="in", width=14, height=6, res=300)
 plot_grid(leg,top,ncol=1,rel_heights = c(0.4,1))
 dev.off()
+library(tidyr)
+world %>% tibble()
 
-
+states %>% tibble()
 ```
 
+
+
+
+```{r}
+
+c<-c(
+110,
+27.56,
+149.5,
+74.31,
+208,
+30,
+193.17,
+119,
+166.83,
+158.97)
+
+sum(c)
+
+owing<-c(
+  5,
+  2.90/3,
+  19.91/3,
+  4,
+  127.53-5.30*1.15/3,
+  5.30*1.15,
+  25/3,
+  17.27/3,
+  9.25,
+  58.90,
+  25.34,
+  7.59/3,
+  126.65/3,
+  2.22/3,
+  14.50/3,
+  163.73/3
+)
+
+sum(owing)-3*1.15
+
+
+apr<-c(
+  17.25,
+  18.11,
+  25.8,
+  6.9,
+  15.53,
+  7.5,
+  58.9,
+  86.05,
+  88.03,
+  97.84,
+  7.59,
+  126.65,
+  2.22,
+  14.5,
+  22.02,
+  163.73,
+  81.4,
+  40.25,
+  43.82,
+  39.62,
+  68.99,
+  48.02,
+  9.19,
+  73.02,
+  294.75
+)
+
+sum(apr)
+
+```
 
 
 

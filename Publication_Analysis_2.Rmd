@@ -113,6 +113,8 @@ dead<-dat2[is.na(dat2$GM_TotalLeaf_Area),]
 
 deadID<-dead %>% filter(treatment!="mcnt",Tag!="e|JBCHY1-1-50|Q|240") #Here there are 12 putative dead competitors because  ("e|JBCHY1-1-50|Q|240") did not die. 
 
+
+
 #Creating a collumn for those that survived (1) or died (2) in the greenhouse
 dat2$GreenhouseSurvival<-c()
 dat2$GreenhouseSurvival[dat2$Tag %in% deadID$Tag]<-0
@@ -168,9 +170,19 @@ dat2$GM_FecundityMS<-Standardize(dat2$GM_Fecundity,meanSTD = T)
 
 
 ```
+#year 1 mortality calculations
+```{r}
+#Percent mortality A.p greenhouse: 
+dat2 %>% filter(treatment!="mcnt") %>% nrow()
+12/524*100
 
+#Percent mortality maple year 1
+dat2 %>% filter(Maple_SurvivalY1==1) %>% nrow()
+dat2 %>% filter(Maple_SurvivalY1==0) %>% nrow()
+3/196*100
+```
 
-#Removing dead individuals and dead competitors from the analysis. 
+#Removing dead individuals and dead competitors (year 1) from the analysis. 
 ```{r}
 
 #Removing those with dead competitors from the garlic mustard treatment. ("e|JBCHY1-1-50|Q|240") did not die, we are simply missing the final measurement for it.
@@ -187,6 +199,22 @@ dat2<-dat2[dat2$GreenhouseSurvival==1,]
 dat2<-dat2[dat2$Maple_SurvivalY1==1 | is.na(dat2$Maple_SurvivalY1),]
 
 ```
+
+#Mortality year 2
+```{r}
+#Percent A. petiolata that perished (mortality)
+dat2 %>% filter(Bolt_Survival==0) %>% nrow()
+dat2 %>% filter(Bolt_Survival==1) %>% nrow()
+349/(349+157)
+
+# Percent A saccharum that perished
+dat2 %>% filter(Maple_SurvivalY2==0) %>% nrow()
+dat2 %>% filter(Maple_SurvivalY2==1) %>% nrow()
+12/192*100
+
+
+```
+
 
 #Checking out number of leaf samples
 ```{r}
@@ -221,7 +249,9 @@ dat2[df2$rownumber,"PCCG_2"]<-df2$PC2
 
 hist(dat2$PCCG_1)
 
-
+#Testing correlation
+summary(lm(Standardize(ChlorA)~Standardize(gluc_Conc),data=dat2,na.action=na.omit))
+summary(lm(Standardize(gluc_Conc)~Standardize(ChlorA),data=dat2,na.action=na.omit))
 ```
 
 #PCA of GM SIZE in the second year. 
@@ -319,6 +349,83 @@ MapleModel<-Maple %>% filter(treatment=="m")
 ```
 
 
+#Measuring response to selection for each fitness treatt
+```{r}
+
+##### TLA
+#Removing Na's and making new dataframe with NAs excluded
+datPlot<-dat2 %>% filter(!is.na(Transplant_Size_GM),!is.na(gh_bench),!is.na(GM_TotalLeaf_Area))
+
+#For PCCG_1, Leaf Quality, obtaining the values of PCCG_1 after controlling for leaf area. 
+fit<-glmmTMB(GM_TotalLeaf_Area~Transplant_Size_GM+gh_bench,data=datPlot)
+fitResi<-residuals(fit)
+datPlot$GM_TotalLeaf_AreaRes<-as.single(fitResi)
+
+#TLA
+datPlot %>% mutate(TLA = GM_TotalLeaf_AreaRes) %>% group_by(treatment) %>%  summarize(Var=sd(Standardize(TLA,meanSTD = T))^2)
+
+
+
+#####
+#Survival...idk how to do ... doing for mortality?? 
+
+dat2 <- dat2 %>%  mutate(BoltMortality=1-Bolt_Survival)
+
+#Removing Na's and making new dataframe with NAs excluded
+datPlot<-dat2 %>% filter(!is.na(Transplant_Size_GM),!is.na(gh_bench),!is.na(BoltMortality))
+
+
+#For PCCG_1, Leaf Quality, obtaining the values of PCCG_1 after controlling for leaf area. 
+fit<-glmmTMB(Standardize(BoltMortality,meanSTD = T)~Transplant_Size_GM+gh_bench,data=datPlot)
+fitResi<-residuals(fit)
+datPlot$BoltMortality<-as.single(fitResi)
+
+datPlot %>% group_by(treatment) %>%  summarize(Var=sd(Standardize(BoltMortality,meanSTD = T))^2)
+
+
+
+#looking at survival means in treatment
+dat2 %>% group_by(treatment) %>%  summarize(mean(BoltMortality))
+
+dat2 %>% select(Bolt_Survival,BoltMortality)
+
+##### Fecundity
+#Removing Na's and making new dataframe with NAs excluded
+datPlot<-dat2 %>% filter(!is.na(Transplant_Size_GM),!is.na(gh_bench),!is.na(GM_Fecundity))
+
+#For PCCG_1, Leaf Quality, obtaining the values of PCCG_1 after controlling for leaf area. 
+fit<-glmmTMB(GM_Fecundity~Transplant_Size_GM+gh_bench,data=datPlot)
+fitResi<-residuals(fit)
+datPlot$Fecundity<-as.single(fitResi)
+
+#TLA
+datPlot %>%  group_by(treatment) %>%  summarize(Var=sd(Standardize(GM_Fecundity,meanSTD = T))^2)
+
+
+
+##### Total fitness
+#Removing Na's and making new dataframe with NAs excluded
+datPlot<-dat2 %>% filter(!is.na(Transplant_Size_GM),!is.na(gh_bench),!is.na(GM_Fecundity2))
+
+#For PCCG_1, Leaf Quality, obtaining the values of PCCG_1 after controlling for leaf area. 
+fit<-glmmTMB(GM_Fecundity2~Transplant_Size_GM+gh_bench,data=datPlot)
+fitResi<-residuals(fit)
+datPlot$Fecundity<-as.single(fitResi)
+
+#TLA
+datPlot %>%  group_by(treatment) %>%  summarize(Var=sd(Standardize(GM_Fecundity2,meanSTD = T))^2)
+
+
+
+#simulation for understanding
+p = seq(0,1,0.0001)
+q = 1-p
+
+ggplot()+
+  geom_point(aes(x=p,y=100*p*q))
+
+```
+
 
 
 # Garlic Mustard Models
@@ -408,8 +515,9 @@ anova(fit8,fit7) #No.
 fit6<-glmmTMB(Standardize(GM_TotalLeaf_Area,meanSTD = T)~treatment*Standardize(PCCG_1)+Standardize(Fern)+Standardize(BlackPathDam)+Standardize(Transplant_Size_GM)+(1|gh_bench),  data=dat2)
 summary(fit6)
 
-#Transplant size is very important, no longer have significant PC1 slopes in the alone and maple treatment.
 
+
+#Transplant size is very important, no longer have significant PC1 slopes in the alone and maple treatment.
 plot(residuals(fit6)~fitted(fit6))
 hist(residuals(fit6),breaks=20)
 
@@ -461,6 +569,15 @@ permTest_Contrast(fit6,c("treatmentm:PCCG_1","treatmentgm:PCCG_1","PCCG_1"),Rand
 
 output
 #The p values for this model are very accurate: maple treatment was simulated at 0.001, GM at 0.042 and alone treatment at 0.048
+
+
+#initial measurements
+dat2 %>%  summarize(min(maple_height_0,na.rm=T),max(maple_height_0,na.rm=T),sd(maple_height_0,na.rm=T))
+dat2 %>%  summarize(min(GM_Leaf_Len_Initial,na.rm=T),max(GM_Leaf_Len_Initial,na.rm=T),sd(GM_Leaf_Len_Initial,na.rm=T))
+dat2 %>%  summarize(min(GM_NumberOfLeaves_Initial,na.rm=T),max(GM_NumberOfLeaves_Initial,na.rm=T),sd(GM_NumberOfLeaves_Initial,na.rm=T))
+
+dat2 %>% group_by(treatment) %>%  summarize(min(PCCG_1,na.rm=T),max(PCCG_1,na.rm=T),sd(PCCG_1,na.rm=T))
+dat2 %>% group_by(treatment) %>%  summarize(min(GM_TotalLeaf_Area,na.rm=T),max(GM_TotalLeaf_Area,na.rm=T),sd(GM_TotalLeaf_Area,na.rm=T))
 
 ```
 
@@ -586,7 +703,7 @@ fit<-glmmTMB(Standardize(PCCG_1)~Standardize(GM_Leaf_Area),data=datPlot)
 fitResi<-residuals(fit)
 datPlot$CGResi<-as.single(fitResi)
 
-#Assessing significance of interaction. 
+#Assessing significance of pc1 residuals 
 
 fit1<-glmmTMB(log(GM_Fecundity)~treatment+Transplant_Size_GM+CGResi,data=datPlot)
 
@@ -736,14 +853,14 @@ fit<- glmmTMB(Bolt_Survival ~ treatment*Standardize(PCCG_2) + Standardize(Fern) 
 fit1<- glmmTMB(Bolt_Survival ~ treatment+Standardize(PCCG_2) + Standardize(Fern) +  
       (1 | Row_Field) ,data=dat2, family="binomial")
 anova(fit,fit1) # interaction not significant
-#This is actually close to significant. (p = 0.058)
 
 #Testing PCCG_2 without family
 fit<- glmmTMB(Bolt_Survival ~ treatment+Standardize(PCCG_2) + Standardize(Fern)  
      +(1 | Row_Field),data=dat2[!is.na(dat2$PCCG_2),], family="binomial")
 fit1<- glmmTMB(Bolt_Survival ~ treatment + Standardize(Fern)   
        +(1 | Row_Field),data=dat2[!is.na(dat2$PCCG_2),], family="binomial")
-anova(fit,fit1) 
+anova(fit,fit1) #This is actually close to significant. (p = 0.058)
+
 summary(fit)
 
 #reassessing PCCG_1 treatment interaction when family is not included. 
@@ -887,6 +1004,11 @@ dat2 %>% filter(treatment=="gm") %>% summarize(mean(PCCG_2S,na.rm=T))
 dat2 %>% filter(Bolt_Survival==1) %>% summarize(mean(PCCG_2S,na.rm=T)) -
 dat2 %>%  summarize(mean(PCCG_2S,na.rm=T)) 
 
+summarize(mean(PCCG_2S,na.rm=T)) -
+dat2 %>%  summarize(mean(PCCG_2S,na.rm=T)) 
+
+
+
 ```
 
 
@@ -938,6 +1060,17 @@ fit<-glm(GM_Fecundity2~treatment*PCCG_1+treatment*PCCG_2+Standardize(Fern)+Black
 hist(residuals(fit),breaks=20)
 plot(residuals(fit)~fitted(fit))
 plot(fitted(fit),log(datPlot$GM_Fecundity2+1))+abline(a=0,b=1) #This is also not a great model. 
+
+CI95<-function(x){
+  x<-x[!is.na(x)]
+  error <- qnorm(0.975)*sd(x)/sqrt(length(x))
+  upper<-round(mean(x)+error,2)
+  lower<-round(mean(x)-error,2)
+  return(paste(round(error,2)))
+
+}
+
+dat2 %>% filter(!is.na(GM_Fecundity2)) %>% group_by(treatment) %>% summarize(mean=mean( GM_Fecundity2,na.rm=T),CI=CI95(GM_Fecundity2))
 ```
 
 #Total fitness analysis --modelling without bolt size included. 
@@ -1166,13 +1299,15 @@ fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+PCCG_1+PCCG_2+MapleDamage+GM_TotalL
 anova(fit,fit2) #Family not significant. 
 summary(fit2)
 
-fit3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+PCCG_1+PCCG_2+MapleDamage+Fern, data=MapleModel)
-anova(fit2,fit3) #Total leaf area not significant. 
+#Is TLA significant?
+fit<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+PCCG_1+PCCG_2+MapleDamage+GM_TotalLeaf_Area+Fern, data=MapleModel)
+fit2<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+PCCG_1+PCCG_2+MapleDamage+Fern, data=MapleModel)
+anova(fit,fit2) #TLA is not significant. 
 
 #IS PCCG_2 significant?
+fit3<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+PCCG_1+PCCG_2+MapleDamage+Fern, data=MapleModel)
 fit5<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+Fern+PCCG_1, data=MapleModel)
 anova(fit3,fit5) #Yes it is.... Very interesting. This is the glucosinolate ratio!!
-
 
 #IS PCCG_1 significant?
 fit5<-glmmTMB(Maple_TotalLeafArea_End~PC1Tot+MapleDamage+Fern+PCCG_1+PCCG_2, data=MapleModel)
@@ -1545,14 +1680,25 @@ MapleModel$gh_bench2
 
 #Indirect effect of leaf traits on performance
 
+# MapleFormula_1_1 <- '
+# Maple_TotalLeafArea_EndS2 ~ PC1Tot+B1*PCCG_1S + MapleDamage + B2*PCCG_2S
+# 
+# GM_TotalLeaf_AreaMS ~ B3*Maple_TotalLeafArea_EndS2 + BlackPathDamS +FernS + PCCG_1S+PCCG_2S+ gh_bench2+Transplant_Size_GMS
+# 
+# indirect_PCCG_1 := B1 * B3
+# indirect_PCCG_2 := B2 * B3
+# '
+
+#testing without greenhouse bench
 MapleFormula_1_1 <- '
 Maple_TotalLeafArea_EndS2 ~ PC1Tot+B1*PCCG_1S + MapleDamage + B2*PCCG_2S
 
-GM_TotalLeaf_AreaMS ~ B3*Maple_TotalLeafArea_EndS2 + BlackPathDamS +FernS + PCCG_1S+PCCG_2S+ gh_bench2+Transplant_Size_GMS
+GM_TotalLeaf_AreaMS ~ B3*Maple_TotalLeafArea_EndS2 + BlackPathDamS +FernS + PCCG_1S+PCCG_2S+Transplant_Size_GMS
 
 indirect_PCCG_1 := B1 * B3
 indirect_PCCG_2 := B2 * B3
 '
+
 
 fit<-sem(MapleFormula_1_1,data=MapleModel)
 summary(fit)
@@ -1567,30 +1713,30 @@ source("/Users/richardhonor/Documents/PermutateR/R/new_data.R")
 
 #Permutation tests.
 OutIndirPerfPC2<- permTest_Contrast(fit,c("indirect_PCCG_2"),"PCCG_2S","z",10000,Data_Supplement = MapleModel,OutputData = T) #Will work now. 
-OutIndirPerfPC2
-#[1] "The simulated p-value value for test parameter indirect_PCCG_2 is: 0.0095"
 
+OutIndirPerfPC2
+# [1] "The simulated p-value value for test parameter indirect_PCCG_2 is: 0.0101"
 
 OutIndirPerfPC1<-permTest_Contrast(fit,c("indirect_PCCG_1"),"PCCG_1S","z",10000,Data_Supplement = MapleModel,OutputData = T) 
-#[1] "The simulated p-value value for test parameter indirect_PCCG_1 is: 0.0051"
+# [1] "The simulated p-value value for test parameter indirect_PCCG_1 is: 0.0086"
 
 OutIndirPerfPC1
 
-OutdirPerfMapl<-permTest_Contrast(fit,c("Maple_TotalLeafArea_EndS"),"Maple_TotalLeafArea_EndS","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_TotalLeaf_AreaMS"))
+OutdirPerfMapl<-permTest_Contrast(fit,c("Maple_TotalLeafArea_EndS2"),"Maple_TotalLeafArea_EndS2","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_TotalLeaf_AreaMS"))
 OutdirPerfMapl
 
-#[1] "The simulated p-value value for test parameter Maple_TotalLeafArea_EndS is: 0.0111"
+# [1] "The simulated p-value value for test parameter Maple_TotalLeafArea_EndS2 is: 0.0195"
 
 #Direct PC1
 OutdirPerfPC1<-permTest_Contrast(fit,c("PCCG_1S"),"PCCG_1S","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_TotalLeaf_AreaMS"))
 OutdirPerfPC1
-#[1] "The simulated p-value value for test parameter PCCG_1S is: 0.0773"
+# [1] "The simulated p-value value for test parameter PCCG_1S is: 0.0748"
 
 #Direct PC2
 OutdirPerfPC2<-permTest_Contrast(fit,c("PCCG_2S"),"PCCG_2S","z",10000,Data_Supplement = MapleModel,OutputData = T,Dependent_Variable =c("GM_TotalLeaf_AreaMS"))
 
 OutdirPerfPC2 
-#[1] "The simulated p-value value for test parameter PCCG_2S is: 0.1922"
+# [1] "The simulated p-value value for test parameter PCCG_2S is: 0.1487"
 
 
 
@@ -2405,25 +2551,328 @@ source("GGPlot_Themes.R")
 TLATiff<-ggplot(datPlot)+
   geom_point(aes(y=GMSizeResi,x=PCCG_1S,fill=treatment,shape=treatment),size=3, alpha=0.5)+
   geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
-    geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
-  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+theme_simple_2()+
+  geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
+  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+
+  theme_simple_2()+
   ylab(bquote(bold("Rosette Size Residuals")))+xlab(bquote(bold("Standardized General Investment (PC1)")))+
   scale_y_continuous(breaks=seq(-2,3,by=0.5))+
   scale_x_continuous(breaks=seq(-5,5,by=1))+
-
- 
-    scale_shape_manual(values=c(21,22,24))+
- scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
+  scale_shape_manual(values=c(21,22,24))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
 
 tiff("Selection_Figures/GCInvestement_VS_RosetteSizeResiduals.tiff", units="in", width=8, height=6, res=300)
 TLATiff
 dev.off()
 
+#Plot for combo plot
+TLATiffCombo<-ggplot(datPlot)+
+  geom_point(aes(y=GMSizeResi,x=PCCG_1S,fill=treatment,shape=treatment),size=3, alpha=0.5)+
+  geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
+  geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
+  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+
+  theme_simple_2()+
+  theme(
+    axis.title.x = element_blank(),
+    axis.title.y = element_blank()
+  )+
+  # ylab(bquote(bold("Rosette Size Residuals")))+xlab(bquote(bold("Standardized General Investment (PC1)")))+
+  scale_y_continuous(breaks=seq(-2,3,by=0.5))+
+  scale_x_continuous(breaks=seq(-5,5,by=1))+
+  scale_shape_manual(values=c(21,22,24))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
 
 
 
 
 ```
+
+
+
+#### Fecundity gradients visualization
+```{r}
+source("GGPlot_Themes.R")
+
+###
+#Fitting a residual model
+###
+
+#Obtaining residuals without Standardize(PCCG_1)
+fit12<-glmmTMB(Standardize(GM_FecundityMS)~Standardize(Transplant_Size_GM),data=dat2)
+Fec_Resi<-residuals(fit12)
+
+#Fitting model with the residuals
+datPlot<-dat2[!is.na(dat2$GM_FecundityMS)&!is.na(dat2$Transplant_Size_GM),]
+datPlot<-datPlot %>% mutate(Fec_Resi=Fec_Resi)
+
+#Refitting model with residuals 
+fit12<-glmmTMB(Fec_Resi~treatment+Standardize(PCCG_1),data=datPlot)
+summary(fit12)
+
+###
+#Setting plotting parameters
+###
+
+aloneSlope<-function(x){
+    y=( 0.09242 )*x+ 0.44742 
+  return(y)
+}
+mapleSlope<-function(x){
+  y=( 0.09242  )*x +0.44742    -0.40731   
+  return(y)
+}
+
+mustardSlope<-function(x){
+    y=(0.09242 )*x+ 0.44742    -0.97081  
+  return(y)
+}
+
+#Standardizing variables.
+datPlot$PCCG_1S<-Standardize(datPlot$PCCG_1)
+
+#Obtaining minimum and maximum values of leaf quality in each treatment.
+minM<-min(datPlot$PCCG_1S[datPlot$treatment=="m"],na.rm = T)
+maxM<-max(datPlot$PCCG_1S[datPlot$treatment=="m"],na.rm = T)
+
+minA<-min(datPlot$PCCG_1S[datPlot$treatment=="a"],na.rm = T)
+maxA<-max(datPlot$PCCG_1S[datPlot$treatment=="a"],na.rm = T)
+
+minG<-min(datPlot$PCCG_1S[datPlot$treatment=="gm"],na.rm = T)
+maxG<-max(datPlot$PCCG_1S[datPlot$treatment=="gm"],na.rm = T)
+
+#Removing maple control
+datPlot<-datPlot[datPlot$treatment!="mcnt",]
+
+
+###
+#Plotting
+###
+source("GGPlot_Themes.R")
+
+FecTiff<-ggplot(datPlot)+
+  geom_point(aes(y=Fec_Resi,x=PCCG_1S,fill=treatment,shape=treatment),size=3, alpha=0.5)+
+  geom_segment(x=minA,xend=maxA,y=aloneSlope(minA),yend=aloneSlope(maxA),colour="#009E73",size=1.5)+
+  geom_segment(x=minM,xend=maxM,y=mapleSlope(minM),yend=mapleSlope(maxM),colour="#E69F00",size=1.5)+
+  geom_segment(x=minG,xend=maxG,y=mustardSlope(minG),yend=mustardSlope(maxG),colour="#56B4E9",size=1.5)+
+  theme_simple_2()+
+  theme(
+    axis.title.y=element_blank(),
+    axis.title.x = element_blank()
+  )+
+  # ylab(bquote(bold("Rosette Size Residuals")))+xlab(bquote(bold("Standardized General Investment (PC1)")))+
+  scale_y_continuous(breaks=seq(-3,5,by=0.5),limits=c(-1.5,4.2))+
+  scale_x_continuous(breaks=seq(-5,5,by=1))+
+  scale_shape_manual(values=c(21,22,24))+
+  scale_fill_manual(values=c("#009E73","#56B4E9","#E69F00"),labels=c("Alone","Intraspecific","Interspecific"))
+
+tiff("Selection_Figures/PC1_VS_FecundityResiduals.tiff", units="in", width=8, height=6, res=300)
+FecTiff
+dev.off()
+
+
+tiff("Selection_Figures/PC1_TLAGM_Fecundity_Combo.tiff", units="in", width=14, height=6, res=300)
+plot_grid(TLATiffCombo,FecTiff,ncol=2,rel_widths=c(1,1),rel_heights = c(1,1),label_fontfamily = "Arial",label_size = 18)
+dev.off()
+
+
+```
+
+
+# Maple figure
+```{r}
+
+###
+#Fitting a residual model
+###
+
+#Obtaining residuals without Standardize(PCCG_1) (For PC1)
+
+fit3<-glmmTMB(Standardize(Maple_TotalLeafArea_End,meanSTD = T)~Standardize(PC1Tot)+Standardize(PCCG_2)+Standardize(MapleDamage), data=MapleModel)
+Maple_PC1_Resi<-residuals(fit3)
+
+#Creating dataframe without NA
+datPlot<-MapleModel[!is.na(MapleModel$Maple_TotalLeafArea_End)&!is.na(MapleModel$PCCG_2)&!is.na(MapleModel$MapleDamage)&!is.na(MapleModel$PC1Tot),]
+
+#Adding in residuals to dataframe
+datPlot<-datPlot %>% mutate(Maple_PC1_Resi=Maple_PC1_Resi)
+
+#Refitting model with residuals 
+fit12<-glmmTMB(Maple_PC1_Resi~Standardize(PCCG_1),data=datPlot)
+summary(fit12)
+
+
+
+###
+#Setting plotting parameters
+###
+PC1Slope<-function(x){
+  y=( -1.036e-01  )*x +1.045e-06
+  return(y)
+}
+
+
+
+#Standardizing variables.
+datPlot$PCCG_1S<-Standardize(datPlot$PCCG_1)
+
+
+#Obtaining minimum and maximum values of leaf quality in each treatment.
+minM<-min(datPlot$PCCG_1S,na.rm = T)
+maxM<-max(datPlot$PCCG_1S,na.rm = T)
+
+
+
+#Removing maple control
+datPlot<-datPlot[datPlot$treatment!="mcnt",]
+
+
+###
+#Plotting
+###
+source("GGPlot_Themes.R")
+
+PC1Maple<-ggplot(datPlot)+
+  geom_point(aes(y=Maple_PC1_Resi,x=PCCG_1S,fill=treatment,shape=treatment),size=3, alpha=0.5)+
+  geom_segment(x=minM,xend=maxM,y=PC1Slope(minM),yend=PC1Slope(maxM),colour="#E69F00",size=1.5)+
+  theme_simple_2()+
+  theme(
+    axis.title.y = element_blank(),
+    axis.title.x = element_blank()
+
+  )+
+  # ylab(bquote(bold("Acer saccharum TLA")))+xlab(bquote(bold("Standardized General Investment (PC1)")))+
+  scale_y_continuous(breaks=seq(-3,3,by=0.5),limits=c(-1,2))+
+  scale_x_continuous(breaks=seq(-5,5,by=1))+
+  scale_shape_manual(values=c(21,22,24))+
+  scale_fill_manual(values=c("#E69F00"))
+
+
+#----------------—————————————————————————----------- 
+###
+#Obtaining residuals without Standardize(PCCG_1) (For PC2)
+###
+
+fit3<-glmmTMB(Standardize(Maple_TotalLeafArea_End,meanSTD = T)~Standardize(PC1Tot)+Standardize(PCCG_1)+Standardize(MapleDamage), data=MapleModel)
+Maple_PC2_Resi<-residuals(fit3)
+
+#Creating dataframe without NA
+datPlot<-MapleModel[!is.na(MapleModel$Maple_TotalLeafArea_End)&!is.na(MapleModel$PCCG_1)&!is.na(MapleModel$MapleDamage)&!is.na(MapleModel$PC1Tot),]
+
+#Adding in residuals to dataframe
+datPlot<-datPlot %>% mutate(Maple_PC2_Resi=Maple_PC2_Resi)
+
+#Refitting model with residuals 
+fit12<-glmmTMB(Maple_PC2_Resi~Standardize(PCCG_2),data=datPlot)
+summary(fit12)
+
+datPlot$PCCG_2S<-Standardize(datPlot$PCCG_2)
+
+#Obtaining minimum and maximum values of leaf quality in each treatment.
+minM<-min(datPlot$PCCG_2S,na.rm = T)
+maxM<-max(datPlot$PCCG_2S,na.rm = T)
+
+
+PC2Slope<-function(x){
+  y=( 7.454e-02 )*x +3.027e-08
+  return(y)
+}
+
+
+
+PC2Maple<-ggplot(datPlot)+
+  geom_point(aes(y=Maple_PC2_Resi,x=PCCG_2S,fill=treatment,shape=treatment),size=3, alpha=0.5)+
+  geom_segment(x=minM,xend=maxM,y=PC2Slope(minM),yend=PC2Slope(maxM),colour="#E69F00",size=1.5)+
+  theme_simple_2()+
+  # ylab(bquote(bold("Acer saccharum TLA")))+
+  xlab(bquote(bold("Relative Investment (PC2)")))+
+  scale_y_continuous(breaks=seq(-3,3,by=0.5),limits=c(-1,2))+
+  scale_x_continuous(breaks=seq(-5,5,by=1))+
+  scale_shape_manual(values=c(21,22,24))+
+  theme(
+    axis.title.y = element_blank(),
+    axis.text.y = element_blank(),
+    axis.title.x = element_blank()
+    
+
+  )+
+  scale_fill_manual(values=c("#E69F00"))
+
+
+tiff("Maple_Figures/PC1_PC2_MapleTLA.tiff", units="in", width=14, height=6, res=300)
+plot_grid(PC1Maple,PC2Maple,ncol=2,rel_widths=c(1,1),rel_heights = c(1,1),label_fontfamily = "Arial",label_size = 18)
+dev.off()
+```
+
+
+#Figure for change in mean pc1 and pc2
+```{r}
+
+##### PC1
+dat2$PCCG_1S<-Standardize(dat2$PCCG_1)
+dat2$PCCG_2S<-Standardize(dat2$PCCG_2)
+
+#Alone treatment ... -0.03
+A_Change_PC1<-dat2 %>% filter(treatment=="a",Bolt_Survival==1) %>% summarize(mean(PCCG_1S,na.rm=T))%>% pull() -
+dat2 %>% filter(treatment=="a") %>% summarize(mean(PCCG_1S,na.rm=T)) %>% pull()
+
+#Maple treatment...0.099
+M_Change_PC1<-dat2 %>% filter(treatment=="m",Bolt_Survival==1) %>% summarize(mean(PCCG_1S,na.rm=T))%>% pull() -
+dat2 %>% filter(treatment=="m") %>% summarize(mean(PCCG_1S,na.rm=T)) %>% pull()
+
+
+#GM treatment...0.433
+GM_Change_PC1<-dat2 %>% filter(treatment=="gm",Bolt_Survival==1) %>% summarize(mean(PCCG_1S,na.rm=T)) %>% pull()-
+dat2 %>% filter(treatment=="gm") %>% summarize(mean(PCCG_1S,na.rm=T)) %>% pull()
+
+
+
+##### PC2
+#Alone treatment ... 0.0089
+A_Change_PC2<-dat2 %>% filter(treatment=="a",Bolt_Survival==1) %>% summarize(mean(PCCG_2S,na.rm=T))%>% pull() -
+dat2 %>% filter(treatment=="a") %>% summarize(mean(PCCG_2S,na.rm=T)) %>% pull()
+
+
+#Maple treatment...-0.221
+M_Change_PC2<-dat2 %>% filter(treatment=="m",Bolt_Survival==1) %>% summarize(mean(PCCG_2S,na.rm=T))%>% pull() -
+dat2 %>% filter(treatment=="m") %>% summarize(mean(PCCG_2S,na.rm=T)) %>% pull()
+
+
+#GM treatment...-0.321
+GM_Change_PC2<-dat2 %>% filter(treatment=="gm",Bolt_Survival==1) %>% summarize(mean(PCCG_2S,na.rm=T))%>% pull() -
+dat2 %>% filter(treatment=="gm") %>% summarize(mean(PCCG_2S,na.rm=T)) %>% pull()
+
+d1<-dat2 %>% filter(treatment=="m",Bolt_Survival==1) %>% select(PCCG_2S)  %>%  pull() 
+d2<-dat2 %>% filter(treatment=="m") %>% select(PCCG_2S) %>% pull()
+
+Trait=c("PC1","PC1","PC1","PC2","PC2","PC2")
+Value=c(A_Change_PC1,M_Change_PC1,GM_Change_PC1,A_Change_PC2,M_Change_PC2,GM_Change_PC2)
+Treatment=c("Alone","Interspecific","Intraspecific","Alone","Interspecific","Intraspecific")
+
+changeVis<-data.frame(Trait,Value,Treatment)
+
+
+ggplot(changeVis)+
+  geom_col(aes(y=Value,x=Trait,fill=Treatment),position = "dodge",colour="black")+
+  theme_simple_2()+
+  ylab(bquote(bold("Trait value (σ)")))+
+  xlab(bquote(bold("Standardized General Investment (PC1)")))+
+  # scale_y_continuous(breaks=seq(-2,3,by=0.5))+
+  # scale_x_continuous(breaks=seq(-5,5,by=1))+
+  # 
+  theme(
+    axis.title.x=element_blank()
+  )+
+    # scale_shape_manual(values=c(21,22,24))+
+ scale_fill_manual(values=c("#009E73","#E69F00","#56B4E9"),labels=c("Alone","Intraspecific","Interspecific"))
+
+  
+
+
+```
+
+
+
+
+
 
 #### Performance Path analysis Visualization 
 ```{r}

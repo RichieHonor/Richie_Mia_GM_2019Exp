@@ -6,6 +6,5 @@ x,y,name,.ggraph.orig_index,circular,.ggraph.index,name2
 9,20,Maple_TotalLeafArea_EndS,5,FALSE,5,Acer saccharum TLA
 8.75,16,BlackPathDamS,6,FALSE,6,Xanthomonas campestris
 8.25,16,FernS,7,FALSE,7,Fern
-9.25,16,gh_bench2,8,FALSE,8,Greenhouse Bench
-9.75,16,Transplant_Size_GMS,9,FALSE,9,Transplant Size
-9,18,GM_TotalLeaf_AreaMS,10,FALSE,10,Rosette Size
+9,16,Transplant_Size_GMS,9,FALSE,9,Transplant Size
+9.75,18,GM_TotalLeaf_AreaMS,10,FALSE,10,Rosette Size

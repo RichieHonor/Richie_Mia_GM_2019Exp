@@ -15,11 +15,11 @@ theme_simple<-function(){
       #Theme of axis text and ticks
       axis.text.x = element_text(color = "black", size = 14, face = "bold"),
       axis.text.y = element_text(color = "black", size = 14, face = "bold"),
-      axis.ticks = element_blank(),
+      # axis.ticks = element_blank(),
       
       #Theme of Axis titles
       axis.title.x =  element_text(color = "black", size = 18, face = "bold",margin=margin(10,0,0,0)),
-      axis.title.y =  element_text(color = "black", size = 18, face = "bold",angle=0,vjust= 0.5,margin=margin(0,10,0,0)),
+      axis.title.y =  element_text(color = "black", size = 18, face = "bold",angle=90,vjust= 0.5,margin=margin(0,10,0,0)),
       
       #Plot Margin
       plot.margin = unit(c(1,1,1,1), "cm"),
